@@ -194,7 +194,7 @@ class Service:
     async def recommend_with_query(
         self,
         query: Query,
-        exclude_item_ids: list[int] | None = None,
+        exclude_item_ids: list[str] | None = None,
         top_k: int = TOP_K,
     ) -> list[ItemCandidate]:
         query = await self.embed_query(query)
