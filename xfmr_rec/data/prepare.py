@@ -236,10 +236,33 @@ def gather_history(events: pl.LazyFrame, *, path: pathlib.Path) -> pl.LazyFrame:
     events_history = (
         events.rolling("datetime", period="4w", closed="none", group_by="user_id")
         .agg(history=pl.struct(*activity_cols))
+        .with_columns(history=pl.col("history").list.sort())
+        .with_columns(
+            history=pl.struct(
+                pl.col("history")
+                .list.eval(  # devskim: ignore DS189424
+                    pl.element().struct.field(col)
+                )
+                .alias(col)
+                for col in activity_cols
+            )
+        )
         .unique(["user_id", "datetime"])
     )
-    events_target = events.group_by("user_id", "is_train").agg(
-        target=pl.struct(*activity_cols)
+    events_target = (
+        events.group_by("user_id", "is_train")
+        .agg(target=pl.struct(*activity_cols))
+        .with_columns(target=pl.col("target").list.sort())
+        .with_columns(
+            target=pl.struct(
+                pl.col("target")
+                .list.eval(  # devskim: ignore DS189424
+                    pl.element().struct.field(col)
+                )
+                .alias(col)
+                for col in activity_cols
+            )
+        )
     )
     events_history = events.join(
         events_history, on=["user_id", "datetime"], validate="m:1"
