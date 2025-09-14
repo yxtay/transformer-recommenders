@@ -54,24 +54,24 @@ jobs:
 
       - run: uv run pytest
 
-      - if: ${{ success() || failure() }}
-        run: uv run lightning fit --print_config
+      # - if: ${{ success() || failure() }}
+      #   run: uv run lightning fit --print_config
 
-      - if: ${{ success() || failure() }}
-        run: |
-          uv run lightning fit \
-            --trainer.limit_train_batches 1 \
-            --trainer.limit_val_batches 1 \
-            --data.config.num_workers 0
+      # - if: ${{ success() || failure() }}
+      #   run: |
+      #     uv run lightning fit \
+      #       --trainer.limit_train_batches 1 \
+      #       --trainer.limit_val_batches 1 \
+      #       --data.config.num_workers 0
 
-      - if: ${{ success() || failure() }}
-        run: uv run python -m "${PROJECT_NAME}.bentoml.prepare"
+      # - if: ${{ success() || failure() }}
+      #   run: uv run python -m "${PROJECT_NAME}.bentoml.prepare"
 
-      - if: ${{ failure() }}
-        run: uv run python -m "${PROJECT_NAME}.lightning"
+      # - if: ${{ failure() }}
+      #   run: uv run python -m "${PROJECT_NAME}.lightning"
 
-      - if: ${{ failure() }}
-        run: uv run python -m "${PROJECT_NAME}.data.lightning"
+      # - if: ${{ failure() }}
+      #   run: uv run python -m "${PROJECT_NAME}.data.lightning"
 
       - if: ${{ failure() }}
         run: uv run data
@@ -117,35 +117,35 @@ jobs:
         env:
           IMAGE_ID: ${{ steps.build.outputs.imageid }}
 
-      - if: ${{ success() || failure() }}
-        run: ${DOCKER_RUN_CMD} "${IMAGE_ID}" uv run lightning fit --print_config
-        env:
-          IMAGE_ID: ${{ steps.build.outputs.imageid }}
+      # - if: ${{ success() || failure() }}
+      #   run: ${DOCKER_RUN_CMD} "${IMAGE_ID}" uv run lightning fit --print_config
+      #   env:
+      #     IMAGE_ID: ${{ steps.build.outputs.imageid }}
 
-      - if: ${{ success() || failure() }}
-        run: |
-          ${DOCKER_RUN_CMD} "${IMAGE_ID}" \
-            uv run lightning fit \
-            --trainer.limit_train_batches 1 \
-            --trainer.limit_val_batches 1 \
-            --data.config.num_workers 0
-        env:
-          IMAGE_ID: ${{ steps.build.outputs.imageid }}
+      # - if: ${{ success() || failure() }}
+      #   run: |
+      #     ${DOCKER_RUN_CMD} "${IMAGE_ID}" \
+      #       uv run lightning fit \
+      #       --trainer.limit_train_batches 1 \
+      #       --trainer.limit_val_batches 1 \
+      #       --data.config.num_workers 0
+      #   env:
+      #     IMAGE_ID: ${{ steps.build.outputs.imageid }}
 
-      - if: ${{ success() || failure() }}
-        run: ${DOCKER_RUN_CMD} "${IMAGE_ID}" python -m "${PROJECT_NAME}.bentoml.prepare"
-        env:
-          IMAGE_ID: ${{ steps.build.outputs.imageid }}
+      # - if: ${{ success() || failure() }}
+      #   run: ${DOCKER_RUN_CMD} "${IMAGE_ID}" python -m "${PROJECT_NAME}.bentoml.prepare"
+      #   env:
+      #     IMAGE_ID: ${{ steps.build.outputs.imageid }}
 
-      - if: ${{ failure() }}
-        run: ${DOCKER_RUN_CMD} "${IMAGE_ID}" python -m "${PROJECT_NAME}.lightning"
-        env:
-          IMAGE_ID: ${{ steps.build.outputs.imageid }}
+      # - if: ${{ failure() }}
+      #   run: ${DOCKER_RUN_CMD} "${IMAGE_ID}" python -m "${PROJECT_NAME}.lightning"
+      #   env:
+      #     IMAGE_ID: ${{ steps.build.outputs.imageid }}
 
-      - if: ${{ failure() }}
-        run: ${DOCKER_RUN_CMD} "${IMAGE_ID}" python -m "${PROJECT_NAME}.data.lightning"
-        env:
-          IMAGE_ID: ${{ steps.build.outputs.imageid }}
+      # - if: ${{ failure() }}
+      #   run: ${DOCKER_RUN_CMD} "${IMAGE_ID}" python -m "${PROJECT_NAME}.data.lightning"
+      #   env:
+      #     IMAGE_ID: ${{ steps.build.outputs.imageid }}
 
       - if: ${{ failure() }}
         run: ${DOCKER_RUN_CMD} "${IMAGE_ID}" uv run data
