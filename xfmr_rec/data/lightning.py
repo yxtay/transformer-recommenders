@@ -274,7 +274,7 @@ class UserProcessor(
         return pathlib.Path(self.data_dir, "ml-1m", "users.parquet").as_posix()
 
     def process(self, example: dict[str, Any]) -> UserFeaturesType:
-        pos_idx = {target[ITEM_IDX_COL] for target in example["target"]}
+        pos_idx = {example["target"][ITEM_IDX_COL]}
         return {
             **example,
             "text": example[self.text_col],
