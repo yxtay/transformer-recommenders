@@ -198,6 +198,8 @@ def process_events(
     src_dir: str = DATA_DIR,
     overwrite: bool = False,
 ) -> pl.LazyFrame:
+    from concurrent.futures import ThreadPoolExecutor
+
     events_parquet = pathlib.Path(src_dir, "ml-1m", "events.parquet")
     if events_parquet.exists() and not overwrite:
         events_processed = pl.scan_parquet(events_parquet)
@@ -209,12 +211,17 @@ def process_events(
         .join(items.lazy(), on="item_id", how="left", validate="m:1")
         .join(users.lazy(), on="user_id", how="left", validate="m:1")
         .sort(["user_id", "datetime"])
-        .collect()
     )
 
-    events_processed.write_parquet(events_parquet)
-    logger.info("events saved: {}, shape: {}", events_parquet, events_processed.shape)
-    return pl.scan_parquet(events_parquet)
+    with ThreadPoolExecutor() as executor:
+        for _, df in events_processed.collect().group_by("user_id"):
+            executor.submit(gather_history, events=df.lazy(), path=events_parquet)
+
+    events_processed = pl.scan_parquet(events_parquet)
+    n_row = events_processed.select(pl.len()).collect().item()
+    n_col = events_processed.collect_schema().len()
+    logger.info("events saved: {}, shape: {}", events_parquet, (n_row, n_col))
+    return events_processed
 
 
 def gather_history(events: pl.LazyFrame, *, path: pathlib.Path) -> pl.LazyFrame:
