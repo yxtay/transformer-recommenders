@@ -317,7 +317,7 @@ class UserProcessor(
 
     def get_activity(self, id_val: str | None, activity_name: str) -> dict[str, int]:
         activity = self.get_id(id_val).get(activity_name, {})
-        return dict(zip(activity[ITEM_ID_COL], activity[TARGET_COL], strict=False))
+        return dict(zip(activity[ITEM_ID_COL], activity[TARGET_COL], strict=True))
 
 
 class InteractionProcessor(
