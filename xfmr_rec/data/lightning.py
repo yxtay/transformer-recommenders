@@ -499,13 +499,13 @@ if __name__ == "__main__":
         rich.print(shapes)
 
     dm.user_processor.get_index().search().to_polars().glimpse()
-    rich.print(dm.user_processor.get_id(1))
-    rich.print(dm.user_processor.get_activity(1, "history"))
-    rich.print(dm.user_processor.get_activity(1, "target"))
+    rich.print(dm.user_processor.get_id("1"))
+    rich.print(dm.user_processor.get_activity("1", "history"))
+    rich.print(dm.user_processor.get_activity("1", "target"))
 
     dm.item_processor.get_index(
         lambda _: torch.rand(1, 32)  # devskim: ignore DS148264
     ).search().to_polars().glimpse()
-    rich.print(dm.item_processor.get_id(1))
+    rich.print(dm.item_processor.get_id("1"))
     query_vector = torch.rand(1, 32).numpy()  # devskim: ignore DS148264
     rich.print(dm.item_processor.search(query_vector, top_k=5))
