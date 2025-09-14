@@ -165,7 +165,9 @@ class MatrixFactorizationLitModule(LightningModule):
             zip(pred_scores[item_id_col], pred_scores["score"], strict=True)
         )
         target_scores = example["target"]
-        target_scores = {item[item_id_col]: item[TARGET_COL] for item in target_scores}
+        target_scores = dict(
+            zip(target_scores[item_id_col], target_scores[TARGET_COL], strict=True)
+        )
 
         item_ids = list(target_scores.keys() | pred_scores.keys())
         rand_scores = torch.rand(len(item_ids)).tolist()  # devskim: ignore DS148264
