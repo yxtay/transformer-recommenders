@@ -32,6 +32,7 @@ class Activity(pydantic.BaseModel):
 
 
 class UserQuery(pydantic.BaseModel):
+    user_rn: int = 0
     user_id: str = "0"
     user_text: str = ""
     history: Activity | None = None
@@ -117,7 +118,7 @@ class ItemProcessor:
     @bentoml.api()
     @logger.catch(reraise=True)
     def search(
-        self, query: Query, exclude_item_ids: list[int], top_k: int = TOP_K
+        self, query: Query, exclude_item_ids: list[str], top_k: int = TOP_K
     ) -> list[ItemCandidate]:
         from pydantic import TypeAdapter
 
@@ -132,7 +133,7 @@ class ItemProcessor:
 
     @bentoml.api()
     @logger.catch(reraise=True)
-    def get_id(self, item_id: int) -> ItemQuery:
+    def get_id(self, item_id: str) -> ItemQuery:
         from bentoml.exceptions import NotFound
 
         result = self.item_processor.get_id(item_id)
@@ -165,7 +166,7 @@ class UserProcessor:
 
     @bentoml.api()
     @logger.catch(reraise=True)
-    def get_id(self, user_id: int) -> UserQuery:
+    def get_id(self, user_id: str) -> UserQuery:
         from bentoml.exceptions import NotFound
 
         result = self.user_processor.get_id(user_id)
@@ -211,7 +212,7 @@ class Service:
     async def search_items(
         self,
         query: Query,
-        exclude_item_ids: list[int] | None = None,
+        exclude_item_ids: list[str] | None = None,
         top_k: int = TOP_K,
     ) -> list[ItemCandidate]:
         exclude_item_ids = exclude_item_ids or []
@@ -224,7 +225,7 @@ class Service:
     async def recommend_with_item(
         self,
         item: ItemQuery,
-        exclude_item_ids: list[int] | None = None,
+        exclude_item_ids: list[str] | None = None,
         top_k: int = TOP_K,
     ) -> list[ItemCandidate]:
         if item.item_id:
@@ -244,8 +245,8 @@ class Service:
     @logger.catch(reraise=True)
     async def recommend_with_item_id(
         self,
-        item_id: int,
-        exclude_item_ids: list[int] | None = None,
+        item_id: str,
+        exclude_item_ids: list[str] | None = None,
         top_k: int = TOP_K,
     ) -> list[ItemCandidate]:
         item = await self.item_id(item_id)
@@ -255,7 +256,7 @@ class Service:
 
     @bentoml.api()
     @logger.catch(reraise=True)
-    async def item_id(self, item_id: int) -> ItemQuery:
+    async def item_id(self, item_id: str) -> ItemQuery:
         return await self.item_processor.to_async.get_id(item_id)
 
     @bentoml.api()
@@ -263,14 +264,14 @@ class Service:
     async def recommend_with_user(
         self,
         user: UserQuery,
-        exclude_item_ids: list[int] | None = None,
+        exclude_item_ids: list[str] | None = None,
         top_k: int = TOP_K,
     ) -> list[ItemCandidate]:
         exclude_item_ids = exclude_item_ids or []
         if user.history:
-            exclude_item_ids += [item.item_id for item in user.history]
+            exclude_item_ids += user.history.item_id
         if user.target:
-            exclude_item_ids += [item.item_id for item in user.target]
+            exclude_item_ids += user.target.item_id
 
         query = await self.process_user(user)
         return await self.recommend_with_query(
@@ -286,8 +287,8 @@ class Service:
     @logger.catch(reraise=True)
     async def recommend_with_user_id(
         self,
-        user_id: int,
-        exclude_item_ids: list[int] | None = None,
+        user_id: str,
+        exclude_item_ids: list[str] | None = None,
         top_k: int = TOP_K,
     ) -> list[ItemCandidate]:
         user = await self.user_id(user_id)
@@ -297,7 +298,7 @@ class Service:
 
     @bentoml.api()
     @logger.catch(reraise=True)
-    async def user_id(self, user_id: int) -> UserQuery:
+    async def user_id(self, user_id: str) -> UserQuery:
         return await self.user_processor.to_async.get_id(user_id)
 
     @bentoml.api()

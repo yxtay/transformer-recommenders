@@ -142,10 +142,12 @@ class LanceDbProcessor(pydantic.BaseModel):
     def lance_table(self) -> lancedb.table.Table:
         return self.lance_db.open_table(self.lance_table_name)
 
-    def get_id(self, id_val: int | None) -> dict[str, Any]:
+    def get_id(self, id_val: str | None) -> dict[str, Any]:
         if id_val is None:
             return {}
-        result = self.lance_table.search().where(f"{self.id_col} = {id_val}").to_list()
+        result = (
+            self.lance_table.search().where(f"{self.id_col} = '{id_val}'").to_list()
+        )
         if len(result) == 0:
             return {}
         return result[0]
@@ -237,15 +239,15 @@ class ItemProcessor(
     def search(
         self,
         embedding: npt.NDArray[np.float64],
-        exclude_item_ids: list[int] | None = None,
+        exclude_item_ids: list[str] | None = None,
         top_k: int = TOP_K,
     ) -> pd.DataFrame:
         if self.lance_table is None:
             msg = "`index` must be intialised first"
             raise ValueError(msg)
 
-        exclude_item_ids = exclude_item_ids or [0]
-        exclude_filter = ", ".join(f"{item}" for item in exclude_item_ids)
+        exclude_item_ids = exclude_item_ids or ["0"]
+        exclude_filter = ", ".join(f"'{item}'" for item in exclude_item_ids)
         exclude_filter = f"{self.id_col} NOT IN ({exclude_filter})"
         return (
             self.lance_table.search(embedding)
@@ -303,7 +305,7 @@ class UserProcessor(
         )
         return table
 
-    def get_activity(self, id_val: int | None, activity_name: str) -> dict[int, int]:
+    def get_activity(self, id_val: str | None, activity_name: str) -> dict[str, int]:
         activity = self.get_id(id_val).get(activity_name, {})
         return dict(zip(activity[ITEM_ID_COL], activity[TARGET_COL], strict=False))
 
