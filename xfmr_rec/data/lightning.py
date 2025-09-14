@@ -166,7 +166,7 @@ class ItemProcessor(
 
     @property
     def data_path(self) -> str:
-        return pathlib.Path(self.data_dir, "ml-1m", "movies.parquet").as_posix()
+        return pathlib.Path(self.data_dir, "ml-1m", "items.parquet").as_posix()
 
     def process(self, example: dict[str, Any]) -> ItemFeaturesType:
         return {
@@ -305,7 +305,7 @@ class UserProcessor(
 
     def get_activity(self, id_val: int | None, activity_name: str) -> dict[int, int]:
         activity = self.get_id(id_val).get(activity_name, {})
-        return {item[ITEM_ID_COL]: item[TARGET_COL] for item in activity}
+        return dict(zip(activity[ITEM_ID_COL], activity[TARGET_COL], strict=False))
 
 
 class InteractionProcessor(

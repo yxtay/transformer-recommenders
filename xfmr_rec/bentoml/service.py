@@ -23,25 +23,25 @@ from xfmr_rec.params import (
 
 
 class Activity(pydantic.BaseModel):
-    datetime: datetime.datetime
-    rating: int
-    movie_rn: int
-    movie_id: int
-    movie_text: str
+    datetime: list[datetime.datetime]
+    event_name: list[str]
+    event_value: list[int]
+    item_rn: list[int]
+    item_id: list[str]
+    item_text: list[str]
 
 
 class UserQuery(pydantic.BaseModel):
-    user_rn: int = 0
-    user_id: int = 0
+    user_id: str = "0"
     user_text: str = ""
-    history: list[Activity] | None = None
-    target: list[Activity] | None = None
+    history: Activity | None = None
+    target: Activity | None = None
 
 
 class ItemQuery(pydantic.BaseModel):
-    movie_rn: int = 0
-    movie_id: int = 0
-    movie_text: str = ""
+    item_rn: int = 0
+    item_id: str = "0"
+    item_text: str = ""
 
 
 class Query(bentoml.IODescriptor):
@@ -50,20 +50,20 @@ class Query(bentoml.IODescriptor):
 
 
 class ItemCandidate(pydantic.BaseModel):
-    movie_id: int
-    movie_text: str
+    item_id: str
+    item_text: str
     score: float
 
 
 EXAMPLE_ITEM = ItemQuery(
-    movie_rn=1,
-    movie_id=1,
-    movie_text='{"title":"Toy Story (1995)","genres":["Animation","Children\'s","Comedy"]}',
+    item_rn=1,
+    item_id="1",
+    item_text='{"title":"Toy Story (1995)","genres":["Animation","Children\'s","Comedy"]}',
 )
 
 EXAMPLE_USER = UserQuery(
     user_rn=1,
-    user_id=1,
+    user_id="1",
     user_text='{"gender":"F","age":1,"occupation":10,"zipcode":"48067"}',
 )
 
@@ -227,8 +227,8 @@ class Service:
         exclude_item_ids: list[int] | None = None,
         top_k: int = TOP_K,
     ) -> list[ItemCandidate]:
-        if item.movie_id:
-            exclude_item_ids = [*(exclude_item_ids or []), item.movie_id]
+        if item.item_id:
+            exclude_item_ids = [*(exclude_item_ids or []), item.item_id]
 
         query = await self.process_item(item)
         return await self.recommend_with_query(
@@ -268,9 +268,9 @@ class Service:
     ) -> list[ItemCandidate]:
         exclude_item_ids = exclude_item_ids or []
         if user.history:
-            exclude_item_ids += [item.movie_id for item in user.history]
+            exclude_item_ids += [item.item_id for item in user.history]
         if user.target:
-            exclude_item_ids += [item.movie_id for item in user.target]
+            exclude_item_ids += [item.item_id for item in user.target]
 
         query = await self.process_user(user)
         return await self.recommend_with_query(

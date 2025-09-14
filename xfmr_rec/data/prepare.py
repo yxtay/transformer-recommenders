@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import pathlib
-from concurrent.futures import ThreadPoolExecutor
 
+import pandas as pd
 import polars as pl
 from loguru import logger
 
@@ -66,14 +66,12 @@ def download_unpack_data(
 ###
 
 
-def load_movies(src_dir: str = DATA_DIR) -> pl.LazyFrame:
-    import pandas as pd
-
-    movies_dat = pathlib.Path(src_dir, "ml-1m", "movies.dat")
-    dtype = {"movie_id": "int32", "title": "str", "genres": "str"}
-    movies = (
+def load_items(src_dir: str = DATA_DIR) -> pl.LazyFrame:
+    items_dat = pathlib.Path(src_dir, "ml-1m", "movies.dat")
+    dtype = {"movie_id": "str", "title": "str", "genres": "str"}
+    items = (
         pd.read_csv(
-            movies_dat,
+            items_dat,
             sep="::",
             header=None,
             names=list(dtype.keys()),
@@ -82,22 +80,20 @@ def load_movies(src_dir: str = DATA_DIR) -> pl.LazyFrame:
             encoding="iso-8859-1",
         )
         .pipe(pl.from_pandas)
-        .with_row_index("movie_rn", offset=1)
+        .rename({"movie_id": "item_id"})
+        .with_row_index("item_rn", offset=1)
         .with_columns(genres=pl.col("genres").str.split("|"))
-        .with_columns(movie_text=pl.struct("title", "genres").struct.json_encode())
+        .with_columns(item_text=pl.struct("title", "genres").struct.json_encode())
         .drop("title", "genres")
     )
-    logger.info("movies loaded: {}, shape: {}", movies_dat, movies.shape)
-
-    return movies.lazy()
+    logger.info("items loaded: {}, shape: {}", items_dat, items.shape)
+    return items.lazy()
 
 
 def load_users(src_dir: str = DATA_DIR) -> pl.LazyFrame:
-    import pandas as pd
-
     users_dat = pathlib.Path(src_dir, "ml-1m", "users.dat")
     dtype = {
-        "user_id": "int32",
+        "user_id": "str",
         "gender": "str",
         "age": "int32",
         "occupation": "int32",
@@ -126,19 +122,17 @@ def load_users(src_dir: str = DATA_DIR) -> pl.LazyFrame:
     return users.lazy()
 
 
-def load_ratings(src_dir: str = DATA_DIR) -> pl.LazyFrame:
-    import pandas as pd
-
-    ratings_dat = pathlib.Path(src_dir, "ml-1m", "ratings.dat")
+def load_events(src_dir: str = DATA_DIR) -> pl.LazyFrame:
+    events_dat = pathlib.Path(src_dir, "ml-1m", "ratings.dat")
     dtype = {
-        "user_id": "int32",
-        "movie_id": "int32",
+        "user_id": "str",
+        "movie_id": "str",
         "rating": "int32",
         "timestamp": "int32",
     }
-    ratings = (
+    events = (
         pd.read_csv(
-            ratings_dat,
+            events_dat,
             sep="::",
             header=None,
             names=list(dtype.keys()),
@@ -146,10 +140,12 @@ def load_ratings(src_dir: str = DATA_DIR) -> pl.LazyFrame:
             engine="python",
         )
         .pipe(pl.from_pandas)
+        .rename({"movie_id": "item_id", "rating": "event_value"})
         .with_columns(datetime=pl.from_epoch("timestamp"))
+        .with_columns(event_name=pl.lit("rating"))
     )
-    logger.info("ratings loaded: {}, shape: {}", ratings_dat, ratings.shape)
-    return ratings.lazy()
+    logger.info("events loaded: {}, shape: {}", events_dat, events.shape)
+    return events.lazy()
 
 
 ###
@@ -158,15 +154,15 @@ def load_ratings(src_dir: str = DATA_DIR) -> pl.LazyFrame:
 
 
 def train_test_split(
-    ratings: pl.LazyFrame,
+    events: pl.LazyFrame,
     *,
     group_col: str = "user_id",
     order_col: str = "datetime",
     train_prop: float = 0.8,
     val_prop: float = 0.2,
 ) -> pl.LazyFrame:
-    ratings = (
-        ratings.lazy()
+    events = (
+        events.lazy()
         .with_columns(
             p=((pl.col(order_col).rank("min") - 1) / pl.count(order_col)).over(
                 group_col
@@ -177,7 +173,7 @@ def train_test_split(
         .drop("p")
     )
     users_split = (
-        ratings.filter(~pl.col("is_train"))
+        events.filter(~pl.col("is_train"))
         .group_by(group_col)
         .len()
         .with_columns(p=((pl.col("len").rank("min") - 1) / pl.count("len")))
@@ -185,7 +181,7 @@ def train_test_split(
         .with_columns(is_val=pl.col("p") >= 1 - val_prop)
         .drop("len", "p")
     )
-    return ratings.join(
+    return events.join(
         users_split, on=group_col, how="left", validate="m:1"
     ).with_columns(
         is_val=~pl.col("is_train") & pl.col("is_val"),
@@ -194,97 +190,106 @@ def train_test_split(
     )
 
 
-def process_ratings(
-    ratings: pl.LazyFrame,
+def process_events(
+    events: pl.LazyFrame,
+    items: pl.LazyFrame,
     users: pl.LazyFrame,
-    movies: pl.LazyFrame,
     *,
     src_dir: str = DATA_DIR,
     overwrite: bool = False,
 ) -> pl.LazyFrame:
-    ratings_parquet = pathlib.Path(src_dir, "ml-1m", "ratings.parquet")
-    if ratings_parquet.exists() and not overwrite:
-        ratings_processed = pl.scan_parquet(ratings_parquet)
-        logger.info("ratings loaded: {}", ratings_parquet)
-        return ratings_processed
+    events_parquet = pathlib.Path(src_dir, "ml-1m", "events.parquet")
+    if events_parquet.exists() and not overwrite:
+        events_processed = pl.scan_parquet(events_parquet)
+        logger.info("events loaded: {}", events_parquet)
+        return events_processed
 
-    ratings_merged = (
-        ratings.lazy()
-        .join(movies.lazy(), on="movie_id", how="left", validate="m:1")
+    events_processed = (
+        events.lazy()
+        .join(items.lazy(), on="item_id", how="left", validate="m:1")
         .join(users.lazy(), on="user_id", how="left", validate="m:1")
         .sort(["user_id", "datetime"])
+        .collect()
     )
 
-    with ThreadPoolExecutor() as executor:
-        for _, df in ratings_merged.collect().group_by("user_id"):
-            executor.submit(gather_history, ratings=df.lazy(), path=ratings_parquet)
-
-    ratings_processed = pl.scan_parquet(ratings_parquet)
-    n_row = ratings_processed.select(pl.len()).collect().item()
-    n_col = ratings_processed.collect_schema().len()
-    logger.info("ratings saved: {}, shape: {}", ratings_parquet, (n_row, n_col))
-    return ratings_processed
+    events_processed.write_parquet(events_parquet)
+    logger.info("events saved: {}, shape: {}", events_parquet, events_processed.shape)
+    return pl.scan_parquet(events_parquet)
 
 
-def gather_history(ratings: pl.LazyFrame, *, path: pathlib.Path) -> pl.LazyFrame:
-    activity_cols = ["datetime", "rating", "movie_rn", "movie_id", "movie_text"]
-    ratings_history = (
-        ratings.rolling("datetime", period="4w", closed="none", group_by="user_id")
+def gather_history(events: pl.LazyFrame, *, path: pathlib.Path) -> pl.LazyFrame:
+    activity_cols = [
+        "datetime",
+        "event_name",
+        "event_value",
+        "item_rn",
+        "item_id",
+        "item_text",
+    ]
+    events_history = (
+        events.rolling("datetime", period="4w", closed="none", group_by="user_id")
         .agg(history=pl.struct(*activity_cols))
         .unique(["user_id", "datetime"])
     )
-    ratings_target = ratings.group_by("user_id", "is_train").agg(
+    events_target = events.group_by("user_id", "is_train").agg(
         target=pl.struct(*activity_cols)
     )
-    ratings_history = ratings.join(
-        ratings_history, on=["user_id", "datetime"], validate="m:1"
-    ).join(ratings_target, on=["user_id", "is_train"], validate="m:1")
-    ratings_history.collect().write_parquet(path, partition_by="user_id")
-    return ratings_history
+    events_history = events.join(
+        events_history, on=["user_id", "datetime"], validate="m:1"
+    ).join(events_target, on=["user_id", "is_train"], validate="m:1")
+    events_history.collect().write_parquet(path, partition_by="user_id")
+    return events_history
 
 
-def process_movies(
-    movies: pl.LazyFrame,
-    ratings: pl.LazyFrame,
+def process_items(
+    items: pl.LazyFrame,
+    events: pl.LazyFrame,
     *,
     src_dir: str = DATA_DIR,
     overwrite: bool = False,
 ) -> pl.LazyFrame:
-    movies_parquet = pathlib.Path(src_dir, "ml-1m", "movies.parquet")
-    if movies_parquet.exists() and not overwrite:
-        movies_processed = pl.scan_parquet(movies_parquet)
-        logger.info("movies loaded: {}", movies_parquet)
-        return movies_processed
+    items_parquet = pathlib.Path(src_dir, "ml-1m", "items.parquet")
+    if items_parquet.exists() and not overwrite:
+        items_processed = pl.scan_parquet(items_parquet)
+        logger.info("items loaded: {}", items_parquet)
+        return items_processed
 
-    movies_train = ratings.lazy().group_by("movie_id").agg(pl.any("is_train"))
-    movies_processed = (
-        movies.lazy()
-        .join(movies_train, on="movie_id", how="left", validate="1:1")
+    items_train = events.lazy().group_by("item_id").agg(pl.any("is_train"))
+    items_processed = (
+        items.lazy()
+        .join(items_train, on="item_id", how="left", validate="1:1")
         .with_columns(is_val=True, is_test=True, is_predict=True)
         .collect()
     )
 
-    movies_processed.write_parquet(movies_parquet)
-    logger.info("movies saved: {}, shape: {}", movies_parquet, movies_processed.shape)
-    return pl.scan_parquet(movies_parquet)
+    items_processed.write_parquet(items_parquet)
+    logger.info("items saved: {}, shape: {}", items_parquet, items_processed.shape)
+    return pl.scan_parquet(items_parquet)
 
 
 def process_users(
     users: pl.LazyFrame,
-    ratings: pl.LazyFrame,
+    events: pl.LazyFrame,
     *,
     src_dir: str = DATA_DIR,
     overwrite: bool = False,
 ) -> pl.LazyFrame:
     users_parquet = pathlib.Path(src_dir, "ml-1m", "users.parquet")
     if users_parquet.exists() and not overwrite:
-        users_procesed = pl.scan_parquet(users_parquet)
+        users_processed = pl.scan_parquet(users_parquet)
         logger.info("users loaded: {}", users_parquet)
-        return users_procesed
+        return users_processed
 
-    activity_cols = ["datetime", "rating", "movie_rn", "movie_id", "movie_text"]
+    activity_cols = [
+        "datetime",
+        "event_name",
+        "event_value",
+        "item_rn",
+        "item_id",
+        "item_text",
+    ]
     users_interactions = (
-        ratings.lazy()
+        events.lazy()
         .group_by("user_id")
         .agg(
             history=pl.struct(*activity_cols).filter("is_train"),
@@ -295,34 +300,42 @@ def process_users(
             is_predict=pl.any("is_predict"),
         )
         .with_columns(
-            history=pl.col("history").list.sort(),
-            target=pl.col("target").list.sort(),
+            pl.col(col).list.sort().alias(col) for col in ["history", "target"]
+        )
+        .with_columns(
+            pl.struct(
+                pl.col(col)
+                .list.eval(  # devskim: ignore DS189424
+                    pl.element().struct.field(field)
+                )
+                .alias(field)
+                for field in activity_cols
+            ).alias(col)
+            for col in ["history", "target"]
         )
     )
-    users_procesed = (
+    users_processed = (
         users.lazy()
         .join(users_interactions, on="user_id", how="left", validate="1:1")
         .collect()
     )
 
-    users_procesed.write_parquet(users_parquet)
-    logger.info("users saved: {}, shape: {}", users_parquet, users_procesed.shape)
+    users_processed.write_parquet(users_parquet)
+    logger.info("users saved: {}, shape: {}", users_parquet, users_processed.shape)
     return pl.scan_parquet(users_parquet)
 
 
 def prepare_movielens(
     src_dir: str = DATA_DIR, *, overwrite: bool = False
 ) -> pl.LazyFrame:
-    movies = load_movies(src_dir)
+    items = load_items(src_dir)
     users = load_users(src_dir)
-    ratings = load_ratings(src_dir).pipe(train_test_split)
+    events = load_events(src_dir).pipe(train_test_split)
 
-    ratings = process_ratings(
-        ratings, users, movies, src_dir=src_dir, overwrite=overwrite
-    )
-    movies = process_movies(movies, ratings, src_dir=src_dir, overwrite=overwrite)
-    users = process_users(users, ratings, src_dir=src_dir, overwrite=overwrite)
-    return ratings
+    events = process_events(events, items, users, src_dir=src_dir, overwrite=overwrite)
+    items = process_items(items, events, src_dir=src_dir, overwrite=overwrite)
+    users = process_users(users, events, src_dir=src_dir, overwrite=overwrite)
+    return events
 
 
 def main(data_dir: str = DATA_DIR, *, overwrite: bool = True) -> None:
