@@ -322,7 +322,7 @@ class InteractionProcessor(
 
     @property
     def data_path(self) -> str:
-        return pathlib.Path(self.data_dir, "ml-1m", "ratings.parquet").as_posix()
+        return pathlib.Path(self.data_dir, "ml-1m", "events.parquet").as_posix()
 
     def process(self, example: dict[str, Any]) -> InteractionFeaturesType:
         item_features = select_fields(
