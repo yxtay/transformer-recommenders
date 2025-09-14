@@ -102,11 +102,11 @@ def test_queries() -> None:
         msg = f"{example_user = } != {EXAMPLE_USER = }"
         raise ValueError(msg)
 
-    item_recs = test_bento(Service, "recommend_with_item_id", {"item_id": 1})
+    item_recs = test_bento(Service, "recommend_with_item_id", {"item_id": "1"})
     item_recs = pydantic.TypeAdapter(list[ItemCandidate]).validate_python(item_recs)
     rich.print(item_recs)
 
-    user_recs = test_bento(Service, "recommend_with_user_id", {"user_id": 1})
+    user_recs = test_bento(Service, "recommend_with_user_id", {"user_id": "1"})
     user_recs = pydantic.TypeAdapter(list[ItemCandidate]).validate_python(user_recs)
     rich.print(user_recs)
 
