@@ -92,7 +92,7 @@ class FeaturesProcessor[FT, BT](pydantic.BaseModel):
         return torch_collate.default_collate(batch)
 
     def get_data(self, subset: str, cycle: int = 1) -> torch_data.IterDataPipe[FT]:
-        import pyarrow.dataset as ds
+        import pyarrow.compute as pc
 
         from xfmr_rec.data.load import ParquetDictLoaderIterDataPipe
 
@@ -101,7 +101,7 @@ class FeaturesProcessor[FT, BT](pydantic.BaseModel):
             msg = f"`{subset}` is not one of `{valid_subset}`"
             raise ValueError(msg)
 
-        filter_expr = ds.field(f"is_{subset}")
+        filter_expr = pc.field(f"is_{subset}")
         return (
             ParquetDictLoaderIterDataPipe([self.data_path], filter_expr=filter_expr)
             .cycle(count=cycle)
@@ -142,10 +142,12 @@ class LanceDbProcessor(pydantic.BaseModel):
     def lance_table(self) -> lancedb.table.Table:
         return self.lance_db.open_table(self.lance_table_name)
 
-    def get_id(self, id_val: int | None) -> dict[str, Any]:
+    def get_id(self, id_val: str | None) -> dict[str, Any]:
         if id_val is None:
             return {}
-        result = self.lance_table.search().where(f"{self.id_col} = {id_val}").to_list()
+        result = (
+            self.lance_table.search().where(f"{self.id_col} = '{id_val}'").to_list()
+        )
         if len(result) == 0:
             return {}
         return result[0]
@@ -166,7 +168,7 @@ class ItemProcessor(
 
     @property
     def data_path(self) -> str:
-        return pathlib.Path(self.data_dir, "ml-1m", "movies.parquet").as_posix()
+        return pathlib.Path(self.data_dir, "ml-1m", "items.parquet").as_posix()
 
     def process(self, example: dict[str, Any]) -> ItemFeaturesType:
         return {
@@ -207,6 +209,8 @@ class ItemProcessor(
 
         schema = pa.RecordBatch.from_pylist(batch).schema
         schema = schema.set(
+            schema.get_field_index(self.id_col), pa.field(self.id_col, pa.string())
+        ).set(
             schema.get_field_index("embedding"),
             pa.field("embedding", pa.list_(pa.float32(), embedding_dim)),
         )
@@ -237,15 +241,15 @@ class ItemProcessor(
     def search(
         self,
         embedding: npt.NDArray[np.float64],
-        exclude_item_ids: list[int] | None = None,
+        exclude_item_ids: list[str] | None = None,
         top_k: int = TOP_K,
     ) -> pd.DataFrame:
         if self.lance_table is None:
             msg = "`index` must be intialised first"
             raise ValueError(msg)
 
-        exclude_item_ids = exclude_item_ids or [0]
-        exclude_filter = ", ".join(f"{item}" for item in exclude_item_ids)
+        exclude_item_ids = exclude_item_ids or ["0"]
+        exclude_filter = ", ".join(f"'{item}'" for item in exclude_item_ids)
         exclude_filter = f"{self.id_col} NOT IN ({exclude_filter})"
         return (
             self.lance_table.search(embedding)
@@ -272,11 +276,12 @@ class UserProcessor(
         return pathlib.Path(self.data_dir, "ml-1m", "users.parquet").as_posix()
 
     def process(self, example: dict[str, Any]) -> UserFeaturesType:
-        pos_idx = {target[ITEM_IDX_COL] for target in example["target"]}
         return {
             **example,
             "text": example[self.text_col],
-            "pos_idx": torch.as_tensor(list(pos_idx), dtype=torch.int64),
+            "pos_idx": torch.as_tensor(
+                example["target"][ITEM_IDX_COL], dtype=torch.int64
+            ),
         }
 
     @property
@@ -284,15 +289,22 @@ class UserProcessor(
         return ["text", "pos_idx"]
 
     def get_index(self, subset: str = "predict") -> lancedb.table.Table:
-        import pyarrow.dataset as ds
-        import pyarrow.parquet as pq
+        import pyarrow as pa
+        import pyarrow.compute as pc
 
         columns = [self.idx_col, self.id_col, self.text_col, "history", "target"]
-        filters = ds.field(f"is_{subset}")
-        pa_table = pq.read_table(self.data_path, columns=columns, filters=filters)
+        filters = pc.field(f"is_{subset}")
+        pa_table = pa.parquet.read_table(
+            self.data_path, columns=columns, filters=filters
+        )
+
+        schema = pa_table.schema
+        schema = schema.set(
+            schema.get_field_index(self.id_col), pa.field(self.id_col, pa.string())
+        )
 
         table = self.lance_db.create_table(
-            self.lance_table_name, data=pa_table, mode="overwrite"
+            self.lance_table_name, data=pa_table, schema=schema, mode="overwrite"
         )
         table.create_scalar_index(self.id_col)
         table.create_fts_index(self.text_col)
@@ -303,9 +315,9 @@ class UserProcessor(
         )
         return table
 
-    def get_activity(self, id_val: int | None, activity_name: str) -> dict[int, int]:
+    def get_activity(self, id_val: str | None, activity_name: str) -> dict[str, int]:
         activity = self.get_id(id_val).get(activity_name, {})
-        return {item[ITEM_ID_COL]: item[TARGET_COL] for item in activity}
+        return dict(zip(activity[ITEM_ID_COL], activity[TARGET_COL], strict=True))
 
 
 class InteractionProcessor(
@@ -320,7 +332,7 @@ class InteractionProcessor(
 
     @property
     def data_path(self) -> str:
-        return pathlib.Path(self.data_dir, "ml-1m", "ratings.parquet").as_posix()
+        return pathlib.Path(self.data_dir, "ml-1m", "events.parquet").as_posix()
 
     def process(self, example: dict[str, Any]) -> InteractionFeaturesType:
         item_features = select_fields(
@@ -497,13 +509,13 @@ if __name__ == "__main__":
         rich.print(shapes)
 
     dm.user_processor.get_index().search().to_polars().glimpse()
-    rich.print(dm.user_processor.get_id(1))
-    rich.print(dm.user_processor.get_activity(1, "history"))
-    rich.print(dm.user_processor.get_activity(1, "target"))
+    rich.print(dm.user_processor.get_id("1"))
+    rich.print(dm.user_processor.get_activity("1", "history"))
+    rich.print(dm.user_processor.get_activity("1", "target"))
 
     dm.item_processor.get_index(
         lambda _: torch.rand(1, 32)  # devskim: ignore DS148264
     ).search().to_polars().glimpse()
-    rich.print(dm.item_processor.get_id(1))
+    rich.print(dm.item_processor.get_id("1"))
     query_vector = torch.rand(1, 32).numpy()  # devskim: ignore DS148264
     rich.print(dm.item_processor.search(query_vector, top_k=5))

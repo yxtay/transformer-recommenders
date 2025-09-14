@@ -85,14 +85,14 @@ def test_queries() -> None:
         UserQuery,
     )
 
-    example_item_data = test_bento(Service, "item_id", {"item_id": 1})
+    example_item_data = test_bento(Service, "item_id", {"item_id": "1"})
     example_item = ItemQuery.model_validate(example_item_data)
     rich.print(example_item)
     if example_item != EXAMPLE_ITEM:
         msg = f"{example_item = } != {EXAMPLE_ITEM = }"
         raise ValueError(msg)
 
-    example_user_data = test_bento(Service, "user_id", {"user_id": 1})
+    example_user_data = test_bento(Service, "user_id", {"user_id": "1"})
     example_user = UserQuery.model_validate(example_user_data)
     rich.print(example_user)
     exclude_fields = {"history", "target"}
@@ -102,11 +102,11 @@ def test_queries() -> None:
         msg = f"{example_user = } != {EXAMPLE_USER = }"
         raise ValueError(msg)
 
-    item_recs = test_bento(Service, "recommend_with_item_id", {"item_id": 1})
+    item_recs = test_bento(Service, "recommend_with_item_id", {"item_id": "1"})
     item_recs = pydantic.TypeAdapter(list[ItemCandidate]).validate_python(item_recs)
     rich.print(item_recs)
 
-    user_recs = test_bento(Service, "recommend_with_user_id", {"user_id": 1})
+    user_recs = test_bento(Service, "recommend_with_user_id", {"user_id": "1"})
     user_recs = pydantic.TypeAdapter(list[ItemCandidate]).validate_python(user_recs)
     rich.print(user_recs)
 
