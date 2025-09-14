@@ -92,7 +92,7 @@ class FeaturesProcessor[FT, BT](pydantic.BaseModel):
         return torch_collate.default_collate(batch)
 
     def get_data(self, subset: str, cycle: int = 1) -> torch_data.IterDataPipe[FT]:
-        import pyarrow.dataset as ds
+        import pyarrow.compute as pc
 
         from xfmr_rec.data.load import ParquetDictLoaderIterDataPipe
 
@@ -101,7 +101,7 @@ class FeaturesProcessor[FT, BT](pydantic.BaseModel):
             msg = f"`{subset}` is not one of `{valid_subset}`"
             raise ValueError(msg)
 
-        filter_expr = ds.field(f"is_{subset}")
+        filter_expr = pc.field(f"is_{subset}")
         return (
             ParquetDictLoaderIterDataPipe([self.data_path], filter_expr=filter_expr)
             .cycle(count=cycle)
@@ -209,6 +209,8 @@ class ItemProcessor(
 
         schema = pa.RecordBatch.from_pylist(batch).schema
         schema = schema.set(
+            schema.get_field_index(self.id_col), pa.field(self.id_col, pa.string())
+        ).set(
             schema.get_field_index("embedding"),
             pa.field("embedding", pa.list_(pa.float32(), embedding_dim)),
         )
@@ -287,15 +289,22 @@ class UserProcessor(
         return ["text", "pos_idx"]
 
     def get_index(self, subset: str = "predict") -> lancedb.table.Table:
-        import pyarrow.dataset as ds
-        import pyarrow.parquet as pq
+        import pyarrow as pa
+        import pyarrow.compute as pc
 
         columns = [self.idx_col, self.id_col, self.text_col, "history", "target"]
-        filters = ds.field(f"is_{subset}")
-        pa_table = pq.read_table(self.data_path, columns=columns, filters=filters)
+        filters = pc.field(f"is_{subset}")
+        pa_table = pa.parquet.read_table(
+            self.data_path, columns=columns, filters=filters
+        )
+
+        schema = pa_table.schema
+        schema = schema.set(
+            schema.get_field_index(self.id_col), pa.field(self.id_col, pa.string())
+        )
 
         table = self.lance_db.create_table(
-            self.lance_table_name, data=pa_table, mode="overwrite"
+            self.lance_table_name, data=pa_table, schema=schema, mode="overwrite"
         )
         table.create_scalar_index(self.id_col)
         table.create_fts_index(self.text_col)
