@@ -85,14 +85,14 @@ def test_queries() -> None:
         UserQuery,
     )
 
-    example_item_data = test_bento(Service, "item_id", {"item_id": 1})
+    example_item_data = test_bento(Service, "item_id", {"item_id": "1"})
     example_item = ItemQuery.model_validate(example_item_data)
     rich.print(example_item)
     if example_item != EXAMPLE_ITEM:
         msg = f"{example_item = } != {EXAMPLE_ITEM = }"
         raise ValueError(msg)
 
-    example_user_data = test_bento(Service, "user_id", {"user_id": 1})
+    example_user_data = test_bento(Service, "user_id", {"user_id": "1"})
     example_user = UserQuery.model_validate(example_user_data)
     rich.print(example_user)
     exclude_fields = {"history", "target"}
