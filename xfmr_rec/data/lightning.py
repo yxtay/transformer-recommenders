@@ -274,11 +274,12 @@ class UserProcessor(
         return pathlib.Path(self.data_dir, "ml-1m", "users.parquet").as_posix()
 
     def process(self, example: dict[str, Any]) -> UserFeaturesType:
-        pos_idx = {example["target"][ITEM_IDX_COL]}
         return {
             **example,
             "text": example[self.text_col],
-            "pos_idx": torch.as_tensor(list(pos_idx), dtype=torch.int64),
+            "pos_idx": torch.as_tensor(
+                example["target"][ITEM_IDX_COL], dtype=torch.int64
+            ),
         }
 
     @property
