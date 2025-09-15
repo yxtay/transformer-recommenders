@@ -22,7 +22,7 @@ class ModelConfig(pydantic.BaseModel):
     is_decoder: bool = False
 
     tokenizer_name: str = "google-bert/bert-base-uncased"
-    pooling_mode: Literal["mean", "max", "cls", "pooler"] = "mean"
+    pooling_mode: Literal["mean", "max", "cls", "lasttoken"] = "mean"
 
 
 def init_bert(config: ModelConfig) -> BertModel:

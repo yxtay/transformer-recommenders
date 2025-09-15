@@ -38,7 +38,9 @@ class SeqRecModel(torch.nn.Module):
         embedder = init_bert(embedding_conf)
         self.embedder = to_sentence_transformer(embedder, device=device)
 
-        encoder_conf = self.config.model_copy(update={"is_decoder": True})
+        encoder_conf = self.config.model_copy(
+            update={"is_decoder": True, "pooling_mode": "lasttoken"}
+        )
         encoder = init_bert(encoder_conf)
         self.encoder = to_sentence_transformer(
             encoder, pooling_mode="lasttoken", device=device
@@ -220,7 +222,7 @@ class ItemsIndex:
         import datasets
         import pyarrow.compute as pc
 
-        exclude_item_ids = exclude_item_ids or []
+        exclude_item_ids = exclude_item_ids or [""]
         exclude_filter = ", ".join(f"'{item}'" for item in exclude_item_ids)
         exclude_filter = f"item_id NOT IN ({exclude_filter})"
         rec_table = (

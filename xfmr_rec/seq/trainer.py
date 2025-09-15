@@ -35,7 +35,7 @@ def compute_retrieval_metrics(
     import torchmetrics.functional.retrieval as tm_retrieval
 
     if len(rec_ids) == 0:
-        return torch.as_tensor(0.0)
+        return {}
 
     top_k = min(top_k, len(rec_ids))
     target_ids = set(target_ids)
@@ -91,7 +91,7 @@ class SeqRecLightningModule(lp.LightningModule):
         item_text: list[str],
         *,
         top_k: int = 0,
-        exclude_item_ids: list[int] | None = None,
+        exclude_item_ids: list[str] | None = None,
     ) -> datasets.Dataset:
         if self.items_index is None:
             msg = "`items_index` must be initialised first"
