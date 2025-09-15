@@ -61,8 +61,8 @@ class SeqRecModel(torch.nn.Module):
         self.encoder.save(path)
 
     def embed_items(self, item_texts: list[str]) -> torch.Tensor:
-        encoded_input = self.embedder.tokenize(item_texts)
-        return self.embedder(encoded_input)["sentence_embedding"]
+        tokens = self.embedder.tokenize(item_texts).to(self.device)
+        return self.embedder(tokens)["sentence_embedding"]
 
     def embed_item_sequence(self, item_sequences: list[list[str]]) -> torch.Tensor:
         import itertools
