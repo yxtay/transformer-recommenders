@@ -1,7 +1,7 @@
 from collections.abc import Callable
 
 import datasets
-import lightning as L
+import lightning as lp
 import numpy as np
 import pandas as pd
 import polars as pl
@@ -35,6 +35,7 @@ class SeqDataset(torch_data.Dataset):
         config: SeqDataConfig,
     ) -> None:
         self.config = config
+        self.rng = np.random.default_rng()
 
         self.item_id_map = pd.Series(
             {k: i for i, k in enumerate(items_dataset["item_id"])}
@@ -89,7 +90,7 @@ class SeqDataset(torch_data.Dataset):
             return indices
 
         return torch.as_tensor(
-            np.sort(np.random.choice(indices, size=max_seq_length, replace=False))
+            np.sort(self.rng.choice(indices, size=max_seq_length, replace=False))
         )
 
     def sample_positive(
@@ -107,7 +108,7 @@ class SeqDataset(torch_data.Dataset):
             pos_candidates = history_item_idx[start_idx:end_idx]
 
             if len(pos_candidates) > 0:
-                positives[i] = np.random.choice(pos_candidates)
+                positives[i] = self.rng.choice(pos_candidates)
         return positives
 
     def sample_negative(
@@ -117,7 +118,7 @@ class SeqDataset(torch_data.Dataset):
     ) -> torch.Tensor:
         seq_len = len(sampled_indices)
         neg_candidates = list(set(self.item_id_map) - set(history_item_idx.tolist()))
-        sampled_negatives = np.random.choice(neg_candidates, seq_len, replace=True)
+        sampled_negatives = self.rng.choice(neg_candidates, seq_len, replace=True)
         return torch.as_tensor(sampled_negatives)
 
     def __len__(self) -> int:
@@ -145,7 +146,7 @@ class SeqDataset(torch_data.Dataset):
         return {col: [example[col] for example in batch] for col in batch[0]}
 
 
-class SeqDataModule(L.LightningDataModule):
+class SeqDataModule(lp.LightningDataModule):
     def __init__(self, config: SeqDataModuleConfig) -> None:
         super().__init__()
         self.config = SeqDataModuleConfig.model_validate(config)
@@ -155,6 +156,7 @@ class SeqDataModule(L.LightningDataModule):
         self.train_dataset: SeqDataset | None = None
         self.val_dataset: datasets.Dataset | None = None
         self.test_dataset: datasets.Dataset | None = None
+        self.predict_dataset: datasets.Dataset | None = None
 
     def prepare_data(self, *, overwrite: bool = False) -> pl.LazyFrame:
         from filelock import FileLock
@@ -197,7 +199,9 @@ class SeqDataModule(L.LightningDataModule):
                     filters=pc.field("is_val"),
                 )
                 .flatten()
-                .select_columns(["history.item_id", "target.item_id"])
+                .select_columns(
+                    ["history.item_id", "history.item_text", "target.item_id"]
+                )
                 .with_format("torch")
             )
 
@@ -210,13 +214,31 @@ class SeqDataModule(L.LightningDataModule):
                     filters=pc.field("is_test"),
                 )
                 .flatten()
-                .select_columns(["history.item_id", "target.item_id"])
+                .select_columns(
+                    ["history.item_id", "history.item_text", "target.item_id"]
+                )
+                .with_format("torch")
+            )
+
+        if self.predict_dataset is None and stage in {"predict", None}:
+            self.predict_dataset = (
+                datasets.load_dataset(
+                    "parquet",
+                    data_files=self.config.users_parquet,
+                    split="train",
+                    filters=pc.field("is_predict"),
+                )
+                .flatten()
+                .select_columns(
+                    ["history.item_id", "history.item_text", "target.item_id"]
+                )
                 .with_format("torch")
             )
 
     def get_dataloader(
         self,
         dataset: datasets.Dataset,
+        *,
         shuffle: bool = False,
         batch_size: int | None = None,
         collate_fn: Callable[[list[dict[str, torch.Tensor]]], dict[str, torch.Tensor]]
@@ -246,6 +268,9 @@ class SeqDataModule(L.LightningDataModule):
 
     def test_dataloader(self) -> torch_data.DataLoader:
         return self.get_dataloader(self.test_dataset)
+
+    def predict_dataloader(self) -> torch_data.DataLoader:
+        return self.get_dataloader(self.predict_dataset)
 
 
 if __name__ == "__main__":

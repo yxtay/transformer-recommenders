@@ -38,7 +38,7 @@ dev = [
 
 [project.scripts]
 data = "xfmr_rec.data.prepare:main"
-lightning = "xfmr_rec.lightning:main"
+lightning = "xfmr_rec.seq.trainer:main"
 flaml = "xfmr_rec.flaml:main"
 bentoml_cli = "xfmr_rec.bentoml.prepare:main"
 
