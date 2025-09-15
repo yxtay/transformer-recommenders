@@ -88,7 +88,9 @@ class SeqDataset(torch_data.Dataset):
         if len(indices) <= max_seq_length:
             return indices
 
-        return torch.as_tensor(np.sort(np.random.choice(indices, size=max_seq_length, replace=False)))
+        return torch.as_tensor(
+            np.sort(np.random.choice(indices, size=max_seq_length, replace=False))
+        )
 
     def sample_positive(
         self,
