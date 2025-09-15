@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Literal
 import pydantic
 
 if TYPE_CHECKING:
+    import torch
     from sentence_transformers import SentenceTransformer
     from transformers.modeling_utils import PreTrainedModel
     from transformers.models.bert import BertModel

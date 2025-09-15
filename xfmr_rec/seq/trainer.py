@@ -2,15 +2,19 @@ from __future__ import annotations
 
 import pathlib
 import tempfile
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
-import lightning as L
+import lightning as lp
 import lightning.pytorch.callbacks as lp_callbacks
 import lightning.pytorch.cli as lp_cli
 import lightning.pytorch.loggers as lp_loggers
 import torch
 
 from xfmr_rec.seq.models import ItemsIndex, SeqRecModel, SeqRecModelConfig
+
+if TYPE_CHECKING:
+    import datasets
+    from mlflow.tracking import MlflowClient
 
 METRIC = {"name": "val/retrieval_normalized_dcg", "mode": "max"}
 
@@ -54,7 +58,7 @@ def compute_retrieval_metrics(
     }
 
 
-class SeqRecLightningModule(L.LightningModule):
+class SeqRecLightningModule(lp.LightningModule):
     def __init__(self, config: SeqRecLightningConfig) -> None:
         super().__init__()
         self.config = SeqRecLightningConfig.model_validate(config)
@@ -88,7 +92,7 @@ class SeqRecLightningModule(L.LightningModule):
         *,
         top_k: int = 0,
         exclude_item_ids: list[int] | None = None,
-    ) -> pd.DataFrame:
+    ) -> datasets.Dataset:
         if self.items_index is None:
             msg = "`items_index` must be initialised first"
             raise ValueError(msg)
@@ -170,7 +174,7 @@ class SeqRecLightningModule(L.LightningModule):
             weight_decay=self.config.weight_decay,
         )
 
-    def configure_callbacks(self) -> list[L.Callback]:
+    def configure_callbacks(self) -> list[lp.Callback]:
         checkpoint = lp_callbacks.ModelCheckpoint(
             monitor=METRIC["name"], mode=METRIC["mode"]
         )
@@ -187,8 +191,8 @@ class SeqRecLightningModule(L.LightningModule):
 class LoggerSaveConfigCallback(lp_cli.SaveConfigCallback):
     def save_config(
         self,
-        trainer: L.Trainer,
-        pl_module: L.LightningModule,  # noqa: ARG002
+        trainer: lp.Trainer,
+        pl_module: lp.LightningModule,  # noqa: ARG002
         stage: str,  # noqa: ARG002
     ) -> None:
         for logger in trainer.loggers:

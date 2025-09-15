@@ -1,7 +1,7 @@
 from collections.abc import Callable
 
 import datasets
-import lightning as L
+import lightning as lp
 import numpy as np
 import pandas as pd
 import polars as pl
@@ -89,7 +89,11 @@ class SeqDataset(torch_data.Dataset):
             return indices
 
         return torch.as_tensor(
-            np.sort(np.random.choice(indices, size=max_seq_length, replace=False))
+            np.sort(
+                np.random.default_rng().choice(
+                    indices, size=max_seq_length, replace=False
+                )
+            )
         )
 
     def sample_positive(
@@ -107,7 +111,7 @@ class SeqDataset(torch_data.Dataset):
             pos_candidates = history_item_idx[start_idx:end_idx]
 
             if len(pos_candidates) > 0:
-                positives[i] = np.random.choice(pos_candidates)
+                positives[i] = np.random.default_rng().choice(pos_candidates)
         return positives
 
     def sample_negative(
@@ -117,7 +121,9 @@ class SeqDataset(torch_data.Dataset):
     ) -> torch.Tensor:
         seq_len = len(sampled_indices)
         neg_candidates = list(set(self.item_id_map) - set(history_item_idx.tolist()))
-        sampled_negatives = np.random.choice(neg_candidates, seq_len, replace=True)
+        sampled_negatives = np.random.default_rng().choice(
+            neg_candidates, seq_len, replace=True
+        )
         return torch.as_tensor(sampled_negatives)
 
     def __len__(self) -> int:
@@ -145,7 +151,7 @@ class SeqDataset(torch_data.Dataset):
         return {col: [example[col] for example in batch] for col in batch[0]}
 
 
-class SeqDataModule(L.LightningDataModule):
+class SeqDataModule(lp.LightningDataModule):
     def __init__(self, config: SeqDataModuleConfig) -> None:
         super().__init__()
         self.config = SeqDataModuleConfig.model_validate(config)
@@ -237,6 +243,7 @@ class SeqDataModule(L.LightningDataModule):
     def get_dataloader(
         self,
         dataset: datasets.Dataset,
+        *,
         shuffle: bool = False,
         batch_size: int | None = None,
         collate_fn: Callable[[list[dict[str, torch.Tensor]]], dict[str, torch.Tensor]]
