@@ -10,9 +10,8 @@ from xfmr_rec.models import ModelConfig, init_bert, to_sentence_transformer
 
 if TYPE_CHECKING:
     import datasets
-    import numpy as np
-
     import lancedb
+    import numpy as np
 
 
 class SeqRecModelConfig(ModelConfig):
@@ -168,10 +167,9 @@ class ItemsIndex:
         lancedb_path: str,
         table_name: str,
     ) -> lancedb.table.Table:
+        import lancedb
         import numpy as np
         import pyarrow as pa
-
-        import lancedb
 
         num_items = len(items_dataset)
         embedding_dim = len(items_dataset["embedding"][0])
