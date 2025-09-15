@@ -5,6 +5,9 @@ TENSORBOARD_DIR = "lightning_logs"
 MLFLOW_DIR = "mlruns"
 
 # data
+ITEMS_PARQUET = "data/ml-1m/items.parquet"
+USERS_PARQUET = "data/ml-1m/users.parquet"
+EVENTS_PARQUET = "data/ml-1m/events.parquet"
 TARGET_COL = "event_value"
 ITEM_IDX_COL = "item_rn"
 ITEM_ID_COL = "item_id"
