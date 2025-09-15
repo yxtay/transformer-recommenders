@@ -35,6 +35,7 @@ class SeqDataset(torch_data.Dataset):
         config: SeqDataConfig,
     ) -> None:
         self.config = config
+        self.rng = np.random.default_rng()
 
         self.item_id_map = pd.Series(
             {k: i for i, k in enumerate(items_dataset["item_id"])}
@@ -89,11 +90,7 @@ class SeqDataset(torch_data.Dataset):
             return indices
 
         return torch.as_tensor(
-            np.sort(
-                np.random.default_rng().choice(
-                    indices, size=max_seq_length, replace=False
-                )
-            )
+            np.sort(self.rng.choice(indices, size=max_seq_length, replace=False))
         )
 
     def sample_positive(
@@ -111,7 +108,7 @@ class SeqDataset(torch_data.Dataset):
             pos_candidates = history_item_idx[start_idx:end_idx]
 
             if len(pos_candidates) > 0:
-                positives[i] = np.random.default_rng().choice(pos_candidates)
+                positives[i] = self.rng.choice(pos_candidates)
         return positives
 
     def sample_negative(
@@ -121,9 +118,7 @@ class SeqDataset(torch_data.Dataset):
     ) -> torch.Tensor:
         seq_len = len(sampled_indices)
         neg_candidates = list(set(self.item_id_map) - set(history_item_idx.tolist()))
-        sampled_negatives = np.random.default_rng().choice(
-            neg_candidates, seq_len, replace=True
-        )
+        sampled_negatives = self.rng.choice(neg_candidates, seq_len, replace=True)
         return torch.as_tensor(sampled_negatives)
 
     def __len__(self) -> int:

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import datetime
+import pathlib
 from typing import TYPE_CHECKING
 
 import torch
 from loguru import logger
+from sentence_transformers import SentenceTransformers
 
 from xfmr_rec.models import ModelConfig, init_bert, to_sentence_transformer
 
@@ -58,7 +60,14 @@ class SeqRecModel(torch.nn.Module):
         return self.encoder.max_seq_length
 
     def save(self, path: str) -> None:
-        self.encoder.save(path)
+        path = pathlib.Path(path)
+        self.embedder.save_pretrained(path / "embedder")
+        self.encoder.save_pretrained(path / "encoder")
+
+    def load(self, path: str) -> None:
+        path = pathlib.Path(path)
+        self.embedder = SentenceTransformers(path / "embedder")
+        self.encoder = SentenceTransformers(path / "encoder")
 
     def embed_items(self, item_texts: list[str]) -> torch.Tensor:
         tokens = self.embedder.tokenize(item_texts).to(self.device)
