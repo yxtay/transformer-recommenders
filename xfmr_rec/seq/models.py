@@ -70,8 +70,12 @@ class SeqRecModel(torch.nn.Module):
         self.encoder = SentenceTransformer(path / "encoder")
 
     def embed_items(self, item_texts: list[str]) -> torch.Tensor:
-        tokens = self.embedder.tokenize(item_texts)
-        return self.embedder(tokens)["sentence_embedding"]
+        tokenized = self.embedder.tokenize(item_texts)
+        tokenized = {
+            key: value.to(self.device) if isinstance(value, torch.Tensor) else value
+            for key, value in tokenized.items()
+        }
+        return self.embedder(tokenized)["sentence_embedding"]
 
     def embed_item_sequence(self, item_sequences: list[list[str]]) -> torch.Tensor:
         import itertools
