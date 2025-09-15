@@ -71,6 +71,7 @@ class SeqRecLightningModule(lp.LightningModule):
         if self.model is None:
             self.model = SeqRecModel(config=self.config, device=self.device)
 
+    @torch.inference_mode()
     def configure_index(self, items_dataset: datasets.Dataset) -> ItemsIndex:
         item_embeddings = items_dataset.map(
             lambda batch: {"embedding": self.model.embed_items(batch["item_text"])},
@@ -158,7 +159,6 @@ class SeqRecLightningModule(lp.LightningModule):
                 # reset mlflow run status to "RUNNING"
                 logger.experiment.update_run(logger.run_id, status="RUNNING")
 
-    @torch.inference_mode()
     def on_validation_start(self) -> None:
         self.items_index = self.configure_index(self.trainer.datamodule.items_dataset)
 
