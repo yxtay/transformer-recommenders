@@ -114,7 +114,7 @@ class SeqDataset(torch_data.Dataset):
         sampled_indices: torch.Tensor,
     ) -> torch.Tensor:
         seq_len = len(sampled_indices)
-        neg_candidates = list(set(self.item_id_map) - set(history_item_idx))
+        neg_candidates = list(set(self.item_id_map) - set(history_item_idx.tolist()))
         sampled_negatives = np.random.choice(neg_candidates, seq_len, replace=True)
         return torch.as_tensor(sampled_negatives)
 
