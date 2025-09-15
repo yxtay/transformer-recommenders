@@ -212,6 +212,7 @@ class ItemsIndex:
             mode="overwrite",
         )
         table.create_scalar_index("item_id")
+        table.create_fts_index("item_text")
         table.create_index(
             vector_column_name="embedding",
             metric="cosine",
