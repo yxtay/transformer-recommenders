@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import torch
 from loguru import logger
-from sentence_transformers import SentenceTransformers
+from sentence_transformers import SentenceTransformer
 
 from xfmr_rec.models import ModelConfig, init_bert, to_sentence_transformer
 
@@ -66,8 +66,8 @@ class SeqRecModel(torch.nn.Module):
 
     def load(self, path: str) -> None:
         path = pathlib.Path(path)
-        self.embedder = SentenceTransformers(path / "embedder")
-        self.encoder = SentenceTransformers(path / "encoder")
+        self.embedder = SentenceTransformer(path / "embedder")
+        self.encoder = SentenceTransformer(path / "encoder")
 
     def embed_items(self, item_texts: list[str]) -> torch.Tensor:
         tokens = self.embedder.tokenize(item_texts, return_tensors="pt").to(self.device)
