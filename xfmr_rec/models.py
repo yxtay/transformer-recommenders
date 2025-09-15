@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 import pydantic
-import torch
 
 if TYPE_CHECKING:
     from sentence_transformers import SentenceTransformer
@@ -12,20 +11,30 @@ if TYPE_CHECKING:
 
 
 class ModelConfig(pydantic.BaseModel):
-    vocab_size: int = 30522
+    vocab_size: int | None = None
     hidden_size: int = 384
     num_hidden_layers: int = 3
     num_attention_heads: int = 12
     intermediate_size: int = 1536
     hidden_act: Literal["gelu", "relu", "silu", "gelu_new"] = "gelu"
-    max_position_embeddings: int = 512
+    max_position_embeddings: int | None = None
+    is_decoder: bool = False
 
     tokenizer_name: str = "google-bert/bert-base-uncased"
     pooling_mode: Literal["mean", "max", "cls", "pooler"] = "mean"
 
 
 def init_bert(config: ModelConfig) -> BertModel:
+    from transformers import AutoTokenizer
     from transformers.models.bert import BertConfig, BertModel
+
+    tokenizer = AutoTokenizer.from_pretrained(config.tokenizer_name)
+
+    if config.vocab_size is None:
+        config.vocab_size = tokenizer.vocab_size
+
+    if config.max_position_embeddings is None:
+        config.max_position_embeddings = tokenizer.model_max_length
 
     bert_config = BertConfig(
         vocab_size=config.vocab_size,
@@ -35,6 +44,7 @@ def init_bert(config: ModelConfig) -> BertModel:
         intermediate_size=config.intermediate_size,
         hidden_act=config.hidden_act,
         max_position_embeddings=config.max_position_embeddings,
+        is_decoder=config.is_decoder,
     )
     return BertModel(bert_config)
 
@@ -44,6 +54,7 @@ def to_sentence_transformer(
     *,
     tokenizer_name: str = "google-bert/bert-base-uncased",
     pooling_mode: str = "mean",
+    device: torch.device | str | None = "cpu",
 ) -> SentenceTransformer:
     import tempfile
 
@@ -59,29 +70,5 @@ def to_sentence_transformer(
         normalize = models.Normalize()
 
         return SentenceTransformer(
-            modules=[transformer, pooling, normalize], device="cpu"
+            modules=[transformer, pooling, normalize], device=device
         )
-
-
-class PoolingTransformer(torch.nn.Module):
-    def __init__(
-        self,
-        config: ModelConfig,
-    ) -> None:
-        super().__init__()
-        self.config = ModelConfig.model_validate(config)
-
-        model = init_bert(self.config)
-        self.model = to_sentence_transformer(
-            model,
-            tokenizer_name=self.config.tokenizer_name,
-            pooling_mode=self.config.pooling_mode,
-        )
-
-    def forward(self, inputs_embeds: torch.Tensor) -> torch.Tensor:
-        attention_mask = (inputs_embeds != 0).any(dim=-1).to(self.model.dtype)
-        features = {"inputs_embeds": inputs_embeds, "attention_mask": attention_mask}
-        return self.model(features)["sentence_embedding"]
-
-    def save(self, save_directory: str) -> None:
-        self.model.save(save_directory)

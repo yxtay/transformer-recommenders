@@ -155,6 +155,7 @@ class SeqDataModule(L.LightningDataModule):
         self.train_dataset: SeqDataset | None = None
         self.val_dataset: datasets.Dataset | None = None
         self.test_dataset: datasets.Dataset | None = None
+        self.predict_dataset: datasets.Dataset | None = None
 
     def prepare_data(self, *, overwrite: bool = False) -> pl.LazyFrame:
         from filelock import FileLock
@@ -197,7 +198,9 @@ class SeqDataModule(L.LightningDataModule):
                     filters=pc.field("is_val"),
                 )
                 .flatten()
-                .select_columns(["history.item_id", "target.item_id"])
+                .select_columns(
+                    ["history.item_id", "history.item_text", "target.item_id"]
+                )
                 .with_format("torch")
             )
 
@@ -210,7 +213,24 @@ class SeqDataModule(L.LightningDataModule):
                     filters=pc.field("is_test"),
                 )
                 .flatten()
-                .select_columns(["history.item_id", "target.item_id"])
+                .select_columns(
+                    ["history.item_id", "history.item_text", "target.item_id"]
+                )
+                .with_format("torch")
+            )
+
+        if self.predict_dataset is None and stage in {"predict", None}:
+            self.predict_dataset = (
+                datasets.load_dataset(
+                    "parquet",
+                    data_files=self.config.users_parquet,
+                    split="train",
+                    filters=pc.field("is_predict"),
+                )
+                .flatten()
+                .select_columns(
+                    ["history.item_id", "history.item_text", "target.item_id"]
+                )
                 .with_format("torch")
             )
 
@@ -246,6 +266,9 @@ class SeqDataModule(L.LightningDataModule):
 
     def test_dataloader(self) -> torch_data.DataLoader:
         return self.get_dataloader(self.test_dataset)
+
+    def predict_dataloader(self) -> torch_data.DataLoader:
+        return self.get_dataloader(self.predict_dataset)
 
 
 if __name__ == "__main__":
