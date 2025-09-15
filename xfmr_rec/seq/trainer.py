@@ -72,9 +72,10 @@ class SeqRecLightningModule(lp.LightningModule):
             self.model = SeqRecModel(config=self.config, device=self.device)
 
     def configure_index(self, items_dataset: datasets.Dataset) -> ItemsIndex:
-        item_embeddings = items_dataset.add_column(
-            "embedding",
-            self.model.embed_items(items_dataset["item_text"]).tolist(),
+        item_embeddings = items_dataset.map(
+            lambda batch: {"embedding": self.model.embed_items(batch["item_text"])},
+            batched=True,
+            batch_size=32,
         )
         return ItemsIndex(
             item_embeddings,
