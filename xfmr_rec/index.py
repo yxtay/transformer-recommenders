@@ -125,6 +125,17 @@ class LanceIndex:
             return {}
         return result[0]
 
+    def get_ids(self, ids: list[str]) -> datasets.Dataset:
+        import datasets
+
+        ids_filter = ", ".join(f"'{id_val}'" for id_val in ids)
+        result = (
+            self.table.search()
+            .where(f"{self.config.id_col} IN ({ids_filter})")
+            .to_arrow()
+        )
+        return datasets.Dataset(result)
+
     def search(
         self,
         embedding: np.ndarray,
