@@ -40,8 +40,9 @@ dev = [
 data = "xfmr_rec.data.prepare:main"
 flaml = "xfmr_rec.flaml:main"
 mf_deploy = "xfmr_rec.mf.deploy:main"
-seq_train = "xfmr_rec.seq.trainer:main"
 seq_deploy = "xfmr_rec.seq.deploy:main"
+seq_train = "xfmr_rec.seq.trainer:main"
+
 
 [tool.bentoml.build]
 service = "xfmr_rec.mf.service:Service"
