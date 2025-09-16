@@ -153,6 +153,7 @@ class SeqDataModule(lp.LightningDataModule):
         self.save_hyperparameters(self.config.model_dump())
 
         self.items_dataset: datasets.Dataset | None = None
+        self.users_dataset: datasets.Dataset | None = None
         self.train_dataset: SeqDataset | None = None
         self.val_dataset: datasets.Dataset | None = None
         self.test_dataset: datasets.Dataset | None = None
@@ -161,7 +162,7 @@ class SeqDataModule(lp.LightningDataModule):
     def prepare_data(self, *, overwrite: bool = False) -> pl.LazyFrame:
         from filelock import FileLock
 
-        from xfmr_rec.data.prepare import download_unpack_data, prepare_movielens
+        from xfmr_rec.data import download_unpack_data, prepare_movielens
         from xfmr_rec.params import MOVIELENS_1M_URL
 
         data_dir = self.config.data_dir
@@ -175,7 +176,12 @@ class SeqDataModule(lp.LightningDataModule):
         if self.items_dataset is None:
             self.items_dataset = datasets.load_dataset(
                 "parquet", data_files=self.config.items_parquet, split="train"
-            ).with_format("torch")
+            )
+
+        if self.users_dataset is None:
+            self.users_dataset = datasets.load_dataset(
+                "parquet", data_files=self.config.users_parquet, split="train"
+            )
 
         if self.train_dataset is None:
             train_dataset = datasets.load_dataset(
@@ -183,7 +189,7 @@ class SeqDataModule(lp.LightningDataModule):
                 data_files=self.config.users_parquet,
                 split="train",
                 filters=pc.field("is_train"),
-            ).with_format("torch")
+            )
             self.train_dataset = SeqDataset(
                 items_dataset=self.items_dataset,
                 users_dataset=train_dataset,
@@ -191,48 +197,27 @@ class SeqDataModule(lp.LightningDataModule):
             )
 
         if self.val_dataset is None and stage in {"fit", "validate", None}:
-            self.val_dataset = (
-                datasets.load_dataset(
-                    "parquet",
-                    data_files=self.config.users_parquet,
-                    split="train",
-                    filters=pc.field("is_val"),
-                )
-                .flatten()
-                .select_columns(
-                    ["history.item_id", "history.item_text", "target.item_id"]
-                )
-                .with_format("torch")
+            self.val_dataset = datasets.load_dataset(
+                "parquet",
+                data_files=self.config.users_parquet,
+                split="train",
+                filters=pc.field("is_val"),
             )
 
         if self.test_dataset is None and stage in {"test", None}:
-            self.test_dataset = (
-                datasets.load_dataset(
-                    "parquet",
-                    data_files=self.config.users_parquet,
-                    split="train",
-                    filters=pc.field("is_test"),
-                )
-                .flatten()
-                .select_columns(
-                    ["history.item_id", "history.item_text", "target.item_id"]
-                )
-                .with_format("torch")
+            self.test_dataset = datasets.load_dataset(
+                "parquet",
+                data_files=self.config.users_parquet,
+                split="train",
+                filters=pc.field("is_test"),
             )
 
-        if self.predict_dataset is None and stage in {"predict", None}:
-            self.predict_dataset = (
-                datasets.load_dataset(
-                    "parquet",
-                    data_files=self.config.users_parquet,
-                    split="train",
-                    filters=pc.field("is_predict"),
-                )
-                .flatten()
-                .select_columns(
-                    ["history.item_id", "history.item_text", "target.item_id"]
-                )
-                .with_format("torch")
+        if self.predict_dataset is None:
+            self.predict_dataset = datasets.load_dataset(
+                "parquet",
+                data_files=self.config.users_parquet,
+                split="train",
+                filters=pc.field("is_predict"),
             )
 
     def get_dataloader(
@@ -284,6 +269,7 @@ if __name__ == "__main__":
 
     dataloaders = [
         datamodule.items_dataset,
+        datamodule.users_dataset,
         datamodule.train_dataset,
         datamodule.train_dataloader(),
         datamodule.val_dataset,
