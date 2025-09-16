@@ -135,6 +135,9 @@ class SeqRecModel(torch.nn.Module):
         features = {"attention_mask": attention_mask, "inputs_embeds": inputs_embeds}
         return self.encoder(features)
 
+    def encode(self, item_texts: list[list[str]]) -> torch.Tensor:
+        return self.forward(item_texts)["sentence_embedding"]
+
     def compute_loss(
         self,
         history_item_text: list[list[str]],

@@ -269,6 +269,7 @@ if __name__ == "__main__":
 
     dataloaders = [
         datamodule.items_dataset,
+        datamodule.users_dataset,
         datamodule.train_dataset,
         datamodule.train_dataloader(),
         datamodule.val_dataset,

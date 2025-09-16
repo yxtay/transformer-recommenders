@@ -11,6 +11,7 @@ import lightning.pytorch.loggers as lp_loggers
 import torch
 
 from xfmr_rec.index import LanceIndex, LanceIndexConfig
+from xfmr_rec.metrics import compute_retrieval_metrics
 from xfmr_rec.params import ITEMS_TABLE_NAME, LANCE_DB_PATH, TOP_K, USERS_TABLE_NAME
 from xfmr_rec.seq.models import SeqRecModel, SeqRecModelConfig
 
@@ -41,35 +42,6 @@ class SeqRecLightningConfig(SeqRecModelConfig):
     top_k: int = TOP_K
 
 
-def compute_retrieval_metrics(
-    rec_ids: list[str], target_ids: list[str], top_k: int
-) -> dict[str, torch.Tensor]:
-    import torchmetrics.functional.retrieval as tm_retrieval
-
-    if len(rec_ids) == 0:
-        return {}
-
-    top_k = min(top_k, len(rec_ids))
-    target_ids = set(target_ids)
-    # rec_ids first, followed by target_ids at the end
-    all_items = rec_ids + list(target_ids - set(rec_ids))
-    preds = torch.linspace(1, 0, len(all_items))
-    target = torch.as_tensor([item in target_ids for item in all_items])
-
-    return {
-        metric_fn.__name__: metric_fn(preds=preds, target=target, top_k=top_k)
-        for metric_fn in [
-            tm_retrieval.retrieval_auroc,
-            tm_retrieval.retrieval_average_precision,
-            tm_retrieval.retrieval_hit_rate,
-            tm_retrieval.retrieval_normalized_dcg,
-            tm_retrieval.retrieval_precision,
-            tm_retrieval.retrieval_recall,
-            tm_retrieval.retrieval_reciprocal_rank,
-        ]
-    }
-
-
 class SeqRecLightningModule(lp.LightningModule):
     def __init__(self, config: SeqRecLightningConfig) -> None:
         super().__init__()
@@ -79,10 +51,6 @@ class SeqRecLightningModule(lp.LightningModule):
         self.model: SeqRecModel | None = None
         self.items_index = LanceIndex(config=self.config.items_config)
         self.users_index = LanceIndex(config=self.config.users_config)
-
-    def setup(self, stage: str) -> None:
-        if self.users_index.table is None:
-            self.users_index.index_data(self.trainer.datamodule.users_dataset)
 
     def configure_model(self) -> None:
         if self.model is None:
@@ -108,7 +76,7 @@ class SeqRecLightningModule(lp.LightningModule):
         top_k: int = 0,
         exclude_item_ids: list[str] | None = None,
     ) -> datasets.Dataset:
-        if self.items_index is None:
+        if self.items_index.table is None:
             msg = "`items_index` must be initialised first"
             raise ValueError(msg)
 
@@ -156,6 +124,10 @@ class SeqRecLightningModule(lp.LightningModule):
             top_k=self.config.top_k,
             exclude_item_ids=row["history"]["item_id"],
         )
+
+    def on_fit_start(self) -> None:
+        if self.users_index.table is None:
+            self.users_index.index_data(self.trainer.datamodule.users_dataset)
 
     def on_train_start(self) -> None:
         params = self.hparams | self.trainer.datamodule.hparams
@@ -317,7 +289,7 @@ if __name__ == "__main__":
     rich.print(model.compute_losses(next(iter(datamodule.train_dataloader()))))
 
     # validate
-    model.items_index = model.configure_index(datamodule.items_dataset)
+    model.index_items(datamodule.items_dataset)
     rich.print(model.compute_metrics(next(iter(datamodule.val_dataloader())), "val"))
 
     trainer_args = {
