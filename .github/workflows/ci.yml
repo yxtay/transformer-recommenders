@@ -58,7 +58,7 @@ jobs:
         run: uv run lightning fit --print_config
 
       - if: ${{ success() || failure() }}
-        run: uv run python -m "${PROJECT_NAME}.bentoml.prepare"
+        run: uv run mf_deploy
 
       - if: ${{ success() || failure() }}
         run: |
@@ -123,7 +123,7 @@ jobs:
           IMAGE_ID: ${{ steps.build.outputs.imageid }}
 
       - if: ${{ success() || failure() }}
-        run: ${DOCKER_RUN_CMD} "${IMAGE_ID}" python -m "${PROJECT_NAME}.bentoml.prepare"
+        run: ${DOCKER_RUN_CMD} "${IMAGE_ID}" uv run mf_deploy
         env:
           IMAGE_ID: ${{ steps.build.outputs.imageid }}
 

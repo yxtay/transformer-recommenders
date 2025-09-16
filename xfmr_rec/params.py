@@ -23,6 +23,8 @@ METRIC = {"name": "val/RetrievalNormalizedDCG", "mode": "max"}
 TOP_K = 20
 
 # serving
+EMBEDDER_PATH = "embedder"
+ENCODER_PATH = "encoder"
 ITEMS_TABLE_NAME = "items"
 LANCE_DB_PATH = "lance_db"
 MODEL_NAME = "xfmr_rec"

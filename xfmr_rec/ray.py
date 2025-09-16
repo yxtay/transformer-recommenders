@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 def get_cli(config: dict[str, bool | float | int | str]) -> LightningCLI:
     from xfmr_rec.flaml import get_lightning_args
-    from xfmr_rec.lightning import cli_main
+    from xfmr_rec.mf.trainer import cli_main
 
     experiment_name = ray.tune.get_context().get_experiment_name()
     trial_name = ray.tune.get_context().get_trial_name()

@@ -10,7 +10,7 @@ import torch
 import torch.utils.data as torch_data
 from lightning import LightningDataModule
 
-from xfmr_rec.data.load import embed_example, select_fields, torch_collate
+from xfmr_rec.mf.load import embed_example, select_fields, torch_collate
 from xfmr_rec.params import (
     BATCH_SIZE,
     DATA_DIR,
@@ -94,7 +94,7 @@ class FeaturesProcessor[FT, BT](pydantic.BaseModel):
     def get_data(self, subset: str, cycle: int = 1) -> torch_data.IterDataPipe[FT]:
         import pyarrow.compute as pc
 
-        from xfmr_rec.data.load import ParquetDictLoaderIterDataPipe
+        from xfmr_rec.mf.load import ParquetDictLoaderIterDataPipe
 
         valid_subset = {"train", "val", "test", "predict"}
         if subset not in valid_subset:
@@ -356,7 +356,7 @@ class InteractionProcessor(
     def get_processed_data(
         self, subset: str
     ) -> torch_data.IterDataPipe[InteractionFeaturesType]:
-        from xfmr_rec.data.load import merge_examples, nest_example
+        from xfmr_rec.mf.load import merge_examples, nest_example
 
         neg_item_dp = (
             self.item_processor.get_processed_data(subset, cycle=0)
@@ -416,7 +416,7 @@ class MatrixFactorizationDataModule(LightningDataModule):
     def prepare_data(self, *, overwrite: bool = False) -> pl.LazyFrame:
         from filelock import FileLock
 
-        from xfmr_rec.data.prepare import download_unpack_data, prepare_movielens
+        from xfmr_rec.data import download_unpack_data, prepare_movielens
 
         data_dir = self.config.data_dir
         with FileLock(f"{data_dir}.lock"):

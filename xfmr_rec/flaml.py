@@ -29,7 +29,7 @@ def evaluation_function(
 ) -> dict[str, float]:
     import numpy as np
 
-    from xfmr_rec.lightning import cli_main
+    from xfmr_rec.mf.trainer import cli_main
 
     config = {
         key: value.tolist() if isinstance(value, np.generic) else value
