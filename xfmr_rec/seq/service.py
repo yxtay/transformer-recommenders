@@ -258,9 +258,9 @@ class Service:
     async def process_user(self, user: UserQuery) -> Query:
         item_texts: list[str] = []
         if user.history:
-            item_texts += user.history.item_id
+            item_texts += user.history.item_text
         if user.target:
-            item_texts += user.target.item_id
+            item_texts += user.target.item_text
         return Query(texts=item_texts)
 
     @bentoml.api()
