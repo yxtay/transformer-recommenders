@@ -8,11 +8,12 @@ from xfmr_rec.models import ModelConfig, init_bert, to_sentence_transformer
 
 
 class SeqEmbeddedRecModelConfig(ModelConfig):
+    vocab_size: int | None = 1
     hidden_size: int = 384
     num_hidden_layers: int = 1
     num_attention_heads: int = 12
     intermediate_size: int = 384
-    max_position_embeddings: int = 32
+    max_position_embeddings: int | None = 32
 
 
 class SeqEmbeddedRecModel(torch.nn.Module):
