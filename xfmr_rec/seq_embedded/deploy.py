@@ -30,7 +30,7 @@ def prepare_trainer(
 ) -> Trainer:
     import tempfile
 
-    from xfmr_rec.seq_rec.trainer import cli_main
+    from xfmr_rec.seq_embedded.trainer import cli_main
 
     if not ckpt_path:
         args = {"trainer": {"fast_dev_run": True}}
@@ -76,7 +76,7 @@ def test_queries() -> None:
     import pydantic
     import rich
 
-    from xfmr_rec.seq_rec.service import (
+    from xfmr_rec.seq_embedded.service import (
         EXAMPLE_ITEM,
         EXAMPLE_USER,
         ItemCandidate,
@@ -126,8 +126,8 @@ def test_queries() -> None:
 
 
 def main(ckpt_path: str = "") -> None:
-    # trainer = prepare_trainer(ckpt_path=ckpt_path)
-    # save_model(trainer=trainer)
+    trainer = prepare_trainer(ckpt_path=ckpt_path)
+    save_model(trainer=trainer)
     test_queries()
 
 
