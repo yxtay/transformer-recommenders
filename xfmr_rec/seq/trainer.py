@@ -10,7 +10,10 @@ import lightning.pytorch.cli as lp_cli
 import lightning.pytorch.loggers as lp_loggers
 import torch
 
-from xfmr_rec.seq.models import ItemsIndex, SeqRecModel, SeqRecModelConfig
+from xfmr_rec.index import LanceIndex, LanceIndexConfig
+from xfmr_rec.metrics import compute_retrieval_metrics
+from xfmr_rec.params import ITEMS_TABLE_NAME, LANCE_DB_PATH, TOP_K, USERS_TABLE_NAME
+from xfmr_rec.seq.models import SeqRecModel, SeqRecModelConfig
 
 if TYPE_CHECKING:
     import datasets
@@ -24,38 +27,19 @@ class SeqRecLightningConfig(SeqRecModelConfig):
     learning_rate: float = 0.001
     weight_decay: float = 0.01
 
-    lancedb_path: str = "lance_db"
-    table_name: str = "items"
-    top_k: int = 20
-
-
-def compute_retrieval_metrics(
-    rec_ids: list[str], target_ids: list[str], top_k: int
-) -> dict[str, torch.Tensor]:
-    import torchmetrics.functional.retrieval as tm_retrieval
-
-    if len(rec_ids) == 0:
-        return {}
-
-    top_k = min(top_k, len(rec_ids))
-    target_ids = set(target_ids)
-    # rec_ids first, followed by target_ids at the end
-    all_items = rec_ids + list(target_ids - set(rec_ids))
-    preds = torch.linspace(1, 0, len(all_items))
-    target = torch.as_tensor([item in target_ids for item in all_items])
-
-    return {
-        metric_fn.__name__: metric_fn(preds=preds, target=target, top_k=top_k)
-        for metric_fn in [
-            tm_retrieval.retrieval_auroc,
-            tm_retrieval.retrieval_average_precision,
-            tm_retrieval.retrieval_hit_rate,
-            tm_retrieval.retrieval_normalized_dcg,
-            tm_retrieval.retrieval_precision,
-            tm_retrieval.retrieval_recall,
-            tm_retrieval.retrieval_reciprocal_rank,
-        ]
-    }
+    items_config: LanceIndexConfig = LanceIndexConfig(
+        table_name=ITEMS_TABLE_NAME,
+        id_col="item_id",
+        text_col="item_text",
+        embedding_col="embedding",
+    )
+    users_config: LanceIndexConfig = LanceIndexConfig(
+        table_name=USERS_TABLE_NAME,
+        id_col="user_id",
+        text_col="user_text",
+        embedding_col=None,
+    )
+    top_k: int = TOP_K
 
 
 class SeqRecLightningModule(lp.LightningModule):
@@ -65,24 +49,21 @@ class SeqRecLightningModule(lp.LightningModule):
         self.save_hyperparameters(self.config.model_dump())
 
         self.model: SeqRecModel | None = None
-        self.items_index: ItemsIndex | None = None
+        self.items_index = LanceIndex(config=self.config.items_config)
+        self.users_index = LanceIndex(config=self.config.users_config)
 
     def configure_model(self) -> None:
         if self.model is None:
             self.model = SeqRecModel(config=self.config, device=self.device)
 
     @torch.inference_mode()
-    def configure_index(self, items_dataset: datasets.Dataset) -> ItemsIndex:
+    def index_items(self, items_dataset: datasets.Dataset) -> None:
         item_embeddings = items_dataset.map(
             lambda batch: {"embedding": self.model.embed_items(batch["item_text"])},
             batched=True,
             batch_size=32,
         )
-        return ItemsIndex(
-            item_embeddings,
-            lancedb_path=self.config.lancedb_path,
-            table_name=self.config.table_name,
-        )
+        self.items_index.index_data(item_embeddings)
 
     def forward(self, item_texts: list[list[str]]) -> dict[str, torch.Tensor]:
         return self.model(item_texts)
@@ -95,7 +76,7 @@ class SeqRecLightningModule(lp.LightningModule):
         top_k: int = 0,
         exclude_item_ids: list[str] | None = None,
     ) -> datasets.Dataset:
-        if self.items_index is None:
+        if self.items_index.table is None:
             msg = "`items_index` must be initialised first"
             raise ValueError(msg)
 
@@ -117,7 +98,7 @@ class SeqRecLightningModule(lp.LightningModule):
         recs = self.predict_step(row)
         metrics = compute_retrieval_metrics(
             rec_ids=recs["item_id"][:],
-            target_ids=row["target.item_id"],
+            target_ids=row["target"]["item_id"],
             top_k=self.config.top_k,
         )
         return {f"{stage}/{key}": value for key, value in metrics.items()}
@@ -139,10 +120,14 @@ class SeqRecLightningModule(lp.LightningModule):
 
     def predict_step(self, row: dict[str, list[str]]) -> datasets.Dataset:
         return self.recommend(
-            row["history.item_text"],
+            row["history"]["item_text"],
             top_k=self.config.top_k,
-            exclude_item_ids=row["history.item_id"],
+            exclude_item_ids=row["history"]["item_id"],
         )
+
+    def on_fit_start(self) -> None:
+        if self.users_index.table is None:
+            self.users_index.index_data(self.trainer.datamodule.users_dataset)
 
     def on_train_start(self) -> None:
         params = self.hparams | self.trainer.datamodule.hparams
@@ -160,7 +145,7 @@ class SeqRecLightningModule(lp.LightningModule):
                 logger.experiment.update_run(logger.run_id, status="RUNNING")
 
     def on_validation_start(self) -> None:
-        self.items_index = self.configure_index(self.trainer.datamodule.items_dataset)
+        self.index_items(self.trainer.datamodule.items_dataset)
 
     def on_test_start(self) -> None:
         self.on_validation_start()
@@ -187,6 +172,15 @@ class SeqRecLightningModule(lp.LightningModule):
     @property
     def example_input_array(self) -> tuple[torch.Tensor]:
         return ([[""], []],)
+
+    def save(self, path: str) -> None:
+        import shutil
+
+        path = pathlib.Path(path)
+        self.model.save(path)
+
+        lancedb_path = self.config.items_config.lancedb_path
+        shutil.copytree(lancedb_path, path / LANCE_DB_PATH)
 
 
 class LoggerSaveConfigCallback(lp_cli.SaveConfigCallback):
@@ -295,7 +289,7 @@ if __name__ == "__main__":
     rich.print(model.compute_losses(next(iter(datamodule.train_dataloader()))))
 
     # validate
-    model.items_index = model.configure_index(datamodule.items_dataset)
+    model.index_items(datamodule.items_dataset)
     rich.print(model.compute_metrics(next(iter(datamodule.val_dataloader())), "val"))
 
     trainer_args = {
