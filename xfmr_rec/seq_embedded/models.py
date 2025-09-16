@@ -12,7 +12,7 @@ class SeqEmbeddedRecModelConfig(ModelConfig):
     num_hidden_layers: int = 1
     num_attention_heads: int = 12
     intermediate_size: int = 384
-    max_seq_length: int = 32
+    max_position_embeddings: int = 32
 
 
 class SeqEmbeddedRecModel(torch.nn.Module):
