@@ -106,7 +106,7 @@ class ItemProcessor:
 
     @logger.catch(reraise=True)
     def __init__(self) -> None:
-        from xfmr_rec.data.lightning import ItemProcessor
+        from xfmr_rec.mf.data import ItemProcessor
 
         lance_db_path = self.model_ref.path_of(LANCE_DB_PATH)
         processors_args = json.loads(
@@ -155,7 +155,7 @@ class UserProcessor:
 
     @logger.catch(reraise=True)
     def __init__(self) -> None:
-        from xfmr_rec.data.lightning import UserProcessor
+        from xfmr_rec.mf.data import UserProcessor
 
         lance_db_path = self.model_ref.path_of(LANCE_DB_PATH)
         processors_args = json.loads(

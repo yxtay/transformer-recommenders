@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from xfmr_rec.lightning import MatrixFactorizationLitModule
+from xfmr_rec.mf.trainer import MatrixFactorizationLitModule
 
 if TYPE_CHECKING:
     from typing import Any
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 def load_args(ckpt_path: str) -> dict[str, Any]:
-    from xfmr_rec.data.lightning import MatrixFactorizationDataModule
+    from xfmr_rec.mf.data import MatrixFactorizationDataModule
 
     if not ckpt_path:
         return {"data": {"config": {"num_workers": 0}}}
@@ -30,7 +30,7 @@ def prepare_trainer(
 ) -> Trainer:
     import tempfile
 
-    from xfmr_rec.lightning import cli_main
+    from xfmr_rec.mf.trainer import cli_main
 
     if not ckpt_path:
         args = {"trainer": {"accelerator": "cpu", "fast_dev_run": True}}
@@ -76,7 +76,7 @@ def test_queries() -> None:
     import pydantic
     import rich
 
-    from xfmr_rec.bentoml.service import (
+    from xfmr_rec.mf.service import (
         EXAMPLE_ITEM,
         EXAMPLE_USER,
         ItemCandidate,

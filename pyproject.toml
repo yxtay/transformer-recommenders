@@ -38,12 +38,12 @@ dev = [
 
 [project.scripts]
 data = "xfmr_rec.data.prepare:main"
-lightning = "xfmr_rec.seq.trainer:main"
+seq_train = "xfmr_rec.seq.trainer:main"
 flaml = "xfmr_rec.flaml:main"
-bentoml_cli = "xfmr_rec.bentoml.prepare:main"
+mf_deploy = "xfmr_rec.mf.deploy:main"
 
 [tool.bentoml.build]
-service = "xfmr_rec.bentoml.service:Service"
+service = "xfmr_rec.mf.service:Service"
 description = "file: ./README.md"
 include = ["**/*.py", "README.md"]
 envs = [{ name = "UV_NO_CACHE", value = "1" }]

@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from mlflow import MlflowClient
     from sentence_transformers import SentenceTransformer
 
-    from xfmr_rec.data.lightning import (
+    from xfmr_rec.mf.data import (
         InteractionBatchType,
         ItemProcessor,
         UserFeaturesType,
@@ -374,7 +374,7 @@ def cli_main(
 ) -> LightningCLI:
     from jsonargparse import lazy_instance
 
-    from xfmr_rec.data.lightning import MatrixFactorizationDataModule
+    from xfmr_rec.mf.data import MatrixFactorizationDataModule
     from xfmr_rec.params import MLFLOW_DIR, TENSORBOARD_DIR
 
     run_name = run_name or time_now_isoformat()
@@ -426,7 +426,7 @@ if __name__ == "__main__":
 
     import rich
 
-    from xfmr_rec.data.lightning import (
+    from xfmr_rec.mf.data import (
         MatrixFactorizationDataConfig,
         MatrixFactorizationDataModule,
     )

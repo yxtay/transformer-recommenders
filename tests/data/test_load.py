@@ -22,7 +22,7 @@ import torch
 def test_pad_tensors(
     *, batch_sizes: tuple[int], dim: int, pad_start: bool, expected_size: tuple[int]
 ) -> None:
-    from xfmr_rec.data.load import pad_tensors
+    from xfmr_rec.mf.load import pad_tensors
 
     batch = [torch.rand(size) for size in batch_sizes]  # devskim: ignore DS148264
     padded = pad_tensors(batch, dim=dim, pad_start=pad_start)
