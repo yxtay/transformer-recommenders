@@ -175,12 +175,7 @@ class Service:
     @bentoml.api()
     @logger.catch(reraise=True)
     async def embed_query(self, query: Query) -> Query:
-        return (await self.embed_queries([query]))[0]
-
-    @bentoml.api(batchable=True)
-    @logger.catch(reraise=True)
-    async def embed_queries(self, queries: list[Query]) -> list[Query]:
-        return await self.model.to_async.embed(queries)
+        return (await self.model.to_async.embed([query]))[0]
 
     @bentoml.api()
     @logger.catch(reraise=True)
