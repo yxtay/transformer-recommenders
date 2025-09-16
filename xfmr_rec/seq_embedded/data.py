@@ -28,7 +28,7 @@ class SeqEmbeddedDataModuleConfig(SeqEmbeddedDataConfig):
     items_parquet: str = ITEMS_PARQUET
     users_parquet: str = USERS_PARQUET
 
-    model_name: str = PRETRAINED_MODEL_NAME
+    pretrained_model_name: str = PRETRAINED_MODEL_NAME
     batch_size: int = 32
     num_workers: int = 1
 
@@ -44,8 +44,10 @@ class SeqEmbeddedDataset(torch_data.Dataset):
         self.rng = np.random.default_rng()
 
         self.item_id_map = pd.Series(
-            {k: i + 1 for i, k in enumerate(items_dataset["item_id"])}
+            {k: i for i, k in enumerate(items_dataset["item_id"])}
         )
+        self.all_item_idx = set(self.item_id_map)
+        self.embeddings = items_dataset.with_format("torch")["embedding"][:]
         self.users_dataset = self.process_events(users_dataset)
 
         logger.info(f"{self.__class__.__name__}: {self.config}")
@@ -121,7 +123,7 @@ class SeqEmbeddedDataset(torch_data.Dataset):
         sampled_indices: torch.Tensor,
     ) -> torch.Tensor:
         seq_len = len(sampled_indices)
-        neg_candidates = list(set(self.item_id_map) - set(history_item_idx.tolist()))
+        neg_candidates = list(self.all_item_idx - set(history_item_idx.tolist()))
         sampled_negatives = self.rng.choice(neg_candidates, seq_len, replace=True)
         return torch.as_tensor(sampled_negatives)
 
@@ -141,9 +143,9 @@ class SeqEmbeddedDataset(torch_data.Dataset):
             sampled_indices=sampled_indices,
         )
         return {
-            "history_item_idx": history_item_idx[sampled_indices],
-            "pos_item_idx": pos_item_idx,
-            "neg_item_idx": neg_item_idx,
+            "history_embeddings": self.embeddings[history_item_idx[sampled_indices]],
+            "pos_embeddings": self.embeddings[pos_item_idx],
+            "neg_embeddings": self.embeddings[neg_item_idx],
         }
 
     def collate(self, batch: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
@@ -184,7 +186,7 @@ class SeqEmbeddedDataModule(lp.LightningDataModule):
         from sentence_transformers import SentenceTransformer
 
         if self.items_dataset is None:
-            model = SentenceTransformer(self.config.model_name)
+            model = SentenceTransformer(self.config.pretrained_model_name)
             self.items_dataset = datasets.load_dataset(
                 "parquet", data_files=self.config.items_parquet, split="train"
             ).map(

@@ -125,10 +125,6 @@ class SeqRecLightningModule(lp.LightningModule):
             exclude_item_ids=row["history"]["item_id"],
         )
 
-    def on_fit_start(self) -> None:
-        if self.users_index.table is None:
-            self.users_index.index_data(self.trainer.datamodule.users_dataset)
-
     def on_train_start(self) -> None:
         params = self.hparams | self.trainer.datamodule.hparams
         metrics = {
@@ -146,6 +142,8 @@ class SeqRecLightningModule(lp.LightningModule):
 
     def on_validation_start(self) -> None:
         self.index_items(self.trainer.datamodule.items_dataset)
+        if self.users_index.table is None:
+            self.users_index.index_data(self.trainer.datamodule.users_dataset)
 
     def on_test_start(self) -> None:
         self.on_validation_start()

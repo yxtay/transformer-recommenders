@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import torch
 from loguru import logger
+from sentence_transformers import SentenceTransformer
 
 from xfmr_rec.models import ModelConfig, init_bert, to_sentence_transformer
-
-if TYPE_CHECKING:
-    import datasets
 
 
 class SeqEmbeddedRecModelConfig(ModelConfig):
@@ -24,85 +20,76 @@ class SeqEmbeddedRecModel(torch.nn.Module):
         self,
         config: ModelConfig,
         *,
-        items_dataset: datasets.Dataset,
         device: torch.device | str | None = None,
+        model: SentenceTransformer | None = None,
     ) -> None:
         super().__init__()
         self.config = config
+        self.model = model
 
-        # index 0 is for padding
-        self.item_id_map = {k: i + 1 for i, k in enumerate(items_dataset["item_id"])}
-        self.item_embeddings = self.load_embeddings(items_dataset)
-
-        bert_model = init_bert(self.config)
-        self.model = to_sentence_transformer(bert_model, device=device)
-        self.item_embeddings.to(self.device)
-
+        self.configure_model(device=device)
         logger.info(f"{self.__class__.__name__}: {self.config}")
         logger.info(f"{self}")
 
+    def configure_model(self, device: torch.device | str | None = None) -> None:
+        if self.model is None:
+            bert_model = init_bert(self.config)
+            self.model = to_sentence_transformer(bert_model, device=device)
+
     @property
-    def device(self):
+    def device(self) -> torch.device:
         return self.model.device
 
-    def load_embeddings(self, items_dataset: datasets.Dataset) -> torch.nn.Embedding:
-        weights = items_dataset.with_format("torch")["embedding"][:]
-        # add padding embedding at idx 0
-        weights = torch.cat([torch.zeros_like(weights[[0], :]), weights])
-        return torch.nn.Embedding.from_pretrained(weights, freeze=True, padding_idx=0)
+    @property
+    def max_seq_length(self) -> int:
+        return self.model.max_seq_length
 
     def save(self, path: str) -> None:
         self.model.save(path)
+        logger.info(f"model saved: {path}")
 
-    def forward(
-        self,
-        item_idx: torch.Tensor | None = None,
-        item_embeds: torch.Tensor | None = None,
-    ) -> dict[str, torch.Tensor]:
-        if item_idx is None and item_embeds is None:
-            msg = "Either item_idx or item_embeds must be provided."
-            raise ValueError(msg)
+    @classmethod
+    def load(
+        cls, path: str, device: torch.device | str | None = None
+    ) -> SeqEmbeddedRecModel:
+        model = SentenceTransformer(path, device=device, local_files_only=True)
+        logger.info(f"model loaded: {path}")
 
-        if item_embeds is None:
-            inputs_embeds = self.item_embeddings(
-                item_idx[:, -self.config.max_seq_length :]
-            )
-            attention_mask = (item_idx != 0).long()
-        else:
-            inputs_embeds = item_embeds[:, -self.config.max_seq_length :, :]
-            attention_mask = (item_embeds != 0).any(-1).long()
+        tokenizer_name = model[0].tokenizer.name_or_path
+        pooling_mode = model[1].get_pooling_mode_str()
+        model_config = model[0].auto_model.config
+        config = SeqEmbeddedRecModelConfig.model_validate(
+            model_config, from_attributes=True
+        ).model_copy(
+            update={"tokenizer_name": tokenizer_name, "pooling_mode": pooling_mode}
+        )
+        return cls(config, model=model)
 
+    def forward(self, item_embeds: torch.Tensor) -> dict[str, torch.Tensor]:
+        inputs_embeds = item_embeds[:, -self.max_seq_length :, :]
+        attention_mask = (inputs_embeds != 0).any(-1).long()
         features = {"inputs_embeds": inputs_embeds, "attention_mask": attention_mask}
         return self.model(features)
 
-    def encode(self, item_ids: list[str]) -> torch.Tensor:
-        item_idx = [
-            self.item_id_map[item] for item in item_ids if item in self.item_id_map
-        ]
-        item_idx = torch.as_tensor(
-            [item_idx[-self.config.max_seq_length :]], device=self.model.device
-        )
-        return self(item_idx)["sentence_embedding"][0]
-
     def compute_loss(
         self,
-        item_idx: torch.Tensor,
-        pos_idx: torch.Tensor,
-        neg_idx: torch.Tensor,
+        item_embeddings: torch.Tensor,
+        pos_embeddings: torch.Tensor,
+        neg_embeddings: torch.Tensor,
     ) -> dict[str, torch.Tensor]:
-        loss_mask = torch.where(pos_idx != 0)
+        loss_mask = (pos_embeddings != 0).any(-1)
         # shape: (batch_size, seq_len)
-        output_embeds = self(item_idx)["token_embeddings"]
+        output_embeds = self(item_embeddings)["token_embeddings"]
         # shape: (batch_size, seq_len, hidden_size)
         output_embeds = output_embeds[:, :, None, :][loss_mask]
         # shape: (batch_size * seq_len, 1, hidden_size)
 
-        candidate_idx = torch.stack([pos_idx, neg_idx], dim=-1)
-        # shape: (batch_size, seq_len, 2)
-        candidate_idx = candidate_idx[loss_mask]
-        # shape: (batch_size * seq_len, 2)
-        candidate_embeddings = self.item_embeddings(candidate_idx)
-        # shape: (batch_size * seq_len, 2, hidden_size)
+        pos_embeddings = pos_embeddings[loss_mask]
+        # shape: (batch_size * seq_len, hidden_size
+        neg_embeddings = neg_embeddings[loss_mask]
+        # shape: (batch_size * seq_len, hidden_size
+        candidate_embeddings = torch.stack([pos_embeddings, neg_embeddings], dim=-2)
+        # shape: (batch_size * seq_len, 2, hidden_size
 
         logits = (output_embeds * candidate_embeddings).sum(dim=-1)
         # shape: (batch_size * seq_len, 2)
@@ -115,13 +102,13 @@ class SeqEmbeddedRecModel(torch.nn.Module):
         )
 
         # positive item is always at zero index
-        labels_ce = torch.zeros_like(candidate_idx[:, 0])
+        labels_ce = torch.zeros_like(logits[:, 0])
         # shape: (batch_size * seq_len)
         loss_ce = torch.nn.functional.cross_entropy(logits, labels_ce)
 
-        batch_size, seq_len = pos_idx.size()
-        numel = pos_idx.numel()
-        non_zero = (pos_idx != 0).sum().item()
+        batch_size, seq_len = loss_mask.size()
+        numel = loss_mask.numel()
+        non_zero = loss_mask.sum().item()
         return {
             "batch/size": batch_size,
             "batch/seq_len": seq_len,

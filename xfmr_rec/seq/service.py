@@ -79,7 +79,7 @@ class Model:
     @torch.inference_mode()
     def embed(self, queries: list[Query]) -> list[Query]:
         item_texts = [query.item_texts for query in queries]
-        embeddings = self.model.encode(item_texts).numpy(force=True)
+        embeddings = self.model(item_texts)["sentence_embedding"].numpy(force=True)
         for query, embedding in zip(queries, embeddings, strict=False):
             query.embedding = embedding
         return queries

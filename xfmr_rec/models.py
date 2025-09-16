@@ -23,7 +23,7 @@ class ModelConfig(pydantic.BaseModel):
     max_position_embeddings: int | None = None
     is_decoder: bool = False
 
-    model_name: str = PRETRAINED_MODEL_NAME
+    tokenizer_name: str = PRETRAINED_MODEL_NAME
     pooling_mode: Literal["mean", "max", "cls", "lasttoken"] = "mean"
 
 
@@ -31,7 +31,7 @@ def init_bert(config: ModelConfig) -> BertModel:
     from transformers import AutoTokenizer
     from transformers.models.bert import BertConfig, BertModel
 
-    tokenizer = AutoTokenizer.from_pretrained(config.model_name)
+    tokenizer = AutoTokenizer.from_pretrained(config.tokenizer_name)
 
     if config.vocab_size is None:
         config.vocab_size = tokenizer.vocab_size

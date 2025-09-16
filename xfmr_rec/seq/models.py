@@ -41,6 +41,13 @@ class SeqRecModel(torch.nn.Module):
         logger.info(f"{self}")
 
     def configure_model(self, device: torch.device | str | None = None) -> None:
+        if self.encoder is None:
+            encoder_conf = self.config.model_copy(update={"is_decoder": True})
+            encoder = init_bert(encoder_conf)
+            self.encoder = to_sentence_transformer(
+                encoder, pooling_mode="lasttoken", device=device
+            )
+
         if self.embedder is None:
             embedding_conf = self.config.model_copy(
                 update={
@@ -50,14 +57,7 @@ class SeqRecModel(torch.nn.Module):
                 }
             )
             embedder = init_bert(embedding_conf)
-            self.embedder = to_sentence_transformer(embedder, device=device)
-
-        if self.encoder is None:
-            encoder_conf = self.config.model_copy(update={"is_decoder": True})
-            encoder = init_bert(encoder_conf)
-            self.encoder = to_sentence_transformer(
-                encoder, pooling_mode="lasttoken", device=device
-            )
+            self.embedder = to_sentence_transformer(embedder, device=self.device)
 
     @property
     def device(self) -> torch.device:
@@ -78,15 +78,19 @@ class SeqRecModel(torch.nn.Module):
         logger.info(f"encoder saved: {encoder_path}")
 
     @classmethod
-    def load(cls, path: str) -> SeqRecModel:
+    def load(cls, path: str, device: torch.device | str | None = None) -> SeqRecModel:
         path = pathlib.Path(path)
-        embedder_path = (path / EMBEDDER_PATH).as_posix()
-        embedder = SentenceTransformer(embedder_path, local_files_only=True)
-        logger.info(f"embedder loaded: {embedder_path}")
-
         encoder_path = (path / ENCODER_PATH).as_posix()
-        encoder = SentenceTransformer(encoder_path, local_files_only=True)
+        encoder = SentenceTransformer(
+            encoder_path, device=device, local_files_only=True
+        )
         logger.info(f"encoder loaded: {encoder_path}")
+
+        embedder_path = (path / EMBEDDER_PATH).as_posix()
+        embedder = SentenceTransformer(
+            embedder_path, device=encoder.device, local_files_only=True
+        )
+        logger.info(f"embedder loaded: {embedder_path}")
 
         tokenizer_name = embedder[0].tokenizer.name_or_path
         pooling_mode = embedder[1].get_pooling_mode_str()
@@ -117,26 +121,12 @@ class SeqRecModel(torch.nn.Module):
         return pad_sequence(torch.split(embeddings, num_items), batch_first=True)
 
     def forward(
-        self,
-        item_texts: list[list[str]] | None = None,
-        *,
-        item_embeds: torch.Tensor | None = None,
+        self, item_texts: list[list[str]] | None = None
     ) -> dict[str, torch.Tensor]:
-        if item_texts is None and item_embeds is None:
-            msg = "Either item_texts or item_embeds must be provided."
-            raise ValueError(msg)
-
-        if item_embeds is None:
-            inputs_embeds = self.embed_item_sequences(item_texts)
-        else:
-            inputs_embeds = item_embeds[:, -self.max_seq_length :, :]
-
+        inputs_embeds = self.embed_item_sequences(item_texts)
         attention_mask = (inputs_embeds != 0).any(-1).long()
         features = {"attention_mask": attention_mask, "inputs_embeds": inputs_embeds}
         return self.encoder(features)
-
-    def encode(self, item_texts: list[list[str]]) -> torch.Tensor:
-        return self.forward(item_texts)["sentence_embedding"]
 
     def compute_loss(
         self,

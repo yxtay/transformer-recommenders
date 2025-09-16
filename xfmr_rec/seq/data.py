@@ -40,6 +40,7 @@ class SeqDataset(torch_data.Dataset):
         self.item_id_map = pd.Series(
             {k: i for i, k in enumerate(items_dataset["item_id"])}
         )
+        self.all_item_idx = set(self.item_id_map)
         self.item_text: list[str] = items_dataset["item_text"]
 
         self.users_dataset = self.process_events(users_dataset)
@@ -117,7 +118,7 @@ class SeqDataset(torch_data.Dataset):
         sampled_indices: torch.Tensor,
     ) -> torch.Tensor:
         seq_len = len(sampled_indices)
-        neg_candidates = list(set(self.item_id_map) - set(history_item_idx.tolist()))
+        neg_candidates = list(self.all_item_idx - set(history_item_idx.tolist()))
         sampled_negatives = self.rng.choice(neg_candidates, seq_len, replace=True)
         return torch.as_tensor(sampled_negatives)
 

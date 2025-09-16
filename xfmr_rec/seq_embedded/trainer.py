@@ -54,14 +54,10 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
 
     def configure_model(self) -> None:
         if self.model is None:
-            self.model = SeqEmbeddedRecModel(
-                self.config,
-                items_dataset=self.trainer.datamodule.items_dataset,
-                device=self.device,
-            )
+            self.model = SeqEmbeddedRecModel(self.config, device=self.device)
 
-    def forward(self, item_idx: torch.Tensor) -> dict[str, torch.Tensor]:
-        return self.model(item_idx)
+    def forward(self, item_embeds: torch.Tensor) -> dict[str, torch.Tensor]:
+        return self.model(item_embeds)
 
     @torch.inference_mode()
     def recommend(
@@ -75,7 +71,16 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
             msg = "`items_index` must be initialised first"
             raise ValueError(msg)
 
-        embedding = self.model.encode(item_ids).numpy(force=True)
+        items = self.items_index.get_ids(item_ids)
+        items_embed_map = {item["item_id"]: item["embedding"] for item in items}
+        item_embeds = [
+            items_embed_map[item_id]
+            for item_id in item_ids
+            if item_id in items_embed_map
+        ]
+        item_embeds = torch.as_tensor(item_embeds, device=self.device)[None, :, :]
+
+        embedding = self.model(item_embeds)["sentence_embedding"].numpy(force=True)
         return self.items_index.search(
             embedding,
             exclude_item_ids=exclude_item_ids,
@@ -84,7 +89,9 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
 
     def compute_losses(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         return self.model.compute_loss(
-            batch["history_item_idx"], batch["pos_item_idx"], batch["neg_item_idx"]
+            batch["history_embeddings"],
+            batch["pos_embeddings"],
+            batch["neg_embeddings"],
         )
 
     def compute_metrics(
@@ -120,13 +127,6 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
             exclude_item_ids=row["history"]["item_id"],
         )
 
-    def on_fit_start(self) -> None:
-        if self.items_index.table is None:
-            self.items_index.index_data(self.trainer.datamodule.items_dataset)
-
-        if self.users_index.table is None:
-            self.users_index.index_data(self.trainer.datamodule.users_dataset)
-
     def on_train_start(self) -> None:
         params = self.hparams | self.trainer.datamodule.hparams
         metrics = {
@@ -141,6 +141,13 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
             if isinstance(logger, lp_loggers.MLFlowLogger):
                 # reset mlflow run status to "RUNNING"
                 logger.experiment.update_run(logger.run_id, status="RUNNING")
+
+    def on_validation_start(self) -> None:
+        if self.items_index.table is None:
+            self.items_index.index_data(self.trainer.datamodule.items_dataset)
+
+        if self.users_index.table is None:
+            self.users_index.index_data(self.trainer.datamodule.users_dataset)
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
         return torch.optim.AdamW(
@@ -160,9 +167,11 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
 
     @property
     def example_input_array(self) -> tuple[torch.Tensor]:
-        return (
-            torch.as_tensor([[0], [1]], device=self.model.device, dtype=torch.long),
-        )
+        example = torch.zeros(2, 1, self.config.hidden_size, device=self.device)
+        rand = torch.rand_like(example[1, :])
+        rand = rand / rand.norm()
+        example[1, :] = rand
+        return (example,)
 
     def save(self, path: str) -> None:
         import shutil
