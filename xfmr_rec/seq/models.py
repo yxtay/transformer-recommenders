@@ -102,28 +102,30 @@ class SeqRecModel(torch.nn.Module):
         )
         return cls(config, embedder=embedder, encoder=encoder)
 
-    def embed_items(self, item_texts: list[str]) -> torch.Tensor:
-        tokenized = self.embedder.tokenize(item_texts)
+    def embed_item_text(self, item_text: list[str]) -> torch.Tensor:
+        tokenized = self.embedder.tokenize(item_text)
         tokenized = {
             key: value.to(self.device) if isinstance(value, torch.Tensor) else value
             for key, value in tokenized.items()
         }
         return self.embedder(tokenized)["sentence_embedding"]
 
-    def embed_item_sequences(self, item_sequences: list[list[str]]) -> torch.Tensor:
+    def embed_item_text_sequence(
+        self, item_text_sequence: list[list[str]]
+    ) -> torch.Tensor:
         import itertools
 
         from torch.nn.utils.rnn import pad_sequence
 
-        item_sequences = [seq[-self.max_seq_length :] for seq in item_sequences]
-        num_items = [len(seq) for seq in item_sequences]
-        embeddings = self.embed_items(list(itertools.chain(*item_sequences)))
+        item_text_sequence = [seq[-self.max_seq_length :] for seq in item_text_sequence]
+        num_items = [len(seq) for seq in item_text_sequence]
+        embeddings = self.embed_item_text(list(itertools.chain(*item_text_sequence)))
         return pad_sequence(torch.split(embeddings, num_items), batch_first=True)
 
     def forward(
-        self, item_texts: list[list[str]] | None = None
+        self, item_text_sequence: list[list[str]] | None = None
     ) -> dict[str, torch.Tensor]:
-        inputs_embeds = self.embed_item_sequences(item_texts)
+        inputs_embeds = self.embed_item_text_sequence(item_text_sequence)
         attention_mask = (inputs_embeds != 0).any(-1).long()
         features = {"attention_mask": attention_mask, "inputs_embeds": inputs_embeds}
         return self.encoder(features)
@@ -142,9 +144,9 @@ class SeqRecModel(torch.nn.Module):
         output_embeds = output_embeds[:, :, None, :][attention_mask]
         # shape: (batch_size * seq_len, 1, hidden_size)
 
-        pos_embeds = self.embed_item_sequences(pos_item_text)[attention_mask]
+        pos_embeds = self.embed_item_text_sequence(pos_item_text)[attention_mask]
         # shape: (batch_size * seq_len, hidden_size)
-        neg_embeds = self.embed_item_sequences(neg_item_text)[attention_mask]
+        neg_embeds = self.embed_item_text_sequence(neg_item_text)[attention_mask]
         # shape: (batch_size * seq_len, hidden_size)
         candidate_embeddings = torch.stack([pos_embeds, neg_embeds], dim=-2)
         # shape: (batch_size * seq_len, 2, hidden_size)

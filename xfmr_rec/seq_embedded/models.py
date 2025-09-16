@@ -65,8 +65,8 @@ class SeqEmbeddedRecModel(torch.nn.Module):
         )
         return cls(config, model=model)
 
-    def forward(self, item_embeds: torch.Tensor) -> dict[str, torch.Tensor]:
-        inputs_embeds = item_embeds[:, -self.max_seq_length :, :]
+    def forward(self, inputs_embeds: torch.Tensor) -> dict[str, torch.Tensor]:
+        inputs_embeds = inputs_embeds[:, -self.max_seq_length :, :]
         attention_mask = (inputs_embeds != 0).any(-1).long()
         features = {"inputs_embeds": inputs_embeds, "attention_mask": attention_mask}
         return self.model(features)

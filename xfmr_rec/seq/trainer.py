@@ -59,7 +59,7 @@ class SeqRecLightningModule(lp.LightningModule):
     @torch.inference_mode()
     def index_items(self, items_dataset: datasets.Dataset) -> None:
         item_embeddings = items_dataset.map(
-            lambda batch: {"embedding": self.model.embed_items(batch["item_text"])},
+            lambda batch: {"embedding": self.model.embed_item_text(batch["item_text"])},
             batched=True,
             batch_size=32,
         )
