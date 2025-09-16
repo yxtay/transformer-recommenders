@@ -51,9 +51,9 @@ envs = [{ name = "UV_NO_CACHE", value = "1" }]
 
 [tool.bentoml.build.python]
 packages = [
+  "datasets",
   "lancedb",
   "loguru",
-  "pandas",
   "pylance",
   "sentence-transformers[onnx]",
 ]
