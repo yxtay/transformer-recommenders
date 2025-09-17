@@ -190,7 +190,7 @@ class Service:
     ) -> list[ItemCandidate]:
         query = await self.process_query(query)
         query = await self.encode_query(query)
-        exclude_item_ids = [*(exclude_item_ids or []), query.item_ids]
+        exclude_item_ids = [*(exclude_item_ids or []), *query.item_ids]
         return await self.search_items(
             query, exclude_item_ids=exclude_item_ids, top_k=top_k
         )
