@@ -93,7 +93,7 @@ class SeqRecModel(torch.nn.Module):
         logger.info(f"embedder loaded: {embedder_path}")
 
         tokenizer_name = embedder[0].tokenizer.name_or_path
-        pooling_mode = embedder[1].get_pooling_mode_str()
+        pooling_mode = encoder[1].get_pooling_mode_str()
         encoder_conf = encoder[0].auto_model.config
         config = SeqRecModelConfig.model_validate(
             encoder_conf, from_attributes=True
