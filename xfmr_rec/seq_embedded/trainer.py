@@ -203,7 +203,7 @@ def cli_main(
     run_id = None
     if active_run := mlflow.active_run():
         experiment_name = mlflow.get_experiment(active_run.info.experiment_id).name
-        run_id = active_run.info.run_name
+        run_name = active_run.info.run_name
         run_id = active_run.info.run_id
 
     tensorboard_logger = {
