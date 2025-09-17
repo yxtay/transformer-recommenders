@@ -136,6 +136,10 @@ class BaseUserIndex:
 
 
 class BaseService:
+    model_ref: bentoml.model.BentoModel
+    item_index: bentoml.model.BentoModel
+    user_index: bentoml.model.BentoModel
+
     @bentoml.api()
     @logger.catch(reraise=True)
     async def search_items(
