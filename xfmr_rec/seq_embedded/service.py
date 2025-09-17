@@ -279,9 +279,10 @@ class Service:
             item_ids += user.target.item_id
 
         items = await self.item_index.to_async.get_ids(item_ids)
-        item_embeds = np.stack(
-            [items[item_id].embedding for item_id in item_ids if item_id in items]
-        )
+        embeddings = [
+            items[item_id].embedding for item_id in item_ids if item_id in items
+        ]
+        item_embeds = np.stack(embeddings) if embeddings else None
         return Query(item_ids=item_ids, input_embeds=item_embeds)
 
     @bentoml.api()
