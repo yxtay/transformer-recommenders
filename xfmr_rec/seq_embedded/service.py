@@ -22,6 +22,7 @@ from xfmr_rec.params import SEQ_EMBEDDED_MODEL_NAME, TOP_K
 
 class Query(BaseQuery):
     item_ids: list[str] | None = None
+    item_texts: list[str] | None = None
     input_embeds: NumpyArrayType | None = None
 
 
