@@ -115,12 +115,25 @@ class LanceIndex:
         )
         return self.table
 
+    def get_ids(self, ids: list[str]) -> datasets.Dataset:
+        import datasets
+
+        if not ids:
+            return datasets.Dataset.from_dict({})
+
+        ids_filter = ", ".join(f"'{str(id_val).replace("'", "''")}'" for id_val in ids)
+        result = (
+            self.table.search()
+            .where(f"{self.config.id_col} IN ({ids_filter})")
+            .to_arrow()
+        )
+        return datasets.Dataset(result)
+
     def get_id(self, id_val: str | None) -> dict[str, Any]:
         if id_val is None:
             return {}
-        result = (
-            self.table.search().where(f"{self.config.id_col} = '{id_val}'").to_list()
-        )
+
+        result = self.get_ids([id_val])
         if len(result) == 0:
             return {}
         return result[0]
@@ -135,7 +148,9 @@ class LanceIndex:
         import pyarrow.compute as pc
 
         exclude_item_ids = exclude_item_ids or [""]
-        exclude_filter = ", ".join(f"'{item}'" for item in exclude_item_ids)
+        exclude_filter = ", ".join(
+            f"'{str(item).replace("'", "''")}'" for item in exclude_item_ids
+        )
         exclude_filter = f"{self.config.id_col} NOT IN ({exclude_filter})"
         rec_table = (
             self.table.search(embedding)

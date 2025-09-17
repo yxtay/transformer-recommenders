@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING, Literal
 
 import pydantic
 
+from xfmr_rec.params import PRETRAINED_MODEL_NAME
+
 if TYPE_CHECKING:
     import torch
     from sentence_transformers import SentenceTransformer
@@ -21,7 +23,7 @@ class ModelConfig(pydantic.BaseModel):
     max_position_embeddings: int | None = None
     is_decoder: bool = False
 
-    tokenizer_name: str = "google-bert/bert-base-uncased"
+    tokenizer_name: str = PRETRAINED_MODEL_NAME
     pooling_mode: Literal["mean", "max", "cls", "lasttoken"] = "mean"
 
 

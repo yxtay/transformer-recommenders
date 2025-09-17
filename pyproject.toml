@@ -37,10 +37,12 @@ dev = [
 ]
 
 [project.scripts]
-data = "xfmr_rec.data.prepare:main"
+data = "xfmr_rec.data:main"
 flaml = "xfmr_rec.flaml:main"
 seq_deploy = "xfmr_rec.seq.deploy:main"
 seq_train = "xfmr_rec.seq.trainer:main"
+seq_embedded_deploy = "xfmr_rec.seq_embedded.deploy:main"
+seq_embedded_train = "xfmr_rec.seq_embedded.trainer:main"
 
 
 [tool.bentoml.build]

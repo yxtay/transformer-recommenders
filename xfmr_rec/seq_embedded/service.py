@@ -10,7 +10,7 @@ import torch
 from bentoml.validators import DType
 from loguru import logger
 
-from xfmr_rec.params import SEQ_MODEL_NAME, TOP_K
+from xfmr_rec.params import SEQ_EMBEDDED_MODEL_NAME, TOP_K
 
 NUMPY_ARRAY_TYPE = Annotated[npt.NDArray[np.float32], DType("float32")]
 
@@ -27,14 +27,15 @@ class UserQuery(pydantic.BaseModel):
     target: Activity | None = None
 
 
-class ItemQuery(pydantic.BaseModel):
+class ItemQuery(bentoml.IODescriptor):
     item_id: str = "0"
     item_text: str = ""
+    embedding: NUMPY_ARRAY_TYPE | None = None
 
 
 class Query(bentoml.IODescriptor):
     item_ids: list[str] | None = None
-    item_texts: list[str] | None = None
+    input_embeds: NUMPY_ARRAY_TYPE | None = None
     embedding: NUMPY_ARRAY_TYPE | None = None
 
 
@@ -68,29 +69,37 @@ ENVS = [{"name": "UV_NO_CACHE", "value": "1"}]
 
 @bentoml.service()
 class Model:
-    model_ref = bentoml.models.BentoModel(SEQ_MODEL_NAME)
+    model_ref = bentoml.models.BentoModel(SEQ_EMBEDDED_MODEL_NAME)
 
     @logger.catch(reraise=True)
     def __init__(self) -> None:
-        from xfmr_rec.seq.models import SeqRecModel
+        from sentence_transformers import SentenceTransformer
 
-        self.model = SeqRecModel.load(self.model_ref.path)
-        logger.info("model loaded: {}", self.model_ref.path)
+        from xfmr_rec.params import TRANSFORMER_PATH
 
-    @bentoml.api(batchable=True)
+        model_path = self.model_ref.path_of(TRANSFORMER_PATH)
+        self.model = SentenceTransformer(model_path)
+        logger.info("model loaded: {}", model_path)
+
+    @bentoml.api()
     @logger.catch(reraise=True)
     @torch.inference_mode()
-    def encode(self, queries: list[Query]) -> list[Query]:
-        item_texts = [query.item_texts for query in queries]
-        embeddings = self.model(item_texts)["sentence_embedding"].numpy(force=True)
-        for query, embedding in zip(queries, embeddings, strict=False):
-            query.embedding = embedding
-        return queries
+    def encode(self, query: Query) -> Query:
+        if query.input_embeds is None or query.input_embeds.size == 0:
+            embedding_dim = self.model.get_sentence_embedding_dimension()
+            query.embedding = np.zeros((1, embedding_dim), dtype=np.float32)
+            return query
+
+        inputs_embeds = torch.as_tensor(query.input_embeds, device=self.model.device)
+        query.embedding = self.model(
+            {"inputs_embeds": inputs_embeds[None, -self.model.max_seq_length :, :]}
+        )["sentence_embedding"].numpy(force=True)
+        return query
 
 
 @bentoml.service()
 class ItemIndex:
-    model_ref = bentoml.models.BentoModel(SEQ_MODEL_NAME)
+    model_ref = bentoml.models.BentoModel(SEQ_EMBEDDED_MODEL_NAME)
 
     @logger.catch(reraise=True)
     def __init__(self) -> None:
@@ -108,14 +117,14 @@ class ItemIndex:
     def search(
         self, query: Query, exclude_item_ids: list[str], top_k: int = TOP_K
     ) -> list[ItemCandidate]:
-        from pydantic import TypeAdapter
-
         results = self.index.search(
             query.embedding,
             exclude_item_ids=exclude_item_ids,
             top_k=top_k,
         )
-        return TypeAdapter(list[ItemCandidate]).validate_python(results.to_list())
+        return pydantic.TypeAdapter(list[ItemCandidate]).validate_python(
+            results.to_list()
+        )
 
     @bentoml.api()
     @logger.catch(reraise=True)
@@ -128,10 +137,19 @@ class ItemIndex:
             raise NotFound(msg)
         return ItemQuery.model_validate(result)
 
+    @bentoml.api()
+    @logger.catch(reraise=True)
+    def get_ids(self, item_ids: list[str]) -> dict[str, ItemQuery]:
+        results = self.index.get_ids(item_ids)
+        results = pydantic.TypeAdapter(list[ItemQuery]).validate_python(
+            results.to_list()
+        )
+        return {item.item_id: item for item in results}
+
 
 @bentoml.service()
 class UserIndex:
-    model_ref = bentoml.models.BentoModel(SEQ_MODEL_NAME)
+    model_ref = bentoml.models.BentoModel(SEQ_EMBEDDED_MODEL_NAME)
 
     @logger.catch(reraise=True)
     def __init__(self) -> None:
@@ -181,19 +199,20 @@ class Service:
         if query.item_ids is None:
             return query
 
-        if query.item_texts is not None:
+        if query.input_embeds is not None:
             return query
 
         items = await self.item_index.to_async.get_ids(query.item_ids)
-        query.item_texts = [
-            items[item_id].item_text for item_id in query.item_ids if item_id in items
+        embeddings = [
+            items[item_id].embedding for item_id in query.item_ids if item_id in items
         ]
+        query.input_embeds = np.stack(embeddings) if embeddings else None
         return query
 
     @bentoml.api()
     @logger.catch(reraise=True)
     async def encode_query(self, query: Query) -> Query:
-        return (await self.model.to_async.encode([query]))[0]
+        return await self.model.to_async.encode(query)
 
     @bentoml.api()
     @logger.catch(reraise=True)
@@ -224,7 +243,7 @@ class Service:
     @bentoml.api()
     @logger.catch(reraise=True)
     async def process_item(self, item: ItemQuery) -> Query:
-        return Query(item_ids=[item.item_id], item_texts=[item.item_text])
+        return Query(item_ids=[item.item_id], input_embeds=item.embedding[None, :])
 
     @bentoml.api()
     @logger.catch(reraise=True)
@@ -261,14 +280,11 @@ class Service:
     @logger.catch(reraise=True)
     async def process_user(self, user: UserQuery) -> Query:
         item_ids: list[str] = []
-        item_texts: list[str] = []
         if user.history:
             item_ids += user.history.item_id
-            item_texts += user.history.item_text
         if user.target:
             item_ids += user.target.item_id
-            item_texts += user.target.item_text
-        return Query(item_ids=item_ids, item_texts=item_texts)
+        return Query(item_ids=item_ids)
 
     @bentoml.api()
     @logger.catch(reraise=True)

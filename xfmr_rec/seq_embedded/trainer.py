@@ -13,7 +13,7 @@ import torch
 from xfmr_rec.index import LanceIndex, LanceIndexConfig
 from xfmr_rec.metrics import compute_retrieval_metrics
 from xfmr_rec.params import ITEMS_TABLE_NAME, LANCE_DB_PATH, TOP_K, USERS_TABLE_NAME
-from xfmr_rec.seq.models import SeqRecModel, SeqRecModelConfig
+from xfmr_rec.seq_embedded.models import SeqEmbeddedRecModel, SeqEmbeddedRecModelConfig
 
 if TYPE_CHECKING:
     import datasets
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 METRIC = {"name": "val/retrieval_normalized_dcg", "mode": "max"}
 
 
-class SeqRecLightningConfig(SeqRecModelConfig):
+class SeqEmbeddedRecLightningConfig(SeqEmbeddedRecModelConfig):
     train_loss: Literal["cross_entropy", "binary_cross_entropy"] = "cross_entropy"
     learning_rate: float = 0.001
     weight_decay: float = 0.01
@@ -42,36 +42,27 @@ class SeqRecLightningConfig(SeqRecModelConfig):
     top_k: int = TOP_K
 
 
-class SeqRecLightningModule(lp.LightningModule):
-    def __init__(self, config: SeqRecLightningConfig) -> None:
+class SeqEmbeddedRecLightningModule(lp.LightningModule):
+    def __init__(self, config: SeqEmbeddedRecLightningConfig) -> None:
         super().__init__()
-        self.config = SeqRecLightningConfig.model_validate(config)
+        self.config = SeqEmbeddedRecLightningConfig.model_validate(config)
         self.save_hyperparameters(self.config.model_dump())
 
-        self.model: SeqRecModel | None = None
+        self.model: SeqEmbeddedRecModel | None = None
         self.items_index = LanceIndex(config=self.config.items_config)
         self.users_index = LanceIndex(config=self.config.users_config)
 
     def configure_model(self) -> None:
         if self.model is None:
-            self.model = SeqRecModel(config=self.config, device=self.device)
+            self.model = SeqEmbeddedRecModel(self.config, device=self.device)
 
-    @torch.inference_mode()
-    def index_items(self, items_dataset: datasets.Dataset) -> None:
-        item_embeddings = items_dataset.map(
-            lambda batch: {"embedding": self.model.embed_item_text(batch["item_text"])},
-            batched=True,
-            batch_size=32,
-        )
-        self.items_index.index_data(item_embeddings)
-
-    def forward(self, item_texts: list[list[str]]) -> dict[str, torch.Tensor]:
-        return self.model(item_texts)
+    def forward(self, item_embeds: torch.Tensor) -> dict[str, torch.Tensor]:
+        return self.model(item_embeds)
 
     @torch.inference_mode()
     def recommend(
         self,
-        item_text: list[str],
+        item_ids: list[str],
         *,
         top_k: int = 0,
         exclude_item_ids: list[str] | None = None,
@@ -80,7 +71,16 @@ class SeqRecLightningModule(lp.LightningModule):
             msg = "`items_index` must be initialised first"
             raise ValueError(msg)
 
-        embedding = self.model([item_text])["sentence_embedding"].numpy(force=True)
+        items = self.items_index.get_ids(item_ids)
+        items_embed_map = {item["item_id"]: item["embedding"] for item in items}
+        item_embeds = [
+            items_embed_map[item_id]
+            for item_id in item_ids
+            if item_id in items_embed_map
+        ]
+        item_embeds = torch.as_tensor(item_embeds, device=self.device)[None, :, :]
+
+        embedding = self.model(item_embeds)["sentence_embedding"].numpy(force=True)
         return self.items_index.search(
             embedding,
             exclude_item_ids=exclude_item_ids,
@@ -89,7 +89,9 @@ class SeqRecLightningModule(lp.LightningModule):
 
     def compute_losses(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         return self.model.compute_loss(
-            batch["history_item_text"], batch["pos_item_text"], batch["neg_item_text"]
+            batch["history_embeddings"],
+            batch["pos_embeddings"],
+            batch["neg_embeddings"],
         )
 
     def compute_metrics(
@@ -120,7 +122,7 @@ class SeqRecLightningModule(lp.LightningModule):
 
     def predict_step(self, row: dict[str, list[str]]) -> datasets.Dataset:
         return self.recommend(
-            row["history"]["item_text"],
+            row["history"]["item_id"],
             top_k=self.config.top_k,
             exclude_item_ids=row["history"]["item_id"],
         )
@@ -141,15 +143,11 @@ class SeqRecLightningModule(lp.LightningModule):
                 logger.experiment.update_run(logger.run_id, status="RUNNING")
 
     def on_validation_start(self) -> None:
-        self.index_items(self.trainer.datamodule.items_dataset)
+        if self.items_index.table is None:
+            self.items_index.index_data(self.trainer.datamodule.items_dataset)
+
         if self.users_index.table is None:
             self.users_index.index_data(self.trainer.datamodule.users_dataset)
-
-    def on_test_start(self) -> None:
-        self.on_validation_start()
-
-    def on_predict_start(self) -> None:
-        self.on_validation_start()
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
         return torch.optim.AdamW(
@@ -168,14 +166,20 @@ class SeqRecLightningModule(lp.LightningModule):
         return [checkpoint, early_stop]
 
     @property
-    def example_input_array(self) -> tuple[list[list[str]]]:
-        return ([[""], []],)
+    def example_input_array(self) -> tuple[torch.Tensor]:
+        example = torch.zeros(2, 1, self.config.hidden_size, device=self.device)
+        rand = torch.rand_like(example[1, :])
+        rand = rand / rand.norm()
+        example[1, :] = rand
+        return (example,)
 
     def save(self, path: str) -> None:
         import shutil
 
+        from xfmr_rec.params import TRANSFORMER_PATH
+
         path = pathlib.Path(path)
-        self.model.save(path)
+        self.model.save(path / TRANSFORMER_PATH)
 
         lancedb_path = self.config.items_config.lancedb_path
         shutil.copytree(lancedb_path, path / LANCE_DB_PATH)
@@ -223,7 +227,7 @@ def cli_main(
     from jsonargparse import lazy_instance
 
     from xfmr_rec.params import MLFLOW_DIR, TENSORBOARD_DIR
-    from xfmr_rec.seq.data import SeqDataModule
+    from xfmr_rec.seq_embedded.data import SeqEmbeddedDataModule
 
     run_name = run_name or time_now_isoformat()
     tensorboard_logger = {
@@ -256,8 +260,8 @@ def cli_main(
         "num_sanity_val_steps": 0,
     }
     return lp_cli.LightningCLI(
-        SeqRecLightningModule,
-        SeqDataModule,
+        SeqEmbeddedRecLightningModule,
+        SeqEmbeddedDataModule,
         save_config_callback=LoggerSaveConfigCallback,
         trainer_defaults=trainer_defaults,
         args=args,
@@ -274,20 +278,23 @@ if __name__ == "__main__":
 
     import rich
 
-    from xfmr_rec.seq.data import SeqDataModule, SeqDataModuleConfig
+    from xfmr_rec.seq_embedded.data import (
+        SeqEmbeddedDataModule,
+        SeqEmbeddedDataModuleConfig,
+    )
 
-    datamodule = SeqDataModule(SeqDataModuleConfig())
+    datamodule = SeqEmbeddedDataModule(SeqEmbeddedDataModuleConfig())
     datamodule.prepare_data()
     datamodule.setup()
-    model = SeqRecLightningModule(SeqRecLightningConfig())
-    model.configure_model()
+    model = SeqEmbeddedRecLightningModule(SeqEmbeddedRecLightningConfig())
+    model.model = SeqEmbeddedRecModel(model.config, device="cpu")
 
     # train
     rich.print(model(*model.example_input_array))
     rich.print(model.compute_losses(next(iter(datamodule.train_dataloader()))))
 
     # validate
-    model.index_items(datamodule.items_dataset)
+    model.items_index.index_data(datamodule.items_dataset)
     rich.print(model.compute_metrics(next(iter(datamodule.val_dataloader())), "val"))
 
     trainer_args = {

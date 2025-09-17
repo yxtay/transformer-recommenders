@@ -10,29 +10,35 @@ import torch
 import torch.utils.data as torch_data
 from loguru import logger
 
-from xfmr_rec.params import DATA_DIR, ITEMS_PARQUET, USERS_PARQUET
+from xfmr_rec.params import (
+    DATA_DIR,
+    ITEMS_PARQUET,
+    PRETRAINED_MODEL_NAME,
+    USERS_PARQUET,
+)
 
 
-class SeqDataConfig(pydantic.BaseModel):
+class SeqEmbeddedDataConfig(pydantic.BaseModel):
     max_seq_length: int = 32
     pos_lookahead: int = 0
 
 
-class SeqDataModuleConfig(SeqDataConfig):
+class SeqEmbeddedDataModuleConfig(SeqEmbeddedDataConfig):
     data_dir: str = DATA_DIR
     items_parquet: str = ITEMS_PARQUET
     users_parquet: str = USERS_PARQUET
 
+    pretrained_model_name: str = PRETRAINED_MODEL_NAME
     batch_size: int = 32
     num_workers: int = 1
 
 
-class SeqDataset(torch_data.Dataset):
+class SeqEmbeddedDataset(torch_data.Dataset):
     def __init__(
         self,
         items_dataset: datasets.Dataset,
         users_dataset: datasets.Dataset,
-        config: SeqDataConfig,
+        config: SeqEmbeddedDataConfig,
     ) -> None:
         self.config = config
         self.rng = np.random.default_rng()
@@ -41,8 +47,7 @@ class SeqDataset(torch_data.Dataset):
             {k: i for i, k in enumerate(items_dataset["item_id"])}
         )
         self.all_item_idx = set(self.item_id_map)
-        self.item_text: list[str] = items_dataset["item_text"]
-
+        self.embeddings = items_dataset.with_format("torch")["embedding"][:]
         self.users_dataset = self.process_events(users_dataset)
 
         logger.info(f"{self.__class__.__name__}: {self.config}")
@@ -138,24 +143,29 @@ class SeqDataset(torch_data.Dataset):
             sampled_indices=sampled_indices,
         )
         return {
-            "history_item_text": self.item_text[history_item_idx[sampled_indices]],
-            "pos_item_text": self.item_text[pos_item_idx],
-            "neg_item_text": self.item_text[neg_item_idx],
+            "history_embeddings": self.embeddings[history_item_idx[sampled_indices]],
+            "pos_embeddings": self.embeddings[pos_item_idx],
+            "neg_embeddings": self.embeddings[neg_item_idx],
         }
 
     def collate(self, batch: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
-        return {col: [example[col] for example in batch] for col in batch[0]}
+        from torch.nn.utils.rnn import pad_sequence
+
+        return {
+            col: pad_sequence([example[col] for example in batch], batch_first=True)
+            for col in batch[0]
+        }
 
 
-class SeqDataModule(lp.LightningDataModule):
-    def __init__(self, config: SeqDataModuleConfig) -> None:
+class SeqEmbeddedDataModule(lp.LightningDataModule):
+    def __init__(self, config: SeqEmbeddedDataModuleConfig) -> None:
         super().__init__()
-        self.config = SeqDataModuleConfig.model_validate(config)
+        self.config = SeqEmbeddedDataModuleConfig.model_validate(config)
         self.save_hyperparameters(self.config.model_dump())
 
         self.items_dataset: datasets.Dataset | None = None
         self.users_dataset: datasets.Dataset | None = None
-        self.train_dataset: SeqDataset | None = None
+        self.train_dataset: SeqEmbeddedDataset | None = None
         self.val_dataset: datasets.Dataset | None = None
         self.test_dataset: datasets.Dataset | None = None
         self.predict_dataset: datasets.Dataset | None = None
@@ -173,10 +183,16 @@ class SeqDataModule(lp.LightningDataModule):
 
     def setup(self, stage: str | None = None) -> None:
         import pyarrow.compute as pc
+        from sentence_transformers import SentenceTransformer
 
         if self.items_dataset is None:
+            model = SentenceTransformer(self.config.pretrained_model_name)
             self.items_dataset = datasets.load_dataset(
                 "parquet", data_files=self.config.items_parquet, split="train"
+            ).map(
+                lambda batch: {"embedding": model.encode(batch["item_text"])},
+                batched=True,
+                batch_size=self.config.batch_size,
             )
 
         if self.users_dataset is None:
@@ -191,7 +207,7 @@ class SeqDataModule(lp.LightningDataModule):
                 split="train",
                 filters=pc.field("is_train"),
             )
-            self.train_dataset = SeqDataset(
+            self.train_dataset = SeqEmbeddedDataset(
                 items_dataset=self.items_dataset,
                 users_dataset=train_dataset,
                 config=self.config,
@@ -262,21 +278,20 @@ class SeqDataModule(lp.LightningDataModule):
 if __name__ == "__main__":
     import rich
 
-    config = SeqDataModuleConfig()
-    datamodule = SeqDataModule(config)
+    datamodule = SeqEmbeddedDataModule(SeqEmbeddedDataModuleConfig())
     datamodule.prepare_data()
     datamodule.setup()
     print(datamodule)
 
     dataloaders = [
         datamodule.items_dataset,
-        datamodule.users_dataset,
-        datamodule.train_dataset,
-        datamodule.train_dataloader(),
-        datamodule.val_dataset,
-        datamodule.val_dataloader(),
-        datamodule.test_dataset,
-        datamodule.test_dataloader(),
+        # datamodule.users_dataset,
+        # datamodule.train_dataset,
+        # datamodule.train_dataloader(),
+        # datamodule.val_dataset,
+        # datamodule.val_dataloader(),
+        # datamodule.test_dataset,
+        # datamodule.test_dataloader(),
     ]
     for dataloader in dataloaders:
         batch = next(iter(dataloader))
