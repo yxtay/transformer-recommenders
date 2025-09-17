@@ -78,7 +78,7 @@ class Model:
         from xfmr_rec.params import TRANSFORMER_PATH
 
         model_path = self.model_ref.path_of(TRANSFORMER_PATH)
-        self.model = SentenceTransformer(model_path)
+        self.model = SentenceTransformer(model_path).eval()
         logger.info("model loaded: {}", model_path)
 
     @bentoml.api()
