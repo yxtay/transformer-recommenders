@@ -33,7 +33,7 @@ class ItemQuery(pydantic.BaseModel):
 
 
 class Query(bentoml.IODescriptor):
-    item_ids: list[str]
+    item_ids: list[str] | None = None
     item_texts: list[str] | None = None
     embedding: NUMPY_ARRAY_TYPE | None = None
 
@@ -80,7 +80,7 @@ class Model:
     @bentoml.api(batchable=True)
     @logger.catch(reraise=True)
     @torch.inference_mode()
-    def embed(self, queries: list[Query]) -> list[Query]:
+    def encode(self, queries: list[Query]) -> list[Query]:
         item_texts = [query.item_texts for query in queries]
         embeddings = self.model(item_texts)["sentence_embedding"].numpy(force=True)
         for query, embedding in zip(queries, embeddings, strict=False):
@@ -171,13 +171,16 @@ class Service:
         top_k: int = TOP_K,
     ) -> list[ItemCandidate]:
         query = await self.process_query(query)
-        query = await self.embed_query(query)
-        exclude_item_ids = [*(exclude_item_ids or []), *query.item_ids]
+        query = await self.encode_query(query)
+        exclude_item_ids = [*(exclude_item_ids or []), *(query.item_ids or [])]
         return await self.search_items(
             query, exclude_item_ids=exclude_item_ids, top_k=top_k
         )
 
     async def process_query(self, query: Query) -> Query:
+        if query.item_ids is None:
+            return query
+
         if query.item_texts is not None:
             return query
 
@@ -189,8 +192,8 @@ class Service:
 
     @bentoml.api()
     @logger.catch(reraise=True)
-    async def embed_query(self, query: Query) -> Query:
-        return (await self.model.to_async.embed([query]))[0]
+    async def encode_query(self, query: Query) -> Query:
+        return (await self.model.to_async.encode([query]))[0]
 
     @bentoml.api()
     @logger.catch(reraise=True)

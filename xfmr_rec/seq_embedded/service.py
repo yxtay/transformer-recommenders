@@ -34,7 +34,7 @@ class ItemQuery(bentoml.IODescriptor):
 
 
 class Query(bentoml.IODescriptor):
-    item_ids: list[str]
+    item_ids: list[str] | None = None
     input_embeds: NUMPY_ARRAY_TYPE | None = None
     embedding: NUMPY_ARRAY_TYPE | None = None
 
@@ -190,12 +190,15 @@ class Service:
     ) -> list[ItemCandidate]:
         query = await self.process_query(query)
         query = await self.encode_query(query)
-        exclude_item_ids = [*(exclude_item_ids or []), *query.item_ids]
+        exclude_item_ids = [*(exclude_item_ids or []), *(query.item_ids or [])]
         return await self.search_items(
             query, exclude_item_ids=exclude_item_ids, top_k=top_k
         )
 
     async def process_query(self, query: Query) -> Query:
+        if query.item_ids is None:
+            return query
+
         if query.input_embeds is not None:
             return query
 
