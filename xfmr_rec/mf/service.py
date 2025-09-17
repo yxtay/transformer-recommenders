@@ -303,10 +303,10 @@ class Service:
 
     @bentoml.api()
     @logger.catch(reraise=True)
-    async def model_version(self: Service) -> str:
+    async def model_version(self) -> str:
         return self.model_ref.tag.version
 
     @bentoml.api()
     @logger.catch(reraise=True)
-    async def model_name(self: Service) -> str:
+    async def model_name(self) -> str:
         return self.model_ref.tag.name

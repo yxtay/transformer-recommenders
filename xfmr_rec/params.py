@@ -2,7 +2,6 @@
 MOVIELENS_1M_URL = "https://files.grouplens.org/datasets/movielens/ml-1m.zip"
 DATA_DIR = "data"
 TENSORBOARD_DIR = "lightning_logs"
-MLFLOW_DIR = "mlruns"
 
 # data
 ITEMS_PARQUET = "data/ml-1m/items.parquet"
@@ -20,7 +19,7 @@ USER_TEXT_COL = "user_text"
 BATCH_SIZE = 2**5
 PADDING_IDX = 0
 PRETRAINED_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
-METRIC = {"name": "val/RetrievalNormalizedDCG", "mode": "max"}
+METRIC = {"name": "val/retrieval_normalized_dcg", "mode": "max"}
 TOP_K = 20
 
 # serving

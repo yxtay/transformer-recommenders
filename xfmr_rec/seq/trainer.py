@@ -1,24 +1,22 @@
 from __future__ import annotations
 
-import pathlib
 from typing import TYPE_CHECKING, Literal
 
 import lightning as lp
 import lightning.pytorch.callbacks as lp_callbacks
 import lightning.pytorch.cli as lp_cli
 import lightning.pytorch.loggers as lp_loggers
+import mlflow
 import torch
 
+from xfmr_rec.common.trainer import LoggerSaveConfigCallback, time_now_isoformat
 from xfmr_rec.index import LanceIndex, LanceIndexConfig
 from xfmr_rec.metrics import compute_retrieval_metrics
-from xfmr_rec.params import ITEMS_TABLE_NAME, LANCE_DB_PATH, TOP_K, USERS_TABLE_NAME
+from xfmr_rec.params import ITEMS_TABLE_NAME, SEQ_MODEL_NAME, TOP_K, USERS_TABLE_NAME
 from xfmr_rec.seq.models import SeqRecModel, SeqRecModelConfig
 
 if TYPE_CHECKING:
     import datasets
-    from mlflow.tracking import MlflowClient
-
-METRIC = {"name": "val/retrieval_normalized_dcg", "mode": "max"}
 
 
 class SeqRecLightningConfig(SeqRecModelConfig):
@@ -158,6 +156,8 @@ class SeqRecLightningModule(lp.LightningModule):
         )
 
     def configure_callbacks(self) -> list[lp.Callback]:
+        from xfmr_rec.params import METRIC
+
         checkpoint = lp_callbacks.ModelCheckpoint(
             monitor=METRIC["name"], mode=METRIC["mode"]
         )
@@ -171,7 +171,10 @@ class SeqRecLightningModule(lp.LightningModule):
         return ([[""], []],)
 
     def save(self, path: str) -> None:
+        import pathlib
         import shutil
+
+        from xfmr_rec.params import LANCE_DB_PATH
 
         path = pathlib.Path(path)
         self.model.save(path)
@@ -180,53 +183,22 @@ class SeqRecLightningModule(lp.LightningModule):
         shutil.copytree(lancedb_path, path / LANCE_DB_PATH)
 
 
-class LoggerSaveConfigCallback(lp_cli.SaveConfigCallback):
-    def save_config(
-        self,
-        trainer: lp.Trainer,
-        pl_module: lp.LightningModule,  # noqa: ARG002
-        stage: str,  # noqa: ARG002
-    ) -> None:
-        import tempfile
-
-        for logger in trainer.loggers:
-            if not isinstance(logger, lp_loggers.MLFlowLogger):
-                continue
-
-            with tempfile.TemporaryDirectory() as path:
-                config_path = pathlib.Path(path, self.config_filename)
-                self.parser.save(
-                    self.config,
-                    config_path,
-                    skip_none=False,
-                    overwrite=self.overwrite,
-                    multifile=self.multifile,
-                )
-                mlflow_client: MlflowClient = logger.experiment
-                mlflow_client.log_artifact(run_id=logger.run_id, local_path=config_path)
-
-
-def time_now_isoformat() -> str:
-    import datetime
-
-    datetime_now = datetime.datetime.now(datetime.UTC).astimezone()
-    return datetime_now.isoformat(timespec="seconds")
-
-
 def cli_main(
-    args: lp_cli.ArgsType = None,
-    *,
-    run: bool = True,
-    experiment_name: str = time_now_isoformat(),
-    run_name: str = "",
-    log_model: bool = True,
+    args: lp_cli.ArgsType = None, *, run: bool = True, log_model: bool = True
 ) -> lp_cli.LightningCLI:
     from jsonargparse import lazy_instance
 
-    from xfmr_rec.params import MLFLOW_DIR, TENSORBOARD_DIR
+    from xfmr_rec.params import TENSORBOARD_DIR
     from xfmr_rec.seq.data import SeqDataModule
 
-    run_name = run_name or time_now_isoformat()
+    experiment_name = SEQ_MODEL_NAME
+    run_name = time_now_isoformat()
+    run_id = None
+    if active_run := mlflow.active_run():
+        experiment_name = mlflow.get_experiment(active_run.info.experiment_id).name
+        run_name = active_run.info.run_name
+        run_id = active_run.info.run_id
+
     tensorboard_logger = {
         "class_path": "TensorBoardLogger",
         "init_args": {
@@ -240,9 +212,9 @@ def cli_main(
     mlflow_logger = {
         "class_path": "MLFlowLogger",
         "init_args": {
-            "save_dir": MLFLOW_DIR,
             "experiment_name": experiment_name,
             "run_name": run_name,
+            "run_id": run_id,
             "log_model": log_model,
         },
     }
