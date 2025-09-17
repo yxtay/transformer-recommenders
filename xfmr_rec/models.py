@@ -49,7 +49,7 @@ def init_bert(config: ModelConfig) -> BertModel:
         max_position_embeddings=config.max_seq_length,
         is_decoder=config.is_decoder,
     )
-    return BertModel(bert_config)
+    return BertModel(bert_config, add_pooling_layer=False)
 
 
 def to_sentence_transformer(

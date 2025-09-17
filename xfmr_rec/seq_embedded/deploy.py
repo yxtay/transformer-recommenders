@@ -7,7 +7,6 @@ from xfmr_rec.seq_embedded.trainer import SeqEmbeddedRecLightningModule
 if TYPE_CHECKING:
     from typing import Any
 
-    import bentoml
     from lightning import Trainer
 
 
@@ -57,33 +56,19 @@ def save_model(trainer: Trainer) -> None:
         model.save(model_ref.path)
 
 
-def test_bento(
-    service: type[bentoml.Service], api_name: str, api_input: dict[str, Any]
-) -> dict[str, Any]:
-    from starlette.testclient import TestClient
-
-    # disable prometheus, which can cause duplicated metrics error with repeated runs
-    service.config["metrics"] = {"enabled": False}
-
-    asgi_app = service.to_asgi()
-    with TestClient(asgi_app) as client:
-        response = client.post(f"/{api_name}", json=api_input)
-        response.raise_for_status()
-        return response.json()
-
-
 def test_queries() -> None:
     import pydantic
     import rich
 
-    from xfmr_rec.seq_embedded.service import (
+    from xfmr_rec.common.deploy import test_bento
+    from xfmr_rec.common.service import (
         EXAMPLE_ITEM,
         EXAMPLE_USER,
         ItemCandidate,
         ItemQuery,
-        Service,
         UserQuery,
     )
+    from xfmr_rec.seq.service import Service
 
     example_item_data = test_bento(Service, "item_id", {"item_id": "1"})
     example_item = ItemQuery.model_validate(example_item_data)

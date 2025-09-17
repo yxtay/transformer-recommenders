@@ -375,7 +375,7 @@ def cli_main(
     from jsonargparse import lazy_instance
 
     from xfmr_rec.mf.data import MatrixFactorizationDataModule
-    from xfmr_rec.params import MLFLOW_DIR, TENSORBOARD_DIR
+    from xfmr_rec.params import TENSORBOARD_DIR
 
     run_name = run_name or time_now_isoformat()
     tensorboard_logger = {
@@ -391,7 +391,6 @@ def cli_main(
     mlflow_logger = {
         "class_path": "MLFlowLogger",
         "init_args": {
-            "save_dir": MLFLOW_DIR,
             "experiment_name": experiment_name,
             "run_name": run_name,
             "log_model": log_model,
