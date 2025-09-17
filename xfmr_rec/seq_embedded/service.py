@@ -85,6 +85,11 @@ class Model:
     @logger.catch(reraise=True)
     @torch.inference_mode()
     def encode(self, query: Query) -> Query:
+        if query.input_embeds is None or query.input_embeds.size == 0:
+            embedding_dim = self.model.get_sentence_embedding_dimension()
+            query.embedding = np.zeros((1, embedding_dim), dtype=np.float32)
+            return query
+
         inputs_embeds = torch.as_tensor(query.input_embeds, device=self.model.device)
         query.embedding = self.model(
             {"inputs_embeds": inputs_embeds[None, -self.model.max_seq_length :, :]}
