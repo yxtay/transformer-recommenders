@@ -56,13 +56,13 @@ jobs:
         run: uv run seq_train fit --print_config
 
       - if: ${{ success() || failure() }}
-        run: >-
+        run: >
           uv run seq_train fit
             --trainer.limit_train_batches 1
             --trainer.limit_val_batches 1
             --data.config.num_workers 0
 
-      - run: >-
+      - run: >
           uv run python -m "${PROJECT_NAME}.seq.deploy"
             --ckpt_path lightning_logs/*/checkpoints/*.ckpt
 
@@ -112,21 +112,21 @@ jobs:
           load: true
 
       - if: ${{ success() || failure() }}
-        run: >-
+        run: >
           ${DOCKER_RUN_CMD} "${IMAGE_ID}"
             uv pip list
         env:
           IMAGE_ID: ${{ steps.build.outputs.imageid }}
 
       - if: ${{ success() || failure() }}
-        run: >-
+        run: >
           ${DOCKER_RUN_CMD} "${IMAGE_ID}"
             uv run seq_train fit --print_config
         env:
           IMAGE_ID: ${{ steps.build.outputs.imageid }}
 
       - if: ${{ success() || failure() }}
-        run: >-
+        run: >
           ${DOCKER_RUN_CMD} "${IMAGE_ID}"
             uv run seq_train fit
             --trainer.limit_train_batches 1
@@ -135,7 +135,7 @@ jobs:
         env:
           IMAGE_ID: ${{ steps.build.outputs.imageid }}
 
-      - run: >-
+      - run: >
           ${DOCKER_RUN_CMD} "${IMAGE_ID}"
             uv run python -m "${PROJECT_NAME}.seq.deploy"
             --ckpt_path lightning_logs/*/checkpoints/*.ckpt
@@ -143,21 +143,21 @@ jobs:
           IMAGE_ID: ${{ steps.build.outputs.imageid }}
 
       - if: ${{ failure() }}
-        run: >-
+        run: >
           ${DOCKER_RUN_CMD} "${IMAGE_ID}"
             python -m "${PROJECT_NAME}.seq.trainer"
         env:
           IMAGE_ID: ${{ steps.build.outputs.imageid }}
 
       - if: ${{ failure() }}
-        run: >-
+        run: >
           ${DOCKER_RUN_CMD} "${IMAGE_ID}"
             python -m "${PROJECT_NAME}.seq.data"
         env:
           IMAGE_ID: ${{ steps.build.outputs.imageid }}
 
       - if: ${{ failure() }}
-        run: >-
+        run: >
           ${DOCKER_RUN_CMD} "${IMAGE_ID}"
             uv run data
         env:
