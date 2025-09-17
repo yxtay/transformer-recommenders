@@ -3,7 +3,6 @@ from collections.abc import Callable
 import datasets
 import lightning as lp
 import numpy as np
-import pandas as pd
 import polars as pl
 import pydantic
 import torch
@@ -34,6 +33,8 @@ class SeqDataset(torch_data.Dataset):
         users_dataset: datasets.Dataset,
         config: SeqDataConfig,
     ) -> None:
+        import pandas as pd
+
         self.config = config
         self.rng = np.random.default_rng()
 

@@ -74,7 +74,7 @@ class Model:
     def __init__(self) -> None:
         from xfmr_rec.seq.models import SeqRecModel
 
-        self.model = SeqRecModel.load(self.model_ref.path)
+        self.model = SeqRecModel.load(self.model_ref.path).eval()
         logger.info("model loaded: {}", self.model_ref.path)
 
     @bentoml.api(batchable=True)

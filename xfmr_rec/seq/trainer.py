@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pathlib
-import tempfile
 from typing import TYPE_CHECKING, Literal
 
 import lightning as lp
@@ -188,6 +187,8 @@ class LoggerSaveConfigCallback(lp_cli.SaveConfigCallback):
         pl_module: lp.LightningModule,  # noqa: ARG002
         stage: str,  # noqa: ARG002
     ) -> None:
+        import tempfile
+
         for logger in trainer.loggers:
             if not isinstance(logger, lp_loggers.MLFlowLogger):
                 continue

@@ -52,9 +52,7 @@ class SeqRecModel(torch.nn.Module):
         if self.encoder is None:
             encoder_conf = self.config.model_copy(update={"is_decoder": True})
             encoder = init_bert(encoder_conf)
-            self.encoder = to_sentence_transformer(
-                encoder, pooling_mode="lasttoken", device=device
-            )
+            self.encoder = to_sentence_transformer(encoder_conf, encoder, device=device)
 
         if self.embedder is None:
             embedding_conf = self.config.model_copy(
@@ -65,7 +63,9 @@ class SeqRecModel(torch.nn.Module):
                 }
             )
             embedder = init_bert(embedding_conf)
-            self.embedder = to_sentence_transformer(embedder, device=self.device)
+            self.embedder = to_sentence_transformer(
+                embedding_conf, embedder, device=self.device
+            )
 
     def save(self, path: str) -> None:
         path = pathlib.Path(path)
@@ -93,7 +93,7 @@ class SeqRecModel(torch.nn.Module):
         logger.info(f"embedder loaded: {embedder_path}")
 
         tokenizer_name = embedder[0].tokenizer.name_or_path
-        pooling_mode = embedder[1].get_pooling_mode_str()
+        pooling_mode = encoder[1].get_pooling_mode_str()
         encoder_conf = encoder[0].auto_model.config
         config = SeqRecModelConfig.model_validate(
             encoder_conf, from_attributes=True

@@ -53,10 +53,9 @@ def init_bert(config: ModelConfig) -> BertModel:
 
 
 def to_sentence_transformer(
+    config: ModelConfig,
     model: PreTrainedModel,
     *,
-    tokenizer_name: str = "google-bert/bert-base-uncased",
-    pooling_mode: str = "mean",
     device: torch.device | str | None = "cpu",
 ) -> SentenceTransformer:
     import tempfile
@@ -66,9 +65,11 @@ def to_sentence_transformer(
     with tempfile.TemporaryDirectory() as tmpdir:
         model.save_pretrained(tmpdir)
 
-        transformer = models.Transformer(tmpdir, tokenizer_name_or_path=tokenizer_name)
+        transformer = models.Transformer(
+            tmpdir, tokenizer_name_or_path=config.tokenizer_name
+        )
         pooling = models.Pooling(
-            transformer.get_word_embedding_dimension(), pooling_mode=pooling_mode
+            transformer.get_word_embedding_dimension(), pooling_mode=config.pooling_mode
         )
         normalize = models.Normalize()
 

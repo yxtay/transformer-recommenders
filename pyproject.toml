@@ -32,7 +32,6 @@ dev = [
   "mlflow",
   "rich!=14.1.0",
   "pytest~=8.4",
-  "ray[train,tune]~=2.42",
   "standard-imghdr~=3.13",
 ]
 
