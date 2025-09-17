@@ -128,7 +128,7 @@ class LanceIndex:
     def get_ids(self, ids: list[str]) -> datasets.Dataset:
         import datasets
 
-        ids_filter = ", ".join(f"'{id_val}'" for id_val in ids)
+        ids_filter = ", ".join(f"'{str(id_val).replace("'", "''")}'" for id_val in ids)
         result = (
             self.table.search()
             .where(f"{self.config.id_col} IN ({ids_filter})")
