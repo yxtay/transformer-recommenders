@@ -13,7 +13,7 @@ class SeqEmbeddedRecModelConfig(ModelConfig):
     num_hidden_layers: int = 1
     num_attention_heads: int = 12
     intermediate_size: int = 384
-    max_position_embeddings: int | None = 32
+    max_seq_length: int | None = 32
 
 
 class SeqEmbeddedRecModel(torch.nn.Module):
@@ -58,11 +58,15 @@ class SeqEmbeddedRecModel(torch.nn.Module):
 
         tokenizer_name = model[0].tokenizer.name_or_path
         pooling_mode = model[1].get_pooling_mode_str()
-        model_config = model[0].auto_model.config
+        model_conf = model[0].auto_model.config
         config = SeqEmbeddedRecModelConfig.model_validate(
-            model_config, from_attributes=True
+            model_conf, from_attributes=True
         ).model_copy(
-            update={"tokenizer_name": tokenizer_name, "pooling_mode": pooling_mode}
+            update={
+                "max_seq_length": model_conf.max_position_embeddings,
+                "tokenizer_name": tokenizer_name,
+                "pooling_mode": pooling_mode,
+            }
         )
         return cls(config, model=model)
 
@@ -74,25 +78,26 @@ class SeqEmbeddedRecModel(torch.nn.Module):
 
     def compute_loss(
         self,
-        item_embeddings: torch.Tensor,
-        pos_embeddings: torch.Tensor,
-        neg_embeddings: torch.Tensor,
+        item_embeds: torch.Tensor,
+        pos_embeds: torch.Tensor,
+        neg_embeds: torch.Tensor,
     ) -> dict[str, torch.Tensor]:
-        loss_mask = (pos_embeddings != 0).any(-1)
+        output = self(item_embeds)
+        attention_mask = output["attention_mask"].bool()
         # shape: (batch_size, seq_len)
-        output_embeds = self(item_embeddings)["token_embeddings"]
+        output_embeds = output["token_embeddings"]
         # shape: (batch_size, seq_len, hidden_size)
-        output_embeds = output_embeds[:, :, None, :][loss_mask]
+        output_embeds = output_embeds[:, :, None, :][attention_mask]
         # shape: (batch_size * seq_len, 1, hidden_size)
 
-        pos_embeddings = pos_embeddings[loss_mask]
+        pos_embeds = pos_embeds[attention_mask]
         # shape: (batch_size * seq_len, hidden_size
-        neg_embeddings = neg_embeddings[loss_mask]
+        neg_embeds = neg_embeds[attention_mask]
         # shape: (batch_size * seq_len, hidden_size
-        candidate_embeddings = torch.stack([pos_embeddings, neg_embeddings], dim=-2)
+        candidate_embeds = torch.stack([pos_embeds, neg_embeds], dim=-2)
         # shape: (batch_size * seq_len, 2, hidden_size
 
-        logits = (output_embeds * candidate_embeddings).sum(dim=-1)
+        logits = (output_embeds * candidate_embeds).sum(dim=-1)
         # shape: (batch_size * seq_len, 2)
         labels_bce = torch.zeros_like(logits)
         # positive item is always at zero index
@@ -107,9 +112,9 @@ class SeqEmbeddedRecModel(torch.nn.Module):
         # shape: (batch_size * seq_len)
         loss_ce = torch.nn.functional.cross_entropy(logits, labels_ce, reduction="sum")
 
-        batch_size, seq_len = loss_mask.size()
-        numel = loss_mask.numel()
-        non_zero = loss_mask.sum().item()
+        batch_size, seq_len = attention_mask.size()
+        numel = attention_mask.numel()
+        non_zero = attention_mask.sum().item()
         return {
             "batch/size": batch_size,
             "batch/seq_len": seq_len,
