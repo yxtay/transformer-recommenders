@@ -43,7 +43,7 @@ class SeqEmbeddedRecModel(torch.nn.Module):
     def configure_model(self, device: torch.device | str | None = None) -> None:
         if self.model is None:
             bert_model = init_bert(self.config)
-            self.model = to_sentence_transformer(bert_model, device=device)
+            self.model = to_sentence_transformer(self.config, bert_model, device=device)
 
     def save(self, path: str) -> None:
         self.model.save(path)
