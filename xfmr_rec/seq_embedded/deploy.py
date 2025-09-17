@@ -68,7 +68,7 @@ def test_queries() -> None:
         ItemQuery,
         UserQuery,
     )
-    from xfmr_rec.seq.service import Service
+    from xfmr_rec.seq_embedded.service import Service
 
     example_item_data = test_bento(Service, "item_id", {"item_id": "1"})
     example_item = ItemQuery.model_validate(example_item_data)
