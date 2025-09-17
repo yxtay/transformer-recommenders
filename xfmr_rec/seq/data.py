@@ -178,7 +178,6 @@ class SeqDataModule(lp.LightningDataModule):
             return prepare_movielens(data_dir, overwrite=overwrite)
 
     def setup(self, stage: str | None = None) -> None:
-        import datasets
         import pyarrow.compute as pc
 
         if self.items_dataset is None:
