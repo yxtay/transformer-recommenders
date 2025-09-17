@@ -125,7 +125,12 @@ class SeqEmbeddedDataset(torch_data.Dataset):
     ) -> torch.Tensor:
         seq_len = len(sampled_indices)
         neg_candidates = list(self.all_item_idx - set(history_item_idx.tolist()))
-        sampled_negatives = self.rng.choice(neg_candidates, seq_len, replace=False)
+        if len(neg_candidates) == 0:
+            neg_candidates = list(self.all_item_idx)
+
+        sampled_negatives = self.rng.choice(
+            neg_candidates, seq_len, replace=len(neg_candidates) < seq_len
+        )
         return torch.as_tensor(sampled_negatives)
 
     def __len__(self) -> int:
