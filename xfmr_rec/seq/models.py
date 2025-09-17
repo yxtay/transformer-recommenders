@@ -158,13 +158,13 @@ class SeqRecModel(torch.nn.Module):
         labels_bce[:, 0] = 1
         # shape: (batch_size * seq_len, 1 + seq_len * num_neg)
         loss_bce = torch.nn.functional.binary_cross_entropy_with_logits(
-            logits, labels_bce
+            logits, labels_bce, reduction="sum"
         )
 
         # positive item is always at zero index
         labels_ce = torch.zeros_like(logits[:, 0], dtype=torch.long)
         # shape: (batch_size * seq_len)
-        loss_ce = torch.nn.functional.cross_entropy(logits, labels_ce)
+        loss_ce = torch.nn.functional.cross_entropy(logits, labels_ce, reduction="sum")
 
         batch_size, seq_len = attention_mask.size()
         numel = attention_mask.numel()

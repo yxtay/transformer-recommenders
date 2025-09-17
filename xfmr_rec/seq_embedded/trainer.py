@@ -287,9 +287,7 @@ if __name__ == "__main__":
     datamodule.prepare_data()
     datamodule.setup()
     model = SeqEmbeddedRecLightningModule(SeqEmbeddedRecLightningConfig())
-    model.model = SeqEmbeddedRecModel(
-        model.config, items_dataset=datamodule.items_dataset, device="cpu"
-    )
+    model.model = SeqEmbeddedRecModel(model.config, device="cpu")
 
     # train
     rich.print(model(*model.example_input_array))
