@@ -3,14 +3,16 @@ from __future__ import annotations
 from typing import Annotated
 
 import bentoml
-import numpy as np  # noqa: TC002
-import numpy.typing as npt  # noqa: TC002
+import numpy as np
+import numpy.typing as npt
 import pydantic
 import torch
 from bentoml.validators import DType
 from loguru import logger
 
 from xfmr_rec.params import SEQ_MODEL_NAME, TOP_K
+
+NUMPY_ARRAY_TYPE = Annotated[npt.NDArray[np.float32], DType("float32")]
 
 
 class Activity(pydantic.BaseModel):
@@ -31,8 +33,9 @@ class ItemQuery(pydantic.BaseModel):
 
 
 class Query(bentoml.IODescriptor):
-    item_texts: list[str]
-    embedding: Annotated[npt.NDArray[np.float32], DType("float32")] | None = None
+    item_ids: list[str]
+    item_texts: list[str] | None = None
+    embedding: NUMPY_ARRAY_TYPE | None = None
 
 
 class ItemCandidate(pydantic.BaseModel):
@@ -167,10 +170,22 @@ class Service:
         exclude_item_ids: list[str] | None = None,
         top_k: int = TOP_K,
     ) -> list[ItemCandidate]:
+        query = await self.process_query(query)
         query = await self.embed_query(query)
+        exclude_item_ids = [*(exclude_item_ids or []), *query.item_ids]
         return await self.search_items(
             query, exclude_item_ids=exclude_item_ids, top_k=top_k
         )
+
+    async def process_query(self, query: Query) -> Query:
+        if query.item_texts is not None:
+            return query
+
+        items = await self.item_index.to_async.get_ids(query.item_ids)
+        query.item_texts = [
+            items[item_id].item_text for item_id in query.item_ids if item_id in items
+        ]
+        return query
 
     @bentoml.api()
     @logger.catch(reraise=True)
@@ -198,9 +213,6 @@ class Service:
         exclude_item_ids: list[str] | None = None,
         top_k: int = TOP_K,
     ) -> list[ItemCandidate]:
-        if item.item_id:
-            exclude_item_ids = [*(exclude_item_ids or []), item.item_id]
-
         query = await self.process_item(item)
         return await self.recommend_with_query(
             query, exclude_item_ids=exclude_item_ids, top_k=top_k
@@ -209,7 +221,7 @@ class Service:
     @bentoml.api()
     @logger.catch(reraise=True)
     async def process_item(self, item: ItemQuery) -> Query:
-        return Query(item_texts=[item.item_text])
+        return Query(item_ids=[item.item_id], item_texts=[item.item_text])
 
     @bentoml.api()
     @logger.catch(reraise=True)
@@ -237,12 +249,6 @@ class Service:
         exclude_item_ids: list[str] | None = None,
         top_k: int = TOP_K,
     ) -> list[ItemCandidate]:
-        exclude_item_ids = exclude_item_ids or []
-        if user.history:
-            exclude_item_ids += user.history.item_id
-        if user.target:
-            exclude_item_ids += user.target.item_id
-
         query = await self.process_user(user)
         return await self.recommend_with_query(
             query, exclude_item_ids=exclude_item_ids, top_k=top_k
@@ -251,12 +257,15 @@ class Service:
     @bentoml.api()
     @logger.catch(reraise=True)
     async def process_user(self, user: UserQuery) -> Query:
+        item_ids: list[str] = []
         item_texts: list[str] = []
         if user.history:
+            item_ids += user.history.item_id
             item_texts += user.history.item_text
         if user.target:
+            item_ids += user.target.item_id
             item_texts += user.target.item_text
-        return Query(item_texts=item_texts)
+        return Query(item_ids=item_ids, item_texts=item_texts)
 
     @bentoml.api()
     @logger.catch(reraise=True)

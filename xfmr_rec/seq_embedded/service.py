@@ -12,7 +12,7 @@ from loguru import logger
 
 from xfmr_rec.params import SEQ_EMBEDDED_MODEL_NAME, TOP_K
 
-EMBEDDING_TYPE = Annotated[npt.NDArray[np.float32], DType("float32")]
+NUMPY_ARRAY_TYPE = Annotated[npt.NDArray[np.float32], DType("float32")]
 
 
 class Activity(pydantic.BaseModel):
@@ -30,13 +30,13 @@ class UserQuery(pydantic.BaseModel):
 class ItemQuery(bentoml.IODescriptor):
     item_id: str = "0"
     item_text: str = ""
-    embedding: EMBEDDING_TYPE | None = None
+    embedding: NUMPY_ARRAY_TYPE | None = None
 
 
 class Query(bentoml.IODescriptor):
     item_ids: list[str]
-    input_embeds: EMBEDDING_TYPE | None = None
-    embedding: EMBEDDING_TYPE | None = None
+    input_embeds: NUMPY_ARRAY_TYPE | None = None
+    embedding: NUMPY_ARRAY_TYPE | None = None
 
 
 class ItemCandidate(pydantic.BaseModel):
