@@ -32,11 +32,6 @@ class SeqEmbeddedRecModel(torch.nn.Module):
         logger.info(f"{self.__class__.__name__}: {self.config}")
         logger.info(f"{self}")
 
-    def configure_model(self, device: torch.device | str | None = None) -> None:
-        if self.model is None:
-            bert_model = init_bert(self.config)
-            self.model = to_sentence_transformer(bert_model, device=device)
-
     @property
     def device(self) -> torch.device:
         return self.model.device
@@ -44,6 +39,11 @@ class SeqEmbeddedRecModel(torch.nn.Module):
     @property
     def max_seq_length(self) -> int:
         return self.model.max_seq_length
+
+    def configure_model(self, device: torch.device | str | None = None) -> None:
+        if self.model is None:
+            bert_model = init_bert(self.config)
+            self.model = to_sentence_transformer(bert_model, device=device)
 
     def save(self, path: str) -> None:
         self.model.save(path)

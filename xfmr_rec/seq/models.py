@@ -40,6 +40,14 @@ class SeqRecModel(torch.nn.Module):
         logger.info(f"{self.__class__.__name__}: {self.config}")
         logger.info(f"{self}")
 
+    @property
+    def device(self) -> torch.device:
+        return self.encoder.device
+
+    @property
+    def max_seq_length(self) -> int:
+        return self.encoder.max_seq_length
+
     def configure_model(self, device: torch.device | str | None = None) -> None:
         if self.encoder is None:
             encoder_conf = self.config.model_copy(update={"is_decoder": True})
@@ -58,14 +66,6 @@ class SeqRecModel(torch.nn.Module):
             )
             embedder = init_bert(embedding_conf)
             self.embedder = to_sentence_transformer(embedder, device=self.device)
-
-    @property
-    def device(self) -> torch.device:
-        return self.encoder.device
-
-    @property
-    def max_seq_length(self) -> int:
-        return self.encoder.max_seq_length
 
     def save(self, path: str) -> None:
         path = pathlib.Path(path)
