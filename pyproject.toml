@@ -21,7 +21,6 @@ dependencies = [
   "mlflow-skinny~=3.1",
   "polars[pandas]~=1.19",
   "pylance>=0.32.1",
-  "rich!=14.1.0",
   "sentence-transformers[onnx,train]~=5.0",
   "tensorboard~=2.18",
   "torch~=2.5",
@@ -31,6 +30,7 @@ dependencies = [
 dev = [
   "flaml[automl,blendsearch]~=2.3",
   "mlflow",
+  "rich!=14.1.0",
   "pytest~=8.4",
   "ray[train,tune]~=2.42",
   "standard-imghdr~=3.13",

@@ -17,7 +17,7 @@ class SeqRecModelConfig(ModelConfig):
     num_hidden_layers: int = 1
     num_attention_heads: int = 4
     intermediate_size: int = 32
-    max_position_embeddings: int | None = 32
+    max_seq_length: int | None = 32
 
     pooling_mode: Literal["mean", "max", "cls", "lasttoken"] = "lasttoken"
 
@@ -60,7 +60,7 @@ class SeqRecModel(torch.nn.Module):
             embedding_conf = self.config.model_copy(
                 update={
                     "vocab_size": None,
-                    "max_position_embeddings": None,
+                    "max_seq_length": None,
                     "pooling_mode": "mean",
                 }
             )
@@ -98,7 +98,11 @@ class SeqRecModel(torch.nn.Module):
         config = SeqRecModelConfig.model_validate(
             encoder_conf, from_attributes=True
         ).model_copy(
-            update={"tokenizer_name": tokenizer_name, "pooling_mode": pooling_mode}
+            update={
+                "max_seq_length": encoder_conf.max_position_embeddings,
+                "tokenizer_name": tokenizer_name,
+                "pooling_mode": pooling_mode,
+            }
         )
         return cls(config, embedder=embedder, encoder=encoder)
 

@@ -3,7 +3,6 @@ from collections.abc import Callable
 import datasets
 import lightning as lp
 import numpy as np
-import pandas as pd
 import polars as pl
 import pydantic
 import torch
@@ -40,6 +39,8 @@ class SeqEmbeddedDataset(torch_data.Dataset):
         users_dataset: datasets.Dataset,
         config: SeqEmbeddedDataConfig,
     ) -> None:
+        import pandas as pd
+
         self.config = config
         self.rng = np.random.default_rng()
 
@@ -48,6 +49,7 @@ class SeqEmbeddedDataset(torch_data.Dataset):
         )
         self.all_item_idx = set(self.item_id_map)
         self.embeddings = items_dataset.with_format("torch")["embedding"][:]
+
         self.users_dataset = self.process_events(users_dataset)
 
         logger.info(f"{self.__class__.__name__}: {self.config}")
@@ -124,7 +126,12 @@ class SeqEmbeddedDataset(torch_data.Dataset):
     ) -> torch.Tensor:
         seq_len = len(sampled_indices)
         neg_candidates = list(self.all_item_idx - set(history_item_idx.tolist()))
-        sampled_negatives = self.rng.choice(neg_candidates, seq_len, replace=True)
+        if len(neg_candidates) == 0:
+            neg_candidates = list(self.all_item_idx)
+
+        sampled_negatives = self.rng.choice(
+            neg_candidates, seq_len, replace=len(neg_candidates) < seq_len
+        )
         return torch.as_tensor(sampled_negatives)
 
     def __len__(self) -> int:
@@ -143,9 +150,9 @@ class SeqEmbeddedDataset(torch_data.Dataset):
             sampled_indices=sampled_indices,
         )
         return {
-            "history_embeddings": self.embeddings[history_item_idx[sampled_indices]],
-            "pos_embeddings": self.embeddings[pos_item_idx],
-            "neg_embeddings": self.embeddings[neg_item_idx],
+            "history_embeds": self.embeddings[history_item_idx[sampled_indices]],
+            "pos_embeds": self.embeddings[pos_item_idx],
+            "neg_embeds": self.embeddings[neg_item_idx],
         }
 
     def collate(self, batch: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:

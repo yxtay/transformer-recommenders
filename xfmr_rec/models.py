@@ -20,7 +20,7 @@ class ModelConfig(pydantic.BaseModel):
     num_attention_heads: int = 12
     intermediate_size: int = 1536
     hidden_act: Literal["gelu", "relu", "silu", "gelu_new"] = "gelu"
-    max_position_embeddings: int | None = None
+    max_seq_length: int | None = None
     is_decoder: bool = False
 
     tokenizer_name: str = PRETRAINED_MODEL_NAME
@@ -36,8 +36,8 @@ def init_bert(config: ModelConfig) -> BertModel:
     if config.vocab_size is None:
         config.vocab_size = tokenizer.vocab_size
 
-    if config.max_position_embeddings is None:
-        config.max_position_embeddings = tokenizer.model_max_length
+    if config.max_seq_length is None:
+        config.max_seq_length = tokenizer.model_max_length
 
     bert_config = BertConfig(
         vocab_size=config.vocab_size,
@@ -46,7 +46,7 @@ def init_bert(config: ModelConfig) -> BertModel:
         num_attention_heads=config.num_attention_heads,
         intermediate_size=config.intermediate_size,
         hidden_act=config.hidden_act,
-        max_position_embeddings=config.max_position_embeddings,
+        max_position_embeddings=config.max_seq_length,
         is_decoder=config.is_decoder,
     )
     return BertModel(bert_config)

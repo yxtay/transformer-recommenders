@@ -89,9 +89,9 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
 
     def compute_losses(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         return self.model.compute_loss(
-            batch["history_embeddings"],
-            batch["pos_embeddings"],
-            batch["neg_embeddings"],
+            batch["history_embeds"],
+            batch["pos_embeds"],
+            batch["neg_embeds"],
         )
 
     def compute_metrics(

@@ -3591,7 +3591,6 @@ dependencies = [
     { name = "mlflow-skinny" },
     { name = "polars", extra = ["pandas"] },
     { name = "pylance" },
-    { name = "rich" },
     { name = "sentence-transformers", extra = ["onnx", "train"] },
     { name = "tensorboard" },
     { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
@@ -3604,6 +3603,7 @@ dev = [
     { name = "mlflow" },
     { name = "pytest" },
     { name = "ray", extra = ["train", "tune"] },
+    { name = "rich" },
     { name = "standard-imghdr" },
 ]
 
@@ -3618,7 +3618,6 @@ requires-dist = [
     { name = "mlflow-skinny", specifier = "~=3.1" },
     { name = "polars", extras = ["pandas"], specifier = "~=1.19" },
     { name = "pylance", specifier = ">=0.32.1" },
-    { name = "rich", specifier = "!=14.1.0" },
     { name = "sentence-transformers", extras = ["onnx", "train"], specifier = "~=5.0" },
     { name = "tensorboard", specifier = "~=2.18" },
     { name = "torch", specifier = "~=2.5", index = "https://download.pytorch.org/whl/cpu" },
@@ -3630,6 +3629,7 @@ dev = [
     { name = "mlflow" },
     { name = "pytest", specifier = "~=8.4" },
     { name = "ray", extras = ["train", "tune"], specifier = "~=2.42" },
+    { name = "rich", specifier = "!=14.1.0" },
     { name = "standard-imghdr", specifier = "~=3.13" },
 ]
 
