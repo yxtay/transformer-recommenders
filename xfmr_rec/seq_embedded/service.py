@@ -188,10 +188,23 @@ class Service:
         exclude_item_ids: list[str] | None = None,
         top_k: int = TOP_K,
     ) -> list[ItemCandidate]:
+        query = await self.process_query(query)
         query = await self.encode_query(query)
+        exclude_item_ids = [*(exclude_item_ids or []), query.item_ids]
         return await self.search_items(
             query, exclude_item_ids=exclude_item_ids, top_k=top_k
         )
+
+    async def process_query(self, query: Query) -> Query:
+        if query.input_embeds is not None:
+            return query
+
+        items = await self.item_index.to_async.get_ids(query.item_ids)
+        embeddings = [
+            items[item_id].embedding for item_id in query.item_ids if item_id in items
+        ]
+        query.input_embeds = np.stack(embeddings) if embeddings else None
+        return query
 
     @bentoml.api()
     @logger.catch(reraise=True)
@@ -219,9 +232,6 @@ class Service:
         exclude_item_ids: list[str] | None = None,
         top_k: int = TOP_K,
     ) -> list[ItemCandidate]:
-        if item.item_id:
-            exclude_item_ids = [*(exclude_item_ids or []), item.item_id]
-
         query = await self.process_item(item)
         return await self.recommend_with_query(
             query, exclude_item_ids=exclude_item_ids, top_k=top_k
@@ -258,12 +268,6 @@ class Service:
         exclude_item_ids: list[str] | None = None,
         top_k: int = TOP_K,
     ) -> list[ItemCandidate]:
-        exclude_item_ids = exclude_item_ids or []
-        if user.history:
-            exclude_item_ids += user.history.item_id
-        if user.target:
-            exclude_item_ids += user.target.item_id
-
         query = await self.process_user(user)
         return await self.recommend_with_query(
             query, exclude_item_ids=exclude_item_ids, top_k=top_k
@@ -277,13 +281,7 @@ class Service:
             item_ids += user.history.item_id
         if user.target:
             item_ids += user.target.item_id
-
-        items = await self.item_index.to_async.get_ids(item_ids)
-        embeddings = [
-            items[item_id].embedding for item_id in item_ids if item_id in items
-        ]
-        item_embeds = np.stack(embeddings) if embeddings else None
-        return Query(item_ids=item_ids, input_embeds=item_embeds)
+        return Query(item_ids=item_ids)
 
     @bentoml.api()
     @logger.catch(reraise=True)

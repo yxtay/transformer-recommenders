@@ -115,9 +115,9 @@ class SeqEmbeddedRecModel(torch.nn.Module):
             "batch/seq_len": seq_len,
             "batch/numel": numel,
             "batch/non_zero": non_zero,
-            "batch/sparsity": non_zero / numel,
+            "batch/sparsity": non_zero / (numel + 1e-10),
             "loss/binary_cross_entropy": loss_bce,
-            "loss/binary_cross_entropy_mean": loss_bce / non_zero,
+            "loss/binary_cross_entropy_mean": loss_bce / (non_zero + 1e-10),
             "loss/cross_entropy": loss_ce,
-            "loss/cross_entropy_mean": loss_ce / non_zero,
+            "loss/cross_entropy_mean": loss_ce / (non_zero + 1e-10),
         }
