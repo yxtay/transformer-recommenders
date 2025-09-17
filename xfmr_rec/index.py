@@ -146,7 +146,9 @@ class LanceIndex:
         import pyarrow.compute as pc
 
         exclude_item_ids = exclude_item_ids or [""]
-        exclude_filter = ", ".join(f"'{item}'" for item in exclude_item_ids)
+        exclude_filter = ", ".join(
+            f"'{str(item).replace("'", "''")}'" for item in exclude_item_ids
+        )
         exclude_filter = f"{self.config.id_col} NOT IN ({exclude_filter})"
         rec_table = (
             self.table.search(embedding)
