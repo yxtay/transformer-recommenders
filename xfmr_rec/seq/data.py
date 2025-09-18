@@ -52,11 +52,15 @@ class SeqDataset(torch_data.Dataset):
 
     def process_events(self, events_dataset: datasets.Dataset) -> datasets.Dataset:
         def map_item_idx(example: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
-            history_item = example["history.item_id"]
+            items = example["history.item_id"]
+            labels = example["history.label"]
 
-            item_mask = [item_id in self.item_id_map.index for item_id in history_item]
-            history_item_idx = self.item_id_map[history_item[item_mask]]
-            return {"history_item_idx": history_item_idx.to_numpy()}
+            item_mask = [item_id in self.item_id_map.index for item_id in items]
+            history_item_idx = self.item_id_map[items[item_mask]]
+            return {
+                "history_item_idx": history_item_idx.to_numpy(),
+                "history_label": labels[item_mask],
+            }
 
         def duplicate_rows(
             batch: dict[str, list[np.ndarray]],
@@ -77,7 +81,7 @@ class SeqDataset(torch_data.Dataset):
 
         return (
             events_dataset.flatten()
-            .select_columns(["history.item_id"])
+            .select_columns(["history.item_id", "history.label"])
             .with_format("numpy")
             .map(map_item_idx)
             .map(duplicate_rows, batched=True)
@@ -98,6 +102,7 @@ class SeqDataset(torch_data.Dataset):
     def sample_positive(
         self,
         history_item_idx: torch.Tensor,
+        history_label: torch.Tensor,
         sampled_indices: torch.Tensor,
     ) -> torch.Tensor:
         seq_len = len(sampled_indices)
@@ -108,6 +113,7 @@ class SeqDataset(torch_data.Dataset):
             start_idx = sampled_indices[i] + 1
             end_idx = start_idx + pos_lookahead if pos_lookahead > 0 else None
             pos_candidates = history_item_idx[start_idx:end_idx]
+            pos_candidates = pos_candidates[history_label[start_idx:end_idx]]
 
             if len(pos_candidates) > 0:
                 positives[i] = self.rng.choice(pos_candidates)
@@ -134,9 +140,11 @@ class SeqDataset(torch_data.Dataset):
     def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         row = self.users_dataset[idx]
         history_item_idx = row["history_item_idx"]
+        history_label = row["history.label"]
         sampled_indices = self.sample_sequence(history_item_idx)
         pos_item_idx = self.sample_positive(
             history_item_idx=history_item_idx,
+            history_label=history_label,
             sampled_indices=sampled_indices,
         )
         neg_item_idx = self.sample_negative(
