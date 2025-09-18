@@ -141,8 +141,11 @@ def load_events(src_dir: str = DATA_DIR) -> pl.LazyFrame:
         )
         .pipe(pl.from_pandas)
         .rename({"movie_id": "item_id", "rating": "event_value"})
-        .with_columns(datetime=pl.from_epoch("timestamp"))
-        .with_columns(event_name=pl.lit("rating"))
+        .with_columns(
+            datetime=pl.from_epoch("timestamp"),
+            event_name=pl.lit("rating"),
+            label=pl.lit(True),
+        )
     )
     logger.info("events loaded: {}, shape: {}", events_dat, events.shape)
     return events.lazy()
@@ -229,6 +232,7 @@ def gather_history(events: pl.LazyFrame, *, path: pathlib.Path) -> pl.LazyFrame:
         "datetime",
         "event_name",
         "event_value",
+        "label",
         "item_rn",
         "item_id",
         "item_text",
@@ -314,6 +318,7 @@ def process_users(
         "datetime",
         "event_name",
         "event_value",
+        "label",
         "item_rn",
         "item_id",
         "item_text",

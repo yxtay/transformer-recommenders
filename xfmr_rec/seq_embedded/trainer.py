@@ -99,10 +99,12 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
     def compute_metrics(
         self, row: dict[str, list[str]], stage: str = "val"
     ) -> dict[str, torch.Tensor]:
+        import numpy as np
+
         recs = self.predict_step(row)
         metrics = compute_retrieval_metrics(
             rec_ids=recs["item_id"][:],
-            target_ids=row["target"]["item_id"],
+            target_ids=np.asarray(row["target"]["item_id"])[row["target"]["label"]],
             top_k=self.config.top_k,
         )
         return {f"{stage}/{key}": value for key, value in metrics.items()}

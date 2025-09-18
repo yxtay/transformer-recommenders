@@ -137,8 +137,8 @@ class BaseUserIndex:
 
 class BaseService:
     model_ref: bentoml.model.BentoModel
-    item_index: bentoml.model.BentoModel
-    user_index: bentoml.model.BentoModel
+    item_index: bentoml.Dependency
+    user_index: bentoml.Dependency
 
     @bentoml.api()
     @logger.catch(reraise=True)
