@@ -201,8 +201,8 @@ class SeqEmbeddedDataModule(lp.LightningDataModule):
 
         if self.items_dataset is None:
             model = SentenceTransformer(self.config.pretrained_model_name)
-            self.items_dataset = datasets.load_dataset(
-                "parquet", data_files=self.config.items_parquet, split="train"
+            self.items_dataset = datasets.Dataset.from_parquet(
+                self.config.items_parquet
             ).map(
                 lambda batch: {"embedding": model.encode(batch["item_text"])},
                 batched=True,
@@ -210,16 +210,13 @@ class SeqEmbeddedDataModule(lp.LightningDataModule):
             )
 
         if self.users_dataset is None:
-            self.users_dataset = datasets.load_dataset(
-                "parquet", data_files=self.config.users_parquet, split="train"
+            self.users_dataset = datasets.Dataset.from_parquet(
+                self.config.users_parquet
             )
 
         if self.train_dataset is None:
-            train_dataset = datasets.load_dataset(
-                "parquet",
-                data_files=self.config.users_parquet,
-                split="train",
-                filters=pc.field("is_train"),
+            train_dataset = datasets.Dataset.from_parquet(
+                self.config.users_parquet, filters=pc.field("is_train")
             )
             self.train_dataset = SeqEmbeddedDataset(
                 items_dataset=self.items_dataset,
@@ -228,27 +225,18 @@ class SeqEmbeddedDataModule(lp.LightningDataModule):
             )
 
         if self.val_dataset is None and stage in {"fit", "validate", None}:
-            self.val_dataset = datasets.load_dataset(
-                "parquet",
-                data_files=self.config.users_parquet,
-                split="train",
-                filters=pc.field("is_val"),
+            self.val_dataset = datasets.Dataset.from_parquet(
+                self.config.users_parquet, filters=pc.field("is_val")
             )
 
         if self.test_dataset is None and stage in {"test", None}:
-            self.test_dataset = datasets.load_dataset(
-                "parquet",
-                data_files=self.config.users_parquet,
-                split="train",
-                filters=pc.field("is_test"),
+            self.test_dataset = datasets.Dataset.from_parquet(
+                self.config.users_parquet, filters=pc.field("is_test")
             )
 
         if self.predict_dataset is None:
-            self.predict_dataset = datasets.load_dataset(
-                "parquet",
-                data_files=self.config.users_parquet,
-                split="train",
-                filters=pc.field("is_predict"),
+            self.predict_dataset = datasets.Dataset.from_parquet(
+                self.config.users_parquet, filters=pc.field("is_predict")
             )
 
     def get_dataloader(
