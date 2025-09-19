@@ -49,7 +49,6 @@ class SeqEmbeddedDataset(torch_data.Dataset):
             {k: i + 1 for i, k in enumerate(items_dataset["item_id"])}
         )
         self.all_item_idx = set(self.item_id_map)
-        self.items_dataset = items_dataset
 
         self.users_dataset = self.process_events(users_dataset)
 
@@ -170,18 +169,6 @@ class SeqEmbeddedDataset(torch_data.Dataset):
             col: pad_sequence([example[col] for example in batch], batch_first=True)
             for col in batch[0]
         }
-
-    def ids2idx(self, item_ids: list[str]) -> torch.Tensor:
-        item_ids = [
-            item_id for item_id in item_ids if item_id in self.item_id_map.index
-        ]
-        return torch.as_tensor(self.item_id_map[item_ids].to_numpy())
-
-    def load_pretrained_embeddings(self) -> torch.nn.Embedding:
-        weights = self.embeddings[:]
-        # add idx 0 for padding
-        weights = torch.cat([torch.zeros_like(weights[[0], :]), weights])
-        return torch.nn.Embedding.from_pretrained(weights, freeze=True, padding_idx=0)
 
 
 class SeqEmbeddedDataModule(lp.LightningDataModule):
