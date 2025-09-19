@@ -52,18 +52,13 @@ def evaluation_function(config: ArgsType) -> dict[str, float]:
     trainer_args = {"max_epochs": config["max_epochs"]}
     args = {"trainer": trainer_args, **get_lightning_args(config, data_args=data_args)}
 
-    try:
-        with mlflow.start_run(run_name=time_now_isoformat(), nested=True):
-            cli = cli_main({"fit": args}, log_model=False)
-        return {
-            key: value.item()
-            for key, value in cli.trainer.callback_metrics.items()
-            if key.startswith("val/")
-        }
-    except (StopIteration, SystemExit, mlflow.MlflowException):
-        for logger in cli.trainer.loggers:
-            logger.finalize("aborted")
-        return {}
+    with mlflow.start_run(run_name=time_now_isoformat(), nested=True):
+        cli = cli_main({"fit": args}, log_model=False)
+    return {
+        key: value.item()
+        for key, value in cli.trainer.callback_metrics.items()
+        if key.startswith("val/")
+    }
 
 
 def flaml_tune() -> flaml.tune.tune.ExperimentAnalysis:
