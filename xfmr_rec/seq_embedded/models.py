@@ -99,10 +99,10 @@ class SeqEmbeddedRecModel(torch.nn.Module):
         input_embeds: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
         if input_embeds is not None:
-            input_embeds = input_embeds.to(self.device)[:, -self.max_seq_length :, :]
+            input_embeds = input_embeds[:, -self.max_seq_length :, :].to(self.device)
         elif input_ids is not None:
             input_embeds = self.embeddings(
-                input_ids.to(self.device)[:, -self.config.max_seq_length :]
+                input_ids[:, -self.max_seq_length :].to(self.device)
             )
         else:
             msg = "either `input_ids` or `input_embeds` must be provided"
