@@ -44,28 +44,27 @@ class SeqEmbeddedDataset(torch_data.Dataset):
         self.config = config
         self.rng = np.random.default_rng()
 
+        # idx 0 for padding
         self.item_id_map = pd.Series(
-            {k: i for i, k in enumerate(items_dataset["item_id"])}
+            {k: i + 1 for i, k in enumerate(items_dataset["item_id"])}
         )
         self.all_item_idx = set(self.item_id_map)
-        self.embeddings = items_dataset.with_format("torch")["embedding"][:]
 
         self.users_dataset = self.process_events(users_dataset)
 
-        logger.info(f"{self.__class__.__name__}: {self.config}")
-        logger.info(f"num_rows: {len(self)}")
-        logger.info(f"num_items: {len(self.item_id_map)}")
+        logger.info(repr(self.config))
+        logger.info(f"num_rows: {len(self)}, num_items: {len(self.item_id_map)}")
 
     def process_events(self, events_dataset: datasets.Dataset) -> datasets.Dataset:
         def map_item_idx(example: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
-            items = example["history.item_id"]
+            item_ids = example["history.item_id"]
             labels = example["history.label"]
 
-            item_mask = [item_id in self.item_id_map.index for item_id in items]
-            history_item_idx = self.item_id_map[items[item_mask]]
+            mask = [item_id in self.item_id_map.index for item_id in item_ids]
+            history_item_idx = self.item_id_map[item_ids[mask]].to_numpy()
             return {
-                "history_item_idx": history_item_idx.to_numpy(),
-                "history_label": labels[item_mask],
+                "history_item_idx": history_item_idx,
+                "history_label": labels[mask],
             }
 
         def duplicate_rows(
@@ -158,9 +157,9 @@ class SeqEmbeddedDataset(torch_data.Dataset):
             sampled_indices=sampled_indices,
         )
         return {
-            "history_embeds": self.embeddings[history_item_idx[sampled_indices]],
-            "pos_embeds": self.embeddings[pos_item_idx],
-            "neg_embeds": self.embeddings[neg_item_idx],
+            "history_item_idx": history_item_idx[sampled_indices],
+            "pos_item_idx": pos_item_idx,
+            "neg_item_idx": neg_item_idx,
         }
 
     def collate(self, batch: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
@@ -176,7 +175,7 @@ class SeqEmbeddedDataModule(lp.LightningDataModule):
     def __init__(self, config: SeqEmbeddedDataModuleConfig) -> None:
         super().__init__()
         self.config = SeqEmbeddedDataModuleConfig.model_validate(config)
-        self.save_hyperparameters(self.config.model_dump())
+        self.save_hyperparameters()
 
         self.items_dataset: datasets.Dataset | None = None
         self.users_dataset: datasets.Dataset | None = None
@@ -300,13 +299,13 @@ if __name__ == "__main__":
 
     dataloaders = [
         datamodule.items_dataset,
-        # datamodule.users_dataset,
-        # datamodule.train_dataset,
-        # datamodule.train_dataloader(),
-        # datamodule.val_dataset,
-        # datamodule.val_dataloader(),
-        # datamodule.test_dataset,
-        # datamodule.test_dataloader(),
+        datamodule.users_dataset,
+        datamodule.train_dataset,
+        datamodule.train_dataloader(),
+        datamodule.val_dataset,
+        datamodule.val_dataloader(),
+        datamodule.test_dataset,
+        datamodule.test_dataloader(),
     ]
     for dataloader in dataloaders:
         batch = next(iter(dataloader))

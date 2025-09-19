@@ -8,6 +8,7 @@ import lightning.pytorch.cli as lp_cli
 import lightning.pytorch.loggers as lp_loggers
 import mlflow
 import torch
+from loguru import logger
 
 from xfmr_rec.common.trainer import LoggerSaveConfigCallback, time_now_isoformat
 from xfmr_rec.index import LanceIndex, LanceIndexConfig
@@ -18,6 +19,7 @@ from xfmr_rec.params import (
     TOP_K,
     USERS_TABLE_NAME,
 )
+from xfmr_rec.seq_embedded.data import SeqEmbeddedDataset
 from xfmr_rec.seq_embedded.models import SeqEmbeddedRecModel, SeqEmbeddedRecModelConfig
 
 if TYPE_CHECKING:
@@ -26,7 +28,7 @@ if TYPE_CHECKING:
 
 class SeqEmbeddedRecLightningConfig(SeqEmbeddedRecModelConfig):
     train_loss: Literal["cross_entropy", "binary_cross_entropy"] = "cross_entropy"
-    learning_rate: float = 0.001
+    learning_rate: float = 0.00001
     weight_decay: float = 0.01
 
     items_config: LanceIndexConfig = LanceIndexConfig(
@@ -49,8 +51,10 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
         super().__init__()
         self.config = SeqEmbeddedRecLightningConfig.model_validate(config)
         self.save_hyperparameters(self.config.model_dump())
+        self.strict_loading = False
 
         self.model: SeqEmbeddedRecModel | None = None
+        self.items_dataset: SeqEmbeddedDataset | None = None
         self.items_index = LanceIndex(config=self.config.items_config)
         self.users_index = LanceIndex(config=self.config.users_config)
 
@@ -58,8 +62,20 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
         if self.model is None:
             self.model = SeqEmbeddedRecModel(self.config, device=self.device)
 
-    def forward(self, item_embeds: torch.Tensor) -> dict[str, torch.Tensor]:
-        return self.model(item_embeds)
+        self.configure_embeddings()
+
+    def configure_embeddings(self) -> None:
+        try:
+            if self.items_dataset is None:
+                self.items_dataset = self.trainer.datamodule.items_dataset
+        except RuntimeError as e:
+            logger.warning(repr(e))
+
+        if self.model is not None and self.items_dataset is not None:
+            self.model.configure_embeddings(self.items_dataset)
+
+    def forward(self, item_idx: torch.Tensor) -> dict[str, torch.Tensor]:
+        return self.model(item_idx.to(self.device))
 
     @torch.inference_mode()
     def recommend(
@@ -69,20 +85,7 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
         top_k: int = 0,
         exclude_item_ids: list[str] | None = None,
     ) -> datasets.Dataset:
-        if self.items_index.table is None:
-            msg = "`items_index` must be initialised first"
-            raise ValueError(msg)
-
-        items = self.items_index.get_ids(item_ids)
-        items_embed_map = {item["item_id"]: item["embedding"] for item in items}
-        item_embeds = [
-            items_embed_map[item_id]
-            for item_id in item_ids
-            if item_id in items_embed_map
-        ]
-        item_embeds = torch.as_tensor(item_embeds, device=self.device)[None, :, :]
-
-        embedding = self.model(item_embeds)["sentence_embedding"].numpy(force=True)
+        embedding = self.model.encode(item_ids).numpy(force=True)
         return self.items_index.search(
             embedding,
             exclude_item_ids=exclude_item_ids,
@@ -91,9 +94,7 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
 
     def compute_losses(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         return self.model.compute_loss(
-            batch["history_embeds"],
-            batch["pos_embeds"],
-            batch["neg_embeds"],
+            batch["history_item_idx"], batch["pos_item_idx"], batch["neg_item_idx"]
         )
 
     def compute_metrics(
@@ -138,13 +139,13 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
             for key, value in self.trainer.callback_metrics.items()
             if key.startswith("val/")
         }
-        for logger in self.loggers:
+        for lp_logger in self.loggers:
             if isinstance(logger, lp_loggers.TensorBoardLogger):
-                logger.log_hyperparams(params=params, metrics=metrics)
+                lp_logger.log_hyperparams(params=params, metrics=metrics)
 
-            if isinstance(logger, lp_loggers.MLFlowLogger):
+            if isinstance(lp_logger, lp_loggers.MLFlowLogger):
                 # reset mlflow run status to "RUNNING"
-                logger.experiment.update_run(logger.run_id, status="RUNNING")
+                lp_logger.experiment.update_run(lp_logger.run_id, status="RUNNING")
 
     def on_validation_start(self) -> None:
         if self.items_index.table is None:
@@ -173,11 +174,12 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
 
     @property
     def example_input_array(self) -> tuple[torch.Tensor]:
-        example = torch.zeros(2, 1, self.config.hidden_size, device=self.device)
-        rand = torch.rand_like(example[1, :])
-        rand = rand / rand.norm()
-        example[1, :] = rand
-        return (example,)
+        return (torch.as_tensor([[0], [1]]),)
+
+    def state_dict(self, *args: object, **kwargs: object) -> dict[str, torch.Tensor]:
+        state_dict = super().state_dict(*args, **kwargs)
+        del state_dict["model.embeddings.weight"]
+        return state_dict
 
     def save(self, path: str) -> None:
         import pathlib
@@ -214,7 +216,7 @@ def cli_main(
             "save_dir": TENSORBOARD_DIR,
             "name": experiment_name,
             "version": run_name,
-            "log_graph": True,
+            # "log_graph": True,
             "default_hp_metric": False,
         },
     }
@@ -265,7 +267,8 @@ if __name__ == "__main__":
     datamodule.prepare_data()
     datamodule.setup()
     model = SeqEmbeddedRecLightningModule(SeqEmbeddedRecLightningConfig())
-    model.model = SeqEmbeddedRecModel(model.config, device="cpu")
+    model.items_dataset = datamodule.items_dataset
+    model.configure_model()
 
     # train
     rich.print(model(*model.example_input_array))

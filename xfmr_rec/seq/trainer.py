@@ -12,7 +12,7 @@ import torch
 from xfmr_rec.common.trainer import LoggerSaveConfigCallback, time_now_isoformat
 from xfmr_rec.index import LanceIndex, LanceIndexConfig
 from xfmr_rec.metrics import compute_retrieval_metrics
-from xfmr_rec.params import ITEMS_TABLE_NAME, SEQ_MODEL_NAME, TOP_K, USERS_TABLE_NAME
+from xfmr_rec.params import ITEMS_TABLE_NAME, TOP_K, USERS_TABLE_NAME
 from xfmr_rec.seq.models import SeqRecModel, SeqRecModelConfig
 
 if TYPE_CHECKING:
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 class SeqRecLightningConfig(SeqRecModelConfig):
     train_loss: Literal["cross_entropy", "binary_cross_entropy"] = "cross_entropy"
-    learning_rate: float = 0.001
+    learning_rate: float = 0.00001
     weight_decay: float = 0.01
 
     items_config: LanceIndexConfig = LanceIndexConfig(
@@ -77,7 +77,7 @@ class SeqRecLightningModule(lp.LightningModule):
             msg = "`items_index` must be initialised first"
             raise ValueError(msg)
 
-        embedding = self.model([item_text])["sentence_embedding"].numpy(force=True)
+        embedding = self([item_text])["sentence_embedding"].numpy(force=True)
         return self.items_index.search(
             embedding,
             exclude_item_ids=exclude_item_ids,
@@ -192,8 +192,9 @@ def cli_main(
 
     from xfmr_rec.params import TENSORBOARD_DIR
     from xfmr_rec.seq.data import SeqDataModule
+    from xfmr_rec.seq.service import MODEL_NAME
 
-    experiment_name = SEQ_MODEL_NAME
+    experiment_name = MODEL_NAME
     run_name = time_now_isoformat()
     run_id = None
     if active_run := mlflow.active_run():

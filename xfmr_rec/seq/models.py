@@ -4,6 +4,7 @@ import pathlib
 from typing import Literal
 
 import torch
+import torch.nn.functional as torch_fn
 from loguru import logger
 from sentence_transformers import SentenceTransformer
 
@@ -37,8 +38,8 @@ class SeqRecModel(torch.nn.Module):
         self.encoder = encoder
 
         self.configure_model(device=device)
-        logger.info(f"{self.__class__.__name__}: {self.config}")
-        logger.info(f"{self}")
+        logger.info(repr(self.config))
+        logger.info(self)
 
     @property
     def device(self) -> torch.device:
@@ -145,7 +146,9 @@ class SeqRecModel(torch.nn.Module):
         # shape: (batch_size, seq_len)
         output_embeds = output["token_embeddings"]
         # shape: (batch_size, seq_len, hidden_size)
-        output_embeds = output_embeds[:, :, None, :][attention_mask]
+        output_embeds = output_embeds[attention_mask][:, None, :]
+        # shape: (batch_size * seq_len, 1, hidden_size)
+        output_embeds = torch_fn.normalize(output_embeds, dim=-1)
         # shape: (batch_size * seq_len, 1, hidden_size)
 
         pos_embeds = self.embed_item_text_sequence(pos_item_text)[attention_mask]
@@ -161,18 +164,18 @@ class SeqRecModel(torch.nn.Module):
         # positive item is always at zero index
         labels_bce[:, 0] = 1
         # shape: (batch_size * seq_len, 1 + seq_len * num_neg)
-        loss_bce = torch.nn.functional.binary_cross_entropy_with_logits(
+        loss_bce = torch_fn.binary_cross_entropy_with_logits(
             logits, labels_bce, reduction="sum"
         )
 
         # positive item is always at zero index
         labels_ce = torch.zeros_like(logits[:, 0], dtype=torch.long)
         # shape: (batch_size * seq_len)
-        loss_ce = torch.nn.functional.cross_entropy(logits, labels_ce, reduction="sum")
+        loss_ce = torch_fn.cross_entropy(logits, labels_ce, reduction="sum")
 
         batch_size, seq_len = attention_mask.size()
         numel = attention_mask.numel()
-        non_zero = (attention_mask != 0).sum().item()
+        non_zero = logits.size(0)
         return {
             "batch/size": batch_size,
             "batch/seq_len": seq_len,
