@@ -16,16 +16,19 @@ def get_lightning_args(
     data_args: ArgsType | None = None,
     model_args: ArgsType | None = None,
 ) -> dict[str, dict[str, ArgsType]]:
+    max_seq_length = 2 ** config["log_max_seq_length"]
     hidden_size = 2 ** config["log_hidden_size"]
     intermediate_size = hidden_size * 2 ** config["log_intermediate_size"]
 
-    data_args = data_args or {}
+    data_args = (data_args or {}) | {
+        "max_seq_length": max_seq_length,
+    }
     model_args = (model_args or {}) | {
         "hidden_size": hidden_size,
         "num_hidden_layers": config["num_hidden_layers"],
         "num_attention_heads": 2 ** config["log_num_attention_heads"],
         "intermediate_size": intermediate_size,
-        "max_seq_length": 2 ** config["log_max_seq_length"],
+        "max_seq_length": max_seq_length,
         "train_loss": config["train_loss"],
         "learning_rate": config["learning_rate"],
         "weight_decay": config["weight_decay"],
@@ -60,7 +63,7 @@ def evaluation_function(config: ArgsType) -> dict[str, float]:
         }
     except (StopIteration, SystemExit, mlflow.MlflowException):
         for logger in cli.trainer.loggers:
-            logger.finalize()
+            logger.finalize("aborted")
         return {}
 
 
