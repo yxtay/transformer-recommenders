@@ -55,7 +55,7 @@ def evaluation_function(config: ArgsType) -> dict[str, float]:
             cli.trainer.fit(cli.model, datamodule=cli.datamodule)
         return {
             key: value.item()
-            for key, value in cli.trainer.callback_metric.items()
+            for key, value in cli.trainer.callback_metrics.items()
             if key.startswith("val/")
         }
     except (StopIteration, SystemExit, mlflow.MlflowException):
