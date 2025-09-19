@@ -54,8 +54,7 @@ def evaluation_function(config: ArgsType) -> dict[str, float]:
 
     try:
         with mlflow.start_run(run_name=time_now_isoformat(), nested=True):
-            cli = cli_main(args, run=False, log_model=False)
-            cli.trainer.fit(cli.model, datamodule=cli.datamodule)
+            cli = cli_main({"fit": args}, log_model=False)
         return {
             key: value.item()
             for key, value in cli.trainer.callback_metrics.items()
