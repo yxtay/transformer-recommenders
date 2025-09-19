@@ -24,7 +24,7 @@ class LoggerSaveConfigCallback(lp_cli.SaveConfigCallback):
             if not isinstance(logger, lp_loggers.MLFlowLogger):
                 continue
 
-            trainer.logger.log_hyperparams(vars(self.config.as_flat()))
+            logger.log_hyperparams(vars(self.config.as_flat()))
             with tempfile.TemporaryDirectory() as path:
                 config_path = pathlib.Path(path, self.config_filename)
                 self.parser.save(

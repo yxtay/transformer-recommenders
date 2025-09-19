@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import torch
+import torch.nn.functional as torch_fn
 from loguru import logger
 from sentence_transformers import SentenceTransformer
 
 from xfmr_rec.models import ModelConfig, init_bert, to_sentence_transformer
+
+if TYPE_CHECKING:
+    import datasets
 
 
 class SeqEmbeddedRecModelConfig(ModelConfig):
@@ -27,10 +33,11 @@ class SeqEmbeddedRecModel(torch.nn.Module):
         super().__init__()
         self.config = config
         self.model = model
+        self.embeddings: torch.nn.Embedding | None = None
 
         self.configure_model(device=device)
-        logger.info(f"{self.__class__.__name__}: {self.config}")
-        logger.info(f"{self}")
+        logger.info(repr(self.config))
+        logger.info(self)
 
     @property
     def device(self) -> torch.device:
@@ -44,6 +51,21 @@ class SeqEmbeddedRecModel(torch.nn.Module):
         if self.model is None:
             bert_model = init_bert(self.config)
             self.model = to_sentence_transformer(self.config, bert_model, device=device)
+
+    def configure_embeddings(self, items_dataset: datasets.Dataset) -> None:
+        if self.embeddings is None:
+            import pandas as pd
+
+            self.item_id_map = pd.Series(
+                {k: i + 1 for i, k in enumerate(items_dataset["item_id"])}
+            )
+
+            weights = items_dataset.with_format("torch")["embedding"][:]
+            # add idx 0 for padding
+            weights = torch.cat([torch.zeros_like(weights[[0], :]), weights])
+            self.embeddings = torch.nn.Embedding.from_pretrained(
+                weights, freeze=True, padding_idx=0
+            ).to(self.device)
 
     def save(self, path: str) -> None:
         self.model.save(path)
@@ -70,32 +92,57 @@ class SeqEmbeddedRecModel(torch.nn.Module):
         )
         return cls(config, model=model)
 
-    def forward(self, inputs_embeds: torch.Tensor) -> dict[str, torch.Tensor]:
-        inputs_embeds = inputs_embeds[:, -self.max_seq_length :, :]
-        attention_mask = (inputs_embeds != 0).any(-1).long()
-        features = {"inputs_embeds": inputs_embeds, "attention_mask": attention_mask}
+    def forward(
+        self,
+        input_ids: torch.Tensor | None = None,
+        *,
+        input_embeds: torch.Tensor | None = None,
+    ) -> dict[str, torch.Tensor]:
+        if input_embeds is not None:
+            input_embeds = input_embeds.to(self.device)[:, -self.max_seq_length :, :]
+        elif input_ids is not None:
+            input_embeds = self.embeddings(
+                input_ids.to(self.device)[:, -self.config.max_seq_length :]
+            )
+        else:
+            msg = "either `input_ids` or `input_embeds` must be provided"
+            raise ValueError(msg)
+
+        attention_mask = (input_embeds != 0).any(-1).long()
+        features = {"inputs_embeds": input_embeds, "attention_mask": attention_mask}
         return self.model(features)
+
+    def encode(self, item_ids: list[str]) -> torch.Tensor:
+        item_ids = [
+            item_id for item_id in item_ids if item_id in self.item_id_map.index
+        ]
+        item_idx = torch.as_tensor(self.item_id_map[item_ids].to_numpy())
+        return self(item_idx[None, :])["sentence_embedding"][0]
 
     def compute_loss(
         self,
-        item_embeds: torch.Tensor,
-        pos_embeds: torch.Tensor,
-        neg_embeds: torch.Tensor,
+        history_item_idx: torch.Tensor,
+        pos_item_idx: torch.Tensor,
+        neg_item_idx: torch.Tensor,
     ) -> dict[str, torch.Tensor]:
-        output = self(item_embeds)
+        output = self(history_item_idx)
         attention_mask = output["attention_mask"].bool()
         # shape: (batch_size, seq_len)
         output_embeds = output["token_embeddings"]
         # shape: (batch_size, seq_len, hidden_size)
-        output_embeds = output_embeds[:, :, None, :][attention_mask]
+        output_embeds = output_embeds[attention_mask][:, None, :]
+        # shape: (batch_size * seq_len, 1, hidden_size)
+        output_embeds = torch_fn.normalize(output_embeds, dim=-1)
         # shape: (batch_size * seq_len, 1, hidden_size)
 
-        pos_embeds = pos_embeds[attention_mask]
-        # shape: (batch_size * seq_len, hidden_size
-        neg_embeds = neg_embeds[attention_mask]
-        # shape: (batch_size * seq_len, hidden_size
-        candidate_embeds = torch.stack([pos_embeds, neg_embeds], dim=-2)
-        # shape: (batch_size * seq_len, 2, hidden_size
+        pos_item_idx = pos_item_idx[attention_mask]
+        # shape: (batch_size * seq_len)
+        neg_item_idx = neg_item_idx[attention_mask]
+        # shape: (batch_size * seq_len)
+        candidate_idx = torch.stack([pos_item_idx, neg_item_idx], dim=-1)
+        # shape: (batch_size * seq_len, 2)
+        candidate_embeds = self.embeddings(candidate_idx)
+        # shape: (batch_size * seq_len, 2, hidden_size)
 
         logits = (output_embeds * candidate_embeds).sum(dim=-1)
         # shape: (batch_size * seq_len, 2)
@@ -103,18 +150,18 @@ class SeqEmbeddedRecModel(torch.nn.Module):
         # positive item is always at zero index
         labels_bce[:, 0] = 1
         # shape: (batch_size * seq_len, 2)
-        loss_bce = torch.nn.functional.binary_cross_entropy_with_logits(
+        loss_bce = torch_fn.binary_cross_entropy_with_logits(
             logits, labels_bce, reduction="sum"
         )
 
         # positive item is always at zero index
-        labels_ce = torch.zeros_like(logits[:, 0])
+        labels_ce = torch.zeros_like(logits[:, 0], dtype=torch.long)
         # shape: (batch_size * seq_len)
-        loss_ce = torch.nn.functional.cross_entropy(logits, labels_ce, reduction="sum")
+        loss_ce = torch_fn.cross_entropy(logits, labels_ce, reduction="sum")
 
         batch_size, seq_len = attention_mask.size()
         numel = attention_mask.numel()
-        non_zero = attention_mask.sum().item()
+        non_zero = logits.size(0)
         return {
             "batch/size": batch_size,
             "batch/seq_len": seq_len,

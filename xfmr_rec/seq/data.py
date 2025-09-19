@@ -46,20 +46,19 @@ class SeqDataset(torch_data.Dataset):
 
         self.users_dataset = self.process_events(users_dataset)
 
-        logger.info(f"{self.__class__.__name__}: {self.config}")
-        logger.info(f"num_rows: {len(self)}")
-        logger.info(f"num_items: {len(self.item_id_map)}")
+        logger.info(repr(self.config))
+        logger.info(f"num_rows: {len(self)}, num_items: {len(self.item_id_map)}")
 
     def process_events(self, events_dataset: datasets.Dataset) -> datasets.Dataset:
         def map_item_idx(example: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
-            items = example["history.item_id"]
+            item_ids = example["history.item_id"]
             labels = example["history.label"]
 
-            item_mask = [item_id in self.item_id_map.index for item_id in items]
-            history_item_idx = self.item_id_map[items[item_mask]]
+            mask = [item_id in self.item_id_map.index for item_id in item_ids]
+            item_idx = self.item_id_map[item_ids[mask]].to_numpy()
             return {
-                "history_item_idx": history_item_idx.to_numpy(),
-                "history_label": labels[item_mask],
+                "history_item_idx": item_idx,
+                "history_label": labels[mask],
             }
 
         def duplicate_rows(

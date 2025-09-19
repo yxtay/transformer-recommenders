@@ -37,6 +37,7 @@ def prepare_trainer(
 
     with tempfile.TemporaryDirectory() as tmp:
         trainer_args = {
+            "accelerator": "cpu",
             "logger": False,
             "fast_dev_run": fast_dev_run,
             "enable_checkpointing": False,
@@ -49,9 +50,9 @@ def prepare_trainer(
 def save_model(trainer: Trainer) -> None:
     import bentoml
 
-    from xfmr_rec.params import SEQ_EMBEDDED_MODEL_NAME
+    from xfmr_rec.seq_embedded.service import MODEL_NAME
 
-    with bentoml.models.create(SEQ_EMBEDDED_MODEL_NAME) as model_ref:
+    with bentoml.models.create(MODEL_NAME) as model_ref:
         model: SeqEmbeddedRecLightningModule = trainer.model
         model.save(model_ref.path)
 

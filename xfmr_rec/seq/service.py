@@ -15,7 +15,9 @@ from xfmr_rec.common.service import (
     ItemQuery,
     UserQuery,
 )
-from xfmr_rec.params import SEQ_MODEL_NAME, TOP_K
+from xfmr_rec.params import TOP_K
+
+MODEL_NAME = "xfmr_seq_rec"
 
 
 class Query(BaseQuery):
@@ -25,7 +27,7 @@ class Query(BaseQuery):
 
 @bentoml.service()
 class Model:
-    model_ref = bentoml.models.BentoModel(SEQ_MODEL_NAME)
+    model_ref = bentoml.models.BentoModel(MODEL_NAME)
 
     @logger.catch(reraise=True)
     def __init__(self) -> None:
@@ -47,12 +49,12 @@ class Model:
 
 @bentoml.service()
 class ItemIndex(BaseItemIndex):
-    model_ref = bentoml.models.BentoModel(SEQ_MODEL_NAME)
+    model_ref = bentoml.models.BentoModel(MODEL_NAME)
 
 
 @bentoml.service()
 class UserIndex(BaseUserIndex):
-    model_ref = bentoml.models.BentoModel(SEQ_MODEL_NAME)
+    model_ref = bentoml.models.BentoModel(MODEL_NAME)
 
 
 @bentoml.service(image=IMAGE, envs=ENVS, workers="cpu_count")
