@@ -71,12 +71,7 @@ def flaml_tune() -> flaml.tune.tune.ExperimentAnalysis:
     from xfmr_rec.params import METRIC
     from xfmr_rec.seq.service import MODEL_NAME
 
-    train_losses = [
-        "cross_entropy",
-        "cross_entropy_mean",
-        "binary_cross_entropy",
-        "binary_cross_entropy_mean",
-    ]
+    train_losses = ["cross_entropy", "binary_cross_entropy"]
 
     point_to_evaluate = {
         "log_hidden_size": 5,
