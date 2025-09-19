@@ -144,7 +144,7 @@ def load_events(src_dir: str = DATA_DIR) -> pl.LazyFrame:
         .with_columns(
             datetime=pl.from_epoch("timestamp"),
             event_name=pl.lit("rating"),
-            label=pl.lit(True),
+            label=pl.lit(value=True),
         )
     )
     logger.info("events loaded: {}, shape: {}", events_dat, events.shape)

@@ -139,13 +139,13 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
             for key, value in self.trainer.callback_metrics.items()
             if key.startswith("val/")
         }
-        for logger in self.loggers:
+        for lp_logger in self.loggers:
             if isinstance(logger, lp_loggers.TensorBoardLogger):
-                logger.log_hyperparams(params=params, metrics=metrics)
+                lp_logger.log_hyperparams(params=params, metrics=metrics)
 
-            if isinstance(logger, lp_loggers.MLFlowLogger):
+            if isinstance(lp_logger, lp_loggers.MLFlowLogger):
                 # reset mlflow run status to "RUNNING"
-                logger.experiment.update_run(logger.run_id, status="RUNNING")
+                lp_logger.experiment.update_run(lp_logger.run_id, status="RUNNING")
 
     def on_validation_start(self) -> None:
         if self.items_index.table is None:
