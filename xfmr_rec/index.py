@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import datetime
+import math
+import pathlib
 from typing import TYPE_CHECKING, Any
 
+import datasets
 import pydantic
 from loguru import logger
 
 from xfmr_rec.params import ITEMS_TABLE_NAME, LANCE_DB_PATH
 
 if TYPE_CHECKING:
-    import datasets
     import lancedb
     import numpy as np
 
@@ -28,17 +30,19 @@ class LanceIndexConfig(IndexConfig):
 
 
 class LanceIndex:
-    def __init__(self, config: LanceIndexConfig) -> None:
+    def __init__(
+        self, config: LanceIndexConfig, table: lancedb.table.Table | None = None
+    ) -> None:
         super().__init__()
         self.config = config
-        self.table: lancedb.table.Table | None = None
+        self.table = table
 
     @classmethod
     def load(cls, config: LanceIndexConfig) -> LanceIndex:
         self = cls(config)
-        table = self.open_table()
+        self.open_table()
 
-        for index in table.list_indices():
+        for index in self.table.list_indices():
             match index.index_type:
                 case "IvfHnswPq":
                     self.config.embedding_col = index.columns[0]
@@ -60,7 +64,12 @@ class LanceIndex:
         )
         return self.table
 
-    def index_data(self, dataset: datasets.Dataset) -> lancedb.table.Table:
+    def index_data(
+        self, dataset: datasets.Dataset, *, overwrite: bool = False
+    ) -> lancedb.table.Table:
+        if self.table is not None and not overwrite:
+            return self.table
+
         import math
 
         import lancedb
@@ -126,7 +135,6 @@ class LanceIndex:
         exclude_item_ids: list[str] | None = None,
         top_k: int = 20,
     ) -> datasets.Dataset:
-        import datasets
         import pyarrow.compute as pc
 
         exclude_item_ids = exclude_item_ids or [""]
@@ -148,8 +156,6 @@ class LanceIndex:
         return datasets.Dataset(rec_table)
 
     def get_ids(self, ids: list[str]) -> datasets.Dataset:
-        import datasets
-
         ids_filter = ", ".join(f"'{str(id_val).replace("'", "''")}'" for id_val in ids)
         result = (
             self.table.search()
@@ -169,47 +175,63 @@ class LanceIndex:
 
 
 class FaissIndex:
-    def __init__(self, config: LanceIndexConfig) -> None:
+    def __init__(
+        self, config: IndexConfig, index: datasets.Dataset | None = None
+    ) -> None:
         super().__init__()
         self.config = config
-        self.index: datasets.Dataset | None = None
+        self.index = index
+        self.id2idx: dict[str, int] | None = None
 
-    def save_data(self: Self, path: str) -> None:
-        """
-        Save the model data to the specified path.
-
-        Args:
-            path (str): Path to save the model data.
-        """
-        # items_index dataset must be saved in the same order in the parquet and faiss index
+    def save(self, path: str) -> None:
         index_name = self.index.list_indexes()[0]
-        self.index.to_parquet(pathlib.Path(path, ITEMS_PARQUET))
-        self.index.save_faiss_index(index_name, pathlib.Path(path, ITEMS_FAISS))
+        self.index.to_parquet(pathlib.Path(path, "data.parquet"))
+        self.index.save_faiss_index(index_name, pathlib.Path(path, "index.faiss"))
 
-    def load_data(self: Self, path: str) -> None:
-        """
-        Load the model data from the specified path.
-
-        Args:
-            path (str): Path to load the model data from.
-        """
-        import datasets
-
-        self.index = datasets.Dataset.from_parquet(
-            pathlib.Path(path, ITEMS_PARQUET).as_posix()
+    @classmethod
+    def load(cls, config: IndexConfig, path: str) -> FaissIndex:
+        index: datasets.Dataset = datasets.Dataset.from_parquet(
+            pathlib.Path(path, "data.parquet").as_posix()
         )
-        self.index.load_faiss_index("embedding_idx", pathlib.Path(path, ITEMS_FAISS))
+        index.load_faiss_index("embedding_idx", pathlib.Path(path, "index.faiss"))
 
-    def index_data(self, dataset: datasets.Dataset) -> datasets.Dataset:
-        import math
+        required_cols = {config.id_col}
+        if config.embedding_col is not None:
+            required_cols.add(config.embedding_col)
 
-        import faiss
+        missing_cols = required_cols - set(index.column_names)
+        if len(missing_cols) > 0:
+            msg = f"index is missing required columns: {missing_cols}"
+            raise ValueError(msg)
+
+        logger.info(f"{cls.__name__}: {index}")
+        logger.info(f"num_items: {len(index)}, columns: {index.column_names}")
+        return cls(config, index)
+
+    def configure_id2idx(self, *, overwrite: bool = False) -> None:
+        if self.id2idx is not None and not overwrite:
+            return
+
+        if self.index is None:
+            msg = "index is not initialised"
+            raise RuntimeError(msg)
+
         import pandas as pd
 
-        self.index = dataset
         self.id2idx = pd.Series(
-            {k: i for i, k in enumerate(dataset[self.config.id_col])}
+            {k: i for i, k in enumerate(self.index[self.config.id_col])}
         )
+
+    def index_data(
+        self, dataset: datasets.Dataset, *, overwrite: bool = False
+    ) -> datasets.Dataset:
+        if self.index is not None and not overwrite:
+            return self.index
+
+        import faiss
+
+        self.index = dataset
+        self.configure_id2idx(overwrite=overwrite)
         if self.config.embedding_col is not None:
             # rule of thumb: nlist ~= 4 * sqrt(n_vectors)
             num_items = len(dataset)
@@ -219,7 +241,7 @@ class FaissIndex:
             m = embedding_dim // 8
             index_name = f"L2norm,OPQ{m},IVF{nlist}_HNSW32,PQ{m},Refine(L2norm,Flat)"
 
-            self.index = self.index.add_faiss_index(
+            self.index.add_faiss_index(
                 column="embedding",
                 index_name=index_name,
                 string_factory=index_name,
@@ -236,13 +258,11 @@ class FaissIndex:
         exclude_item_ids: list[str] | None = None,
         top_k: int = 20,
     ) -> datasets.Dataset:
-        import datasets
-
         exclude_set = set(exclude_item_ids or [""])
-        # we take (2 * len(exclude_set) + k) nearest items to ensure sufficient for post-filtering
+        # we take (2 * (top_k + len(exclude_set))) nearest items to ensure sufficient for post-filtering
         index_name = self.index.list_indexes()[0]
         scores, results = self.index.get_nearest_examples(
-            index_name=index_name, query=embedding, k=2 * len(exclude_set) + top_k
+            index_name=index_name, query=embedding, k=2 * (top_k + len(exclude_set))
         )
 
         return (
@@ -253,6 +273,10 @@ class FaissIndex:
         )
 
     def get_ids(self, ids: list[str]) -> datasets.Dataset:
+        if self.id2idx is None:
+            msg = "id2idx is not initialised"
+            raise RuntimeError(msg)
+
         idx = [self.id2idx[id_] for id_ in ids if id_ in self.id2idx]
         return self.index.select(idx)
 

@@ -16,8 +16,7 @@ from xfmr_rec.common.service import (
     UserQuery,
 )
 from xfmr_rec.params import TOP_K
-
-MODEL_NAME = "xfmr_seq_rec"
+from xfmr_rec.seq import MODEL_NAME
 
 
 class Query(BaseQuery):
