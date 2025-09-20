@@ -239,16 +239,18 @@ class FaissIndex:
 
             nlist = 2 ** int(math.log2(num_items) / 2)
             m = embedding_dim // 8
-            index_name = f"L2norm,OPQ{m},IVF{nlist}_HNSW32,PQ{m},Refine(L2norm,Flat)"
+            string_factory = (
+                f"L2norm,OPQ{m},IVF{nlist}_HNSW32,PQ{m},Refine(L2norm,Flat)"
+            )
 
             self.index.add_faiss_index(
-                column="embedding",
-                index_name=index_name,
-                string_factory=index_name,
+                column=self.config.embedding_col,
+                index_name="embedding_idx",
+                string_factory=string_factory,
                 metric_type=faiss.METRIC_INNER_PRODUCT,
                 train_size=num_items,
             )
-            faiss_index = self.index.get_index(index_name).faiss_index
+            faiss_index = self.index.get_index("embedding_idx").faiss_index
             faiss.extract_index_ivf(faiss_index).nprobe = 8
         return self.index
 
