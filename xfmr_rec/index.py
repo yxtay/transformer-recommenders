@@ -14,6 +14,7 @@ from xfmr_rec.params import ITEMS_TABLE_NAME, LANCE_DB_PATH
 if TYPE_CHECKING:
     import lancedb
     import numpy as np
+    import pandas as pd
 
 
 class IndexConfig(pydantic.BaseModel):
@@ -24,9 +25,7 @@ class IndexConfig(pydantic.BaseModel):
 class LanceIndexConfig(IndexConfig):
     lancedb_path: str = LANCE_DB_PATH
     table_name: str = ITEMS_TABLE_NAME
-    id_col: str = "item_id"
     text_col: str = "item_text"
-    embedding_col: str | None = None
 
 
 class LanceIndex:
@@ -181,7 +180,7 @@ class FaissIndex:
         super().__init__()
         self.config = config
         self.index = index
-        self.id2idx: dict[str, int] | None = None
+        self.id2idx: pd.Series | None = None
 
     def save(self, path: str) -> None:
         index_name = self.index.list_indexes()[0]
@@ -206,11 +205,11 @@ class FaissIndex:
 
         logger.info(f"{cls.__name__}: {index}")
         logger.info(f"num_items: {len(index)}, columns: {index.column_names}")
-        return cls(config, index)
+        return cls(config, index).configure_id2idx(overwrite=True)
 
-    def configure_id2idx(self, *, overwrite: bool = False) -> None:
+    def configure_id2idx(self, *, overwrite: bool = False) -> FaissIndex:
         if self.id2idx is not None and not overwrite:
-            return
+            return self
 
         if self.index is None:
             msg = "index is not initialised"
@@ -221,6 +220,7 @@ class FaissIndex:
         self.id2idx = pd.Series(
             {k: i for i, k in enumerate(self.index[self.config.id_col])}
         )
+        return self
 
     def index_data(
         self, dataset: datasets.Dataset, *, overwrite: bool = False
@@ -231,7 +231,7 @@ class FaissIndex:
         import faiss
 
         self.index = dataset
-        self.configure_id2idx(overwrite=overwrite)
+        self.configure_id2idx(overwrite=True)
         if self.config.embedding_col is not None:
             # rule of thumb: nlist ~= 4 * sqrt(n_vectors)
             num_items = len(dataset)
@@ -252,6 +252,9 @@ class FaissIndex:
             )
             faiss_index = self.index.get_index("embedding_idx").faiss_index
             faiss.extract_index_ivf(faiss_index).nprobe = 8
+
+        logger.info(f"{self.__class__.__name__}: {self.index}")
+        logger.info(f"num_items: {len(self.index)}, columns: {self.index.column_names}")
         return self.index
 
     def search(
