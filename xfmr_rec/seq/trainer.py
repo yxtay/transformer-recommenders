@@ -73,10 +73,6 @@ class SeqRecLightningModule(lp.LightningModule):
         top_k: int = 0,
         exclude_item_ids: list[str] | None = None,
     ) -> datasets.Dataset:
-        if self.items_index.table is None:
-            msg = "`items_index` must be initialised first"
-            raise ValueError(msg)
-
         embedding = self([item_text])["sentence_embedding"].numpy(force=True)
         return self.items_index.search(
             embedding,
@@ -141,8 +137,7 @@ class SeqRecLightningModule(lp.LightningModule):
 
     def on_validation_start(self) -> None:
         self.index_items(self.trainer.datamodule.items_dataset)
-        if self.users_index.table is None:
-            self.users_index.index_data(self.trainer.datamodule.users_dataset)
+        self.users_index.index_data(self.trainer.datamodule.users_dataset)
 
     def on_test_start(self) -> None:
         self.on_validation_start()
@@ -191,8 +186,8 @@ def cli_main(
     from jsonargparse import lazy_instance
 
     from xfmr_rec.params import TENSORBOARD_DIR
+    from xfmr_rec.seq import MODEL_NAME
     from xfmr_rec.seq.data import SeqDataModule
-    from xfmr_rec.seq.service import MODEL_NAME
 
     experiment_name = MODEL_NAME
     run_name = time_now_isoformat()

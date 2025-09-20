@@ -45,23 +45,23 @@ class SeqEmbeddedDataset(torch_data.Dataset):
         self.rng = np.random.default_rng()
 
         # idx 0 for padding
-        self.item_id_map = pd.Series(
+        self.id2idx = pd.Series(
             {k: i + 1 for i, k in enumerate(items_dataset["item_id"])}
         )
-        self.all_item_idx = set(self.item_id_map)
+        self.all_idx = set(self.id2idx)
 
         self.users_dataset = self.process_events(users_dataset)
 
         logger.info(repr(self.config))
-        logger.info(f"num_rows: {len(self)}, num_items: {len(self.item_id_map)}")
+        logger.info(f"num_rows: {len(self)}, num_items: {len(self.id2idx)}")
 
     def process_events(self, events_dataset: datasets.Dataset) -> datasets.Dataset:
         def map_item_idx(example: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
             item_ids = example["history.item_id"]
             labels = example["history.label"]
 
-            mask = [item_id in self.item_id_map.index for item_id in item_ids]
-            history_item_idx = self.item_id_map[item_ids[mask]].to_numpy()
+            mask = [item_id in self.id2idx.index for item_id in item_ids]
+            history_item_idx = self.id2idx[item_ids[mask]].to_numpy()
             return {
                 "history_item_idx": history_item_idx,
                 "history_label": labels[mask],
@@ -130,9 +130,9 @@ class SeqEmbeddedDataset(torch_data.Dataset):
         sampled_indices: torch.Tensor,
     ) -> torch.Tensor:
         seq_len = len(sampled_indices)
-        neg_candidates = list(self.all_item_idx - set(history_item_idx.tolist()))
+        neg_candidates = list(self.all_idx - set(history_item_idx.tolist()))
         if len(neg_candidates) == 0:
-            neg_candidates = list(self.all_item_idx)
+            neg_candidates = list(self.all_idx)
 
         sampled_negatives = self.rng.choice(
             neg_candidates, seq_len, replace=len(neg_candidates) < seq_len
@@ -201,8 +201,8 @@ class SeqEmbeddedDataModule(lp.LightningDataModule):
 
         if self.items_dataset is None:
             model = SentenceTransformer(self.config.pretrained_model_name)
-            self.items_dataset = datasets.load_dataset(
-                "parquet", data_files=self.config.items_parquet, split="train"
+            self.items_dataset = datasets.Dataset.from_parquet(
+                self.config.items_parquet
             ).map(
                 lambda batch: {"embedding": model.encode(batch["item_text"])},
                 batched=True,
@@ -210,16 +210,13 @@ class SeqEmbeddedDataModule(lp.LightningDataModule):
             )
 
         if self.users_dataset is None:
-            self.users_dataset = datasets.load_dataset(
-                "parquet", data_files=self.config.users_parquet, split="train"
+            self.users_dataset = datasets.Dataset.from_parquet(
+                self.config.users_parquet
             )
 
         if self.train_dataset is None:
-            train_dataset = datasets.load_dataset(
-                "parquet",
-                data_files=self.config.users_parquet,
-                split="train",
-                filters=pc.field("is_train"),
+            train_dataset = datasets.Dataset.from_parquet(
+                self.config.users_parquet, filters=pc.field("is_train")
             )
             self.train_dataset = SeqEmbeddedDataset(
                 items_dataset=self.items_dataset,
@@ -228,27 +225,18 @@ class SeqEmbeddedDataModule(lp.LightningDataModule):
             )
 
         if self.val_dataset is None and stage in {"fit", "validate", None}:
-            self.val_dataset = datasets.load_dataset(
-                "parquet",
-                data_files=self.config.users_parquet,
-                split="train",
-                filters=pc.field("is_val"),
+            self.val_dataset = datasets.Dataset.from_parquet(
+                self.config.users_parquet, filters=pc.field("is_val")
             )
 
         if self.test_dataset is None and stage in {"test", None}:
-            self.test_dataset = datasets.load_dataset(
-                "parquet",
-                data_files=self.config.users_parquet,
-                split="train",
-                filters=pc.field("is_test"),
+            self.test_dataset = datasets.Dataset.from_parquet(
+                self.config.users_parquet, filters=pc.field("is_test")
             )
 
         if self.predict_dataset is None:
-            self.predict_dataset = datasets.load_dataset(
-                "parquet",
-                data_files=self.config.users_parquet,
-                split="train",
-                filters=pc.field("is_predict"),
+            self.predict_dataset = datasets.Dataset.from_parquet(
+                self.config.users_parquet, filters=pc.field("is_predict")
             )
 
     def get_dataloader(

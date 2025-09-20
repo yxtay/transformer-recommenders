@@ -50,7 +50,7 @@ def prepare_trainer(
 def save_model(trainer: Trainer) -> None:
     import bentoml
 
-    from xfmr_rec.seq.service import MODEL_NAME
+    from xfmr_rec.seq import MODEL_NAME
 
     with bentoml.models.create(MODEL_NAME) as model_ref:
         model: SeqRecLightningModule = trainer.model

@@ -1,39 +1,47 @@
 from __future__ import annotations
 
 import datetime
+import math
+import pathlib
 from typing import TYPE_CHECKING, Any
 
+import datasets
 import pydantic
 from loguru import logger
 
 from xfmr_rec.params import ITEMS_TABLE_NAME, LANCE_DB_PATH
 
 if TYPE_CHECKING:
-    import datasets
     import lancedb
     import numpy as np
+    import pandas as pd
 
 
-class LanceIndexConfig(pydantic.BaseModel):
-    lancedb_path: str = LANCE_DB_PATH
-    table_name: str = ITEMS_TABLE_NAME
+class IndexConfig(pydantic.BaseModel):
     id_col: str = "item_id"
-    text_col: str = "item_text"
     embedding_col: str | None = None
 
 
+class LanceIndexConfig(IndexConfig):
+    lancedb_path: str = LANCE_DB_PATH
+    table_name: str = ITEMS_TABLE_NAME
+    text_col: str = "item_text"
+
+
 class LanceIndex:
-    def __init__(self, config: LanceIndexConfig) -> None:
+    def __init__(
+        self, config: LanceIndexConfig, table: lancedb.table.Table | None = None
+    ) -> None:
         super().__init__()
         self.config = config
-        self.table: lancedb.table.Table | None = None
+        self.table = table
 
     @classmethod
     def load(cls, config: LanceIndexConfig) -> LanceIndex:
         self = cls(config)
-        table = self.open_table()
+        self.open_table()
 
-        for index in table.list_indices():
+        for index in self.table.list_indices():
             match index.index_type:
                 case "IvfHnswPq":
                     self.config.embedding_col = index.columns[0]
@@ -55,7 +63,12 @@ class LanceIndex:
         )
         return self.table
 
-    def index_data(self, dataset: datasets.Dataset) -> lancedb.table.Table:
+    def index_data(
+        self, dataset: datasets.Dataset, *, overwrite: bool = False
+    ) -> lancedb.table.Table:
+        if self.table is not None and not overwrite:
+            return self.table
+
         import math
 
         import lancedb
@@ -115,12 +128,33 @@ class LanceIndex:
         )
         return self.table
 
+    def search(
+        self,
+        embedding: np.ndarray,
+        exclude_item_ids: list[str] | None = None,
+        top_k: int = 20,
+    ) -> datasets.Dataset:
+        import pyarrow.compute as pc
+
+        exclude_item_ids = exclude_item_ids or [""]
+        exclude_filter = ", ".join(
+            f"'{str(item).replace("'", "''")}'" for item in exclude_item_ids
+        )
+        exclude_filter = f"{self.config.id_col} NOT IN ({exclude_filter})"
+        rec_table = (
+            self.table.search(embedding)
+            .where(exclude_filter, prefilter=True)
+            .nprobes(8)
+            .refine_factor(4)
+            .limit(top_k)
+            .to_arrow()
+        )
+        rec_table = rec_table.append_column(
+            "score", pc.subtract(1, rec_table["_distance"])
+        )
+        return datasets.Dataset(rec_table)
+
     def get_ids(self, ids: list[str]) -> datasets.Dataset:
-        import datasets
-
-        if not ids:
-            return datasets.Dataset.from_dict({})
-
         ids_filter = ", ".join(f"'{str(id_val).replace("'", "''")}'" for id_val in ids)
         result = (
             self.table.search()
@@ -138,30 +172,124 @@ class LanceIndex:
             return {}
         return result[0]
 
+
+class FaissIndex:
+    def __init__(
+        self, config: IndexConfig, index: datasets.Dataset | None = None
+    ) -> None:
+        super().__init__()
+        self.config = config
+        self.index = index
+        self.id2idx: pd.Series | None = None
+
+    def save(self, path: str) -> None:
+        index_name = self.index.list_indexes()[0]
+        self.index.to_parquet(pathlib.Path(path, "data.parquet"))
+        self.index.save_faiss_index(index_name, pathlib.Path(path, "index.faiss"))
+
+    @classmethod
+    def load(cls, config: IndexConfig, path: str) -> FaissIndex:
+        index: datasets.Dataset = datasets.Dataset.from_parquet(
+            pathlib.Path(path, "data.parquet").as_posix()
+        )
+        index.load_faiss_index("embedding_idx", pathlib.Path(path, "index.faiss"))
+
+        required_cols = {config.id_col}
+        if config.embedding_col is not None:
+            required_cols.add(config.embedding_col)
+
+        missing_cols = required_cols - set(index.column_names)
+        if len(missing_cols) > 0:
+            msg = f"index is missing required columns: {missing_cols}"
+            raise ValueError(msg)
+
+        logger.info(f"{cls.__name__}: {index}")
+        logger.info(f"num_items: {len(index)}, columns: {index.column_names}")
+        return cls(config, index).configure_id2idx(overwrite=True)
+
+    def configure_id2idx(self, *, overwrite: bool = False) -> FaissIndex:
+        if self.id2idx is not None and not overwrite:
+            return self
+
+        if self.index is None:
+            msg = "index is not initialised"
+            raise RuntimeError(msg)
+
+        import pandas as pd
+
+        self.id2idx = pd.Series(
+            {k: i for i, k in enumerate(self.index[self.config.id_col])}
+        )
+        return self
+
+    def index_data(
+        self, dataset: datasets.Dataset, *, overwrite: bool = False
+    ) -> datasets.Dataset:
+        if self.index is not None and not overwrite:
+            return self.index
+
+        import faiss
+
+        self.index = dataset
+        self.configure_id2idx(overwrite=True)
+        if self.config.embedding_col is not None:
+            # rule of thumb: nlist ~= 4 * sqrt(n_vectors)
+            num_items = len(dataset)
+            embedding_dim = len(dataset[self.config.embedding_col][0])
+
+            nlist = 2 ** int(math.log2(num_items) / 2)
+            m = embedding_dim // 8
+            string_factory = (
+                f"L2norm,OPQ{m},IVF{nlist}_HNSW32,PQ{m},Refine(L2norm,Flat)"
+            )
+
+            self.index.add_faiss_index(
+                column=self.config.embedding_col,
+                index_name="embedding_idx",
+                string_factory=string_factory,
+                metric_type=faiss.METRIC_INNER_PRODUCT,
+                train_size=num_items,
+            )
+            faiss_index = self.index.get_index("embedding_idx").faiss_index
+            faiss.extract_index_ivf(faiss_index).nprobe = 8
+
+        logger.info(f"{self.__class__.__name__}: {self.index}")
+        logger.info(f"num_items: {len(self.index)}, columns: {self.index.column_names}")
+        return self.index
+
     def search(
         self,
         embedding: np.ndarray,
         exclude_item_ids: list[str] | None = None,
         top_k: int = 20,
     ) -> datasets.Dataset:
-        import datasets
-        import pyarrow.compute as pc
+        exclude_set = set(exclude_item_ids or [""])
+        # we take (2 * (top_k + len(exclude_set))) nearest items to ensure sufficient for post-filtering
+        index_name = self.index.list_indexes()[0]
+        scores, results = self.index.get_nearest_examples(
+            index_name=index_name, query=embedding, k=2 * (top_k + len(exclude_set))
+        )
 
-        exclude_item_ids = exclude_item_ids or [""]
-        exclude_filter = ", ".join(
-            f"'{str(item).replace("'", "''")}'" for item in exclude_item_ids
+        return (
+            datasets.Dataset.from_dict(results)
+            .add_column("score", scores)
+            .filter(lambda example: example[self.config.id_col] not in exclude_set)
+            .take(top_k)
         )
-        exclude_filter = f"{self.config.id_col} NOT IN ({exclude_filter})"
-        rec_table = (
-            self.table.search(embedding)
-            .where(exclude_filter, prefilter=True)
-            .nprobes(8)
-            .refine_factor(4)
-            .limit(top_k)
-            .select([self.config.id_col, self.config.text_col, "_distance"])
-            .to_arrow()
-        )
-        rec_table = rec_table.append_column(
-            "score", pc.subtract(1, rec_table["_distance"])
-        )
-        return datasets.Dataset(rec_table)
+
+    def get_ids(self, ids: list[str]) -> datasets.Dataset:
+        if self.id2idx is None:
+            msg = "id2idx is not initialised"
+            raise RuntimeError(msg)
+
+        idx = [self.id2idx[id_] for id_ in ids if id_ in self.id2idx]
+        return self.index.select(idx)
+
+    def get_id(self, id_: str | None) -> dict[str, Any]:
+        if id_ is None:
+            return {}
+
+        result = self.get_ids([id_])
+        if len(result) == 0:
+            return {}
+        return result[0]

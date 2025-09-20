@@ -66,7 +66,7 @@ def flaml_tune() -> flaml.tune.tune.ExperimentAnalysis:
     import mlflow
 
     from xfmr_rec.params import METRIC
-    from xfmr_rec.seq.service import MODEL_NAME
+    from xfmr_rec.seq import MODEL_NAME
 
     train_losses = ["cross_entropy", "binary_cross_entropy"]
 

@@ -15,7 +15,6 @@ from xfmr_rec.index import LanceIndex, LanceIndexConfig
 from xfmr_rec.metrics import compute_retrieval_metrics
 from xfmr_rec.params import (
     ITEMS_TABLE_NAME,
-    SEQ_EMBEDDED_MODEL_NAME,
     TOP_K,
     USERS_TABLE_NAME,
 )
@@ -148,11 +147,8 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
                 lp_logger.experiment.update_run(lp_logger.run_id, status="RUNNING")
 
     def on_validation_start(self) -> None:
-        if self.items_index.table is None:
-            self.items_index.index_data(self.trainer.datamodule.items_dataset)
-
-        if self.users_index.table is None:
-            self.users_index.index_data(self.trainer.datamodule.users_dataset)
+        self.items_index.index_data(self.trainer.datamodule.items_dataset)
+        self.users_index.index_data(self.trainer.datamodule.users_dataset)
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
         return torch.optim.AdamW(
@@ -200,9 +196,10 @@ def cli_main(
     from jsonargparse import lazy_instance
 
     from xfmr_rec.params import TENSORBOARD_DIR
+    from xfmr_rec.seq_embedded import MODEL_NAME
     from xfmr_rec.seq_embedded.data import SeqEmbeddedDataModule
 
-    experiment_name = SEQ_EMBEDDED_MODEL_NAME
+    experiment_name = MODEL_NAME
     run_name = time_now_isoformat()
     run_id = None
     if active_run := mlflow.active_run():

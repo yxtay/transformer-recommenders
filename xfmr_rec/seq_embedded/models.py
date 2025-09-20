@@ -56,7 +56,7 @@ class SeqEmbeddedRecModel(torch.nn.Module):
         if self.embeddings is None:
             import pandas as pd
 
-            self.item_id_map = pd.Series(
+            self.id2idx = pd.Series(
                 {k: i + 1 for i, k in enumerate(items_dataset["item_id"])}
             )
 
@@ -113,10 +113,8 @@ class SeqEmbeddedRecModel(torch.nn.Module):
         return self.model(features)
 
     def encode(self, item_ids: list[str]) -> torch.Tensor:
-        item_ids = [
-            item_id for item_id in item_ids if item_id in self.item_id_map.index
-        ]
-        item_idx = torch.as_tensor(self.item_id_map[item_ids].to_numpy())
+        item_ids = [item_id for item_id in item_ids if item_id in self.id2idx.index]
+        item_idx = torch.as_tensor(self.id2idx[item_ids].to_numpy())
         return self(item_idx[None, :])["sentence_embedding"][0]
 
     def compute_loss(
