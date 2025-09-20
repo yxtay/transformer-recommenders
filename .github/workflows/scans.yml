@@ -33,7 +33,7 @@ jobs:
       - id: megalinter
         # You can override MegaLinter flavor used to have faster performances
         # More info at https://megalinter.io/latest/flavors/
-        uses: oxsecurity/megalinter/flavors/python@e08c2b05e3dbc40af4c23f41172ef1e068a7d651 # v8
+        uses: oxsecurity/megalinter/flavors/python@ff177bfabd9088ff3ccaa7bc68f8ca3fd075ba5c # v9
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
