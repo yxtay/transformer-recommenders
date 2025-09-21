@@ -191,7 +191,7 @@ class NCELoss(EmbedLoss):
             logits, targets, reduction="none"
         )
         # shape: (batch_size, num_items)
-        return nce_losses[negative_masks].sum()
+        return weighted_mean(nce_losses, negative_masks, dim=-1).sum()
 
 
 class PairwiseHingeLoss(EmbedLoss):
