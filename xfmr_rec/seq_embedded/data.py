@@ -28,7 +28,7 @@ class SeqEmbeddedDataModuleConfig(SeqEmbeddedDataConfig):
     users_parquet: str = USERS_PARQUET
 
     pretrained_model_name: str = PRETRAINED_MODEL_NAME
-    batch_size: int = 32
+    batch_size: int = 16
     num_workers: int = 1
 
 
@@ -175,7 +175,7 @@ class SeqEmbeddedDataModule(lp.LightningDataModule):
     def __init__(self, config: SeqEmbeddedDataModuleConfig) -> None:
         super().__init__()
         self.config = SeqEmbeddedDataModuleConfig.model_validate(config)
-        self.save_hyperparameters()
+        self.save_hyperparameters(self.config.model_dump())
 
         self.items_dataset: datasets.Dataset | None = None
         self.users_dataset: datasets.Dataset | None = None

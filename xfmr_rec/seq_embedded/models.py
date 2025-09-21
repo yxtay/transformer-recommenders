@@ -117,6 +117,35 @@ class SeqEmbeddedRecModel(torch.nn.Module):
         item_idx = torch.as_tensor(self.id2idx[item_ids].to_numpy())
         return self(item_idx[None, :])["sentence_embedding"][0]
 
+    def compute_embeds(
+        self,
+        history_item_idx: torch.Tensor,
+        pos_item_idx: torch.Tensor,
+        neg_item_idx: torch.Tensor,
+    ) -> dict[str, torch.Tensor]:
+        output = self(history_item_idx)
+        attention_mask = output["attention_mask"].bool()
+        # shape: (batch_size, seq_len)
+        anchor_embed = output["token_embeddings"]
+        # shape: (batch_size, seq_len, hidden_size)
+        anchor_embed = anchor_embed[attention_mask]
+        # shape: (batch_size * seq_len, hidden_size)
+
+        pos_item_idx = pos_item_idx[attention_mask]
+        # shape: (batch_size * seq_len)
+        neg_item_idx = neg_item_idx[attention_mask]
+        # shape: (batch_size * seq_len)
+        pos_embed = self.embeddings(pos_item_idx)
+        # shape: (batch_size * seq_len, hidden_size)
+        neg_embed = self.embeddings(neg_item_idx)
+        # shape: (batch_size * seq_len, hidden_size)
+        return {
+            "anchor_embed": anchor_embed,
+            "pos_embed": pos_embed,
+            "neg_embed": neg_embed,
+            "attention_mask": attention_mask,
+        }
+
     def compute_loss(
         self,
         history_item_idx: torch.Tensor,

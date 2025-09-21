@@ -135,6 +135,31 @@ class SeqRecModel(torch.nn.Module):
         features = {"attention_mask": attention_mask, "inputs_embeds": inputs_embeds}
         return self.encoder(features)
 
+    def compute_embeds(
+        self,
+        history_item_text: list[list[str]],
+        pos_item_text: list[list[str]],
+        neg_item_text: list[list[str]],
+    ) -> dict[str, torch.Tensor]:
+        output = self(history_item_text)
+        attention_mask = output["attention_mask"].bool()
+        # shape: (batch_size, seq_len)
+        anchor_embed = output["token_embeddings"]
+        # shape: (batch_size, seq_len, hidden_size)
+        anchor_embed = anchor_embed[attention_mask]
+        # shape: (batch_size * seq_len, hidden_size)
+
+        pos_embed = self.embed_item_text_sequence(pos_item_text)[attention_mask]
+        # shape: (batch_size * seq_len, hidden_size)
+        neg_embed = self.embed_item_text_sequence(neg_item_text)[attention_mask]
+        # shape: (batch_size * seq_len, hidden_size)
+        return {
+            "anchor_embed": anchor_embed,
+            "pos_embed": pos_embed,
+            "neg_embed": neg_embed,
+            "attention_mask": attention_mask,
+        }
+
     def compute_loss(
         self,
         history_item_text: list[list[str]],
