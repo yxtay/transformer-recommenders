@@ -184,14 +184,13 @@ class NCELoss(EmbedLoss):
         # positives are the diagonal elements
         targets = torch.eye(*logits.size(), device=logits.device)
         # shape: (batch_size, num_items)
-        # include positive logits
-        negative_masks |= targets.bool()
-        # shape: (batch_size, num_items)
         nce_losses = torch_fn.binary_cross_entropy_with_logits(
             logits, targets, reduction="none"
         )
         # shape: (batch_size, num_items)
-        return weighted_mean(nce_losses, negative_masks, dim=-1).sum()
+        pos_loss = nce_losses.diagonal()
+        # shape: (batch_size,)
+        return (pos_loss + weighted_mean(nce_losses, negative_masks, dim=-1)).sum()
 
 
 class PairwiseHingeLoss(EmbedLoss):
