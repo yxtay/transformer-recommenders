@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import lightning as lp
 import lightning.pytorch.callbacks as lp_callbacks
@@ -11,6 +11,7 @@ import torch
 
 from xfmr_rec.common.trainer import LoggerSaveConfigCallback, time_now_isoformat
 from xfmr_rec.index import LanceIndex, LanceIndexConfig
+from xfmr_rec.losses import LossConfig, LossType
 from xfmr_rec.metrics import compute_retrieval_metrics
 from xfmr_rec.params import ITEMS_TABLE_NAME, TOP_K, USERS_TABLE_NAME
 from xfmr_rec.seq.models import SeqRecModel, SeqRecModelConfig
@@ -19,9 +20,9 @@ if TYPE_CHECKING:
     import datasets
 
 
-class SeqRecLightningConfig(SeqRecModelConfig):
-    train_loss: Literal["cross_entropy", "binary_cross_entropy"] = "cross_entropy"
-    learning_rate: float = 0.00001
+class SeqRecLightningConfig(SeqRecModelConfig, LossConfig):
+    train_loss: LossType = "InfoNCELoss"
+    learning_rate: float = 0.001
     weight_decay: float = 0.01
 
     items_config: LanceIndexConfig = LanceIndexConfig(
@@ -46,12 +47,31 @@ class SeqRecLightningModule(lp.LightningModule):
         self.save_hyperparameters(self.config.model_dump())
 
         self.model: SeqRecModel | None = None
+        self.loss_fns: torch.nn.ModuleList | None = None
         self.items_index = LanceIndex(config=self.config.items_config)
         self.users_index = LanceIndex(config=self.config.users_config)
 
     def configure_model(self) -> None:
         if self.model is None:
             self.model = SeqRecModel(config=self.config, device=self.device)
+            # self.model.compile()
+
+        if self.loss_fns is None:
+            self.loss_fns = self.get_loss_fns()
+
+    def get_loss_fns(self) -> torch.nn.ModuleList:
+        from xfmr_rec import losses
+
+        loss_classes = [
+            losses.AlignmentLoss,
+            losses.AlignmentContrastiveLoss,
+            losses.InfoNCELoss,
+            losses.NCELoss,
+            losses.PairwiseHingeLoss,
+            losses.PairwiseLogisticLoss,
+        ]
+        loss_fns = [loss_class(config=self.config) for loss_class in loss_classes]
+        return torch.nn.ModuleList(loss_fns)
 
     @torch.inference_mode()
     def index_items(self, items_dataset: datasets.Dataset) -> None:
@@ -81,9 +101,35 @@ class SeqRecLightningModule(lp.LightningModule):
         )
 
     def compute_losses(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
-        return self.model.compute_loss(
-            batch["history_item_text"], batch["pos_item_text"], batch["neg_item_text"]
+        embeds = self.model.compute_embeds(
+            batch["history_item_text"],
+            batch["pos_item_text"],
+            batch["neg_item_text"],
         )
+
+        attention_mask = embeds["attention_mask"]
+        batch_size, seq_len = attention_mask.size()
+        numel = attention_mask.numel()
+        non_zero = embeds["anchor_embed"].size(0)
+        metrics = {
+            "batch/size": batch_size,
+            "batch/seq_len": seq_len,
+            "batch/numel": numel,
+            "batch/non_zero": non_zero,
+            "batch/sparsity": non_zero / (numel + 1e-9),
+        }
+
+        losses = {}
+        for loss_fn in self.loss_fns:
+            key = f"loss/{loss_fn.__class__.__name__}"
+            loss = loss_fn(
+                anchor_embed=embeds["anchor_embed"],
+                pos_embed=embeds["pos_embed"],
+                neg_embed=embeds["neg_embed"],
+            )
+            losses[key] = loss
+            losses[f"{key}Mean"] = loss / (non_zero + 1e-9)
+        return losses | metrics
 
     def compute_metrics(
         self, row: dict[str, list[str]], stage: str = "val"

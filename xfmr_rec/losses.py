@@ -1,15 +1,40 @@
 from __future__ import annotations
 
 import abc
+from typing import Literal
 
+import pydantic
 import torch
-import torch.nn.functional as F  # noqa: N812
+import torch.nn.functional as torch_fn
+
+LossType = Literal[
+    "AlignmentLoss",
+    "AlignmentContrastiveLoss",
+    "InfoNCELoss",
+    "NCELoss",
+    "PairwiseHingeLoss",
+    "PairwiseLogisticLoss",
+]
+
+
+class LossConfig(pydantic.BaseModel):
+    num_negatives: int = 32
+    scale: float = 100.0
+    margin: float = 0.5
 
 
 def squared_distance(
     query_embed: torch.Tensor, candidate_embed: torch.Tensor
 ) -> torch.Tensor:
     return torch.cdist(query_embed, candidate_embed) ** 2 / 2
+
+
+def cosine_similarity_matrix(
+    anchor_embed: torch.Tensor, candidate_embed: torch.Tensor
+) -> torch.Tensor:
+    return torch_fn.cosine_similarity(
+        anchor_embed[:, None, :], candidate_embed[None, :, :], dim=-1
+    )
 
 
 def weighted_mean(
@@ -19,341 +44,164 @@ def weighted_mean(
     dim: int | None = None,
     keepdim: bool = False,
 ) -> torch.Tensor:
-    denominator = sample_weights.sum(dim=dim, keepdim=True) + 1e-10
+    denominator = sample_weights.sum(dim=dim, keepdim=True) + 1e-9
     return (values * sample_weights / denominator).sum(dim=dim, keepdim=keepdim)
 
 
-class EmbeddingLoss(torch.nn.Module, abc.ABC):
-    def __init__(
-        self,
-        *,
-        num_negatives: int = 0,
-        sigma: float = 1.0,
-        margin: float = 1.0,
-    ) -> None:
+class EmbedLoss(torch.nn.Module, abc.ABC):
+    def __init__(self, *, config: LossConfig) -> None:
         super().__init__()
-        self.num_negatives = num_negatives
-        self.sigma = sigma
-        self.margin = margin
+        self.config = config
 
     def forward(
         self,
-        user_embed: torch.Tensor,
-        item_embed: torch.Tensor,
-        target: torch.Tensor,
-        *,
-        item_idx: torch.Tensor,
-        pos_idx: torch.Tensor,
+        anchor_embed: torch.Tensor,
+        pos_embed: torch.Tensor,
+        neg_embed: torch.Tensor,
     ) -> torch.Tensor:
-        # target shape: (num_users, num_items)
-        self.check_inputs(user_embed, item_embed, target)
-        return self.loss(
-            user_embed, item_embed, target, item_idx=item_idx, pos_idx=pos_idx
-        )
+        self.check_inputs(anchor_embed, pos_embed, neg_embed)
+        logits = self.compute_logits(anchor_embed, pos_embed, neg_embed)
+        negative_masks = self.mask_false_negatives(logits)
+        negative_masks = self.mine_hard_negatives(logits, negative_masks)
+        return self.loss(logits, negative_masks)
 
     def check_inputs(
-        self, user_embed: torch.Tensor, item_embed: torch.Tensor, target: torch.Tensor
+        self,
+        anchor_embed: torch.Tensor,
+        pos_embed: torch.Tensor,
+        neg_embed: torch.Tensor,
     ) -> None:
-        if user_embed.dim() != 2 or item_embed.dim() != 2:  # noqa: PLR2004
-            msg = (
-                "inputs should have 2 dimensions: "
-                f"{user_embed.dim() = }, {item_embed.dim() = }"
-            )
-            raise ValueError(msg)
-
-        if user_embed.size(1) != item_embed.size(1):
-            msg = (
-                "embeddings dimension 1 should match: "
-                f"{ user_embed.size(1) = }, { item_embed.size(1) = }"
-            )
-            raise ValueError(msg)
-
-        if not (
-            user_embed.size(0) == target.size(0)
-            and item_embed.size(0) >= target.size(0)
+        n_dim = 2
+        if (
+            anchor_embed.dim() != n_dim
+            or pos_embed.dim() != n_dim
+            or neg_embed.dim() != n_dim
         ):
             msg = (
-                "embeddings dimension 0 should match: "
-                f"{target.size(0) = }, {user_embed.size(0) = }, {item_embed.size(0) = }"
+                "inputs should have 2 dimensions: "
+                f"{anchor_embed.dim() = }, "
+                f"{pos_embed.dim() = }, "
+                f"{neg_embed.dim() = }"
             )
             raise ValueError(msg)
 
-    @abc.abstractmethod
-    def loss(
-        self,
-        user_embed: torch.Tensor,
-        item_embed: torch.Tensor,
-        target: torch.Tensor,
-        *,
-        item_idx: torch.Tensor,
-        pos_idx: torch.Tensor,
-    ) -> torch.Tensor: ...
+        if anchor_embed.size(0) != pos_embed.size(0):
+            msg = (
+                "batch_size should match: "
+                f"{anchor_embed.size(0) = }, "
+                f"{pos_embed.size(0) = }"
+            )
+            raise ValueError(msg)
 
-    @torch.no_grad()
-    def negative_masks(
+        embedding_dim = anchor_embed.size(1)
+        if pos_embed.size(1) != embedding_dim or neg_embed.size(1) != embedding_dim:
+            msg = (
+                "embedding_dim should match: "
+                f"{ anchor_embed.size(1) = }, "
+                f"{ pos_embed.size(1) = }, "
+                f"{ neg_embed.size(1) = }"
+            )
+            raise ValueError(msg)
+
+    def compute_logits(
         self,
-        logits: torch.Tensor,
-        *,
-        item_idx: torch.Tensor,
-        pos_idx: torch.Tensor | None = None,
+        anchor_embed: torch.Tensor,
+        pos_embed: torch.Tensor,
+        neg_embed: torch.Tensor,
     ) -> torch.Tensor:
-        # accidental hits can be samples with same user or item
-        batch_size = logits.size(0)
-        # limit rows to batch size if num_items > batch_size
-        accidental_hits = item_idx[:batch_size, None] == item_idx[None, :]
-        # shape: (batch_size, num_items)
-        if pos_idx is not None:
-            # shape: (batch_size, num_positives)
-            # mask shape: (batch_size, num_items, num_positives)
-            accidental_hits |= (pos_idx[:, None, :] == item_idx[None, :, None]).any(-1)
-            # shape: (batch_size, num_items)
-        return ~accidental_hits
+        candidate_embed = torch.cat([pos_embed, neg_embed])
+        # shape: (2 * batch_size, embedding_dim)
+        return cosine_similarity_matrix(anchor_embed, candidate_embed)
+        # shape: (batch_size, 2 * batch_size)
 
-    @torch.no_grad()
-    def hard_mining(
+    def mask_false_negatives(self, logits: torch.Tensor) -> torch.Tensor:
+        # items with logits >= positive logits are false negatives
+        # this implicitly masks the positive logits in the diagonal
+        return logits < logits.diagonal()[:, None]
+        # shape: (batch_size, num_items)
+
+    def mine_hard_negatives(
         self, logits: torch.Tensor, negative_masks: torch.Tensor
     ) -> torch.Tensor:
-        if self.num_negatives <= 0:
+        if self.config.num_negatives <= 0:
             return negative_masks
 
-        if self.num_negatives >= logits.size(1):
+        if self.config.num_negatives >= logits.size(1):
             return negative_masks
 
-        # negative masks log will be 0 or -inf
+        # modifiy logits of false negatives to be -inf
+        # take top-k from modified logits
         indices = (
-            (logits + negative_masks.log())
-            .topk(k=self.num_negatives, dim=-1, sorted=False)
+            torch.where(negative_masks, logits, -torch.inf)
+            .topk(k=self.config.num_negatives, dim=-1, sorted=False)
             .indices
         )
-        negative_masks &= torch.scatter(
-            torch.zeros_like(negative_masks), -1, indices, 1.0
+        # shape: (batch_size, num_negatives)
+        # torch scatter gives boolean mask of selected negatives
+        # bool and with negative masks to ensure true negatives only
+        negative_masks &= torch.zeros_like(negative_masks).scatter_(
+            -1, indices, value=True
         )
         # shape: (batch_size, num_items)
         return negative_masks
-
-    @torch.no_grad()
-    def semi_hard_mining(
-        self, logits: torch.Tensor, negative_masks: torch.Tensor
-    ) -> torch.Tensor:
-        if self.num_negatives <= 0:
-            return negative_masks
-
-        if self.num_negatives >= logits.size(1):
-            return negative_masks
-
-        logits_mod = logits - logits.diag()[:, None]
-        # shape: (batch_size, num_items)
-        # neg: semi hard negatives, descending order first, so minus minimum value
-        # pos: hard negatives, ascending order later, so take negative value
-        logits_min = logits_mod.min(dim=-1, keepdim=True)[0]
-        logits_mod = torch.where(logits_mod < 0, logits_mod - logits_min, -logits_mod)
-        # shape: (batch_size, num_items)
-        # negative masks log will be 0 or -inf, so false negatives will be last
-        logits_mod = logits_mod + negative_masks.log()
-        # shape: (batch_size, num_items)
-
-        # pos: semi hard negatives, neg: hard negatives, -inf: false negatives
-        # so take largest
-        indices = logits_mod.topk(k=self.num_negatives, dim=-1, sorted=False).indices
-        negative_masks &= torch.scatter(
-            torch.zeros_like(negative_masks), -1, indices, 1.0
-        )
-        # shape: (batch_size, num_items)
-        return negative_masks
-
-    def alignment_loss(
-        self, user_embed: torch.Tensor, item_embed: torch.Tensor, target: torch.Tensor
-    ) -> torch.Tensor:
-        batch_size = user_embed.size(0)
-        loss = squared_distance(user_embed, item_embed[:batch_size]).diag()
-        # shape: (batch_size)
-        return (loss * target * self.sigma).sum()
-
-    def contrastive_loss(
-        self,
-        user_embed: torch.Tensor,
-        item_embed: torch.Tensor,
-        target: torch.Tensor,
-        *,
-        item_idx: torch.Tensor,
-        pos_idx: torch.Tensor,
-    ) -> torch.Tensor:
-        logits = -squared_distance(user_embed, item_embed)
-        # shape: (batch_size, num_items)
-        logits = logits * target.sign()[:, None] * self.sigma
-        # shape: (batch_size, num_items)
-        negative_masks = self.negative_masks(logits, item_idx=item_idx, pos_idx=pos_idx)
-        # shape: (batch_size, num_items)
-        negative_masks = self.semi_hard_mining(logits, negative_masks)
-        # shape: (batch_size, num_items)
-        losses = (logits + target.sign()[:, None] * self.margin).relu()
-        # shape: (batch_size, num_items)
-        loss = weighted_mean(losses, negative_masks, dim=-1)
-        # shape: (batch_size)
-        return (loss * target.abs()).sum()
-
-    def infonce_loss(
-        self,
-        user_embed: torch.Tensor,
-        item_embed: torch.Tensor,
-        target: torch.Tensor,
-        *,
-        item_idx: torch.Tensor,
-        pos_idx: torch.Tensor,
-    ) -> torch.Tensor:
-        logits = -squared_distance(user_embed, item_embed)
-        # shape: (batch_size, num_items)
-        logits = logits * target.sign()[:, None] * self.sigma
-        # shape: (batch_size, num_items)
-        negative_masks = self.negative_masks(logits, item_idx=item_idx, pos_idx=pos_idx)
-        # shape: (batch_size, num_items)
-        negative_masks = self.semi_hard_mining(logits, negative_masks)
-        # shape: (batch_size, num_items)
-        # include positive logits in the diagonal for cross entropy
-        negative_masks |= torch.eye(
-            *negative_masks.size(), out=torch.empty_like(negative_masks)
-        )
-        # shape: (batch_size, num_items)
-        loss = F.cross_entropy(
-            logits + negative_masks.log(),
-            torch.arange(logits.size(0), dtype=torch.long, device=logits.device),
-            reduction="none",
-        )
-        # shape: (batch_size)
-        return (loss * target.abs()).sum()
-
-    def mine_loss(
-        self,
-        user_embed: torch.Tensor,
-        item_embed: torch.Tensor,
-        target: torch.Tensor,
-        *,
-        item_idx: torch.Tensor,
-        pos_idx: torch.Tensor,
-    ) -> torch.Tensor:
-        logits = -squared_distance(user_embed, item_embed)
-        # shape: (batch_size, num_items)
-        logits = logits * target.sign()[:, None] * self.sigma
-        # shape: (batch_size, num_items)
-        negative_masks = self.negative_masks(logits, item_idx=item_idx, pos_idx=pos_idx)
-        # shape: (batch_size, num_items)
-        negative_masks = self.semi_hard_mining(logits, negative_masks)
-        # shape: (batch_size, num_items)
-        negative_score = (logits + negative_masks.log()).logsumexp(dim=-1)
-        # shape: (batch_size)
-        loss = -logits.diag() + negative_score
-        # shape: (batch_size)
-        return (loss * target.abs()).sum()
-
-
-class AlignmentLoss(EmbeddingLoss):
-    def loss(
-        self,
-        user_embed: torch.Tensor,
-        item_embed: torch.Tensor,
-        target: torch.Tensor,
-        *,
-        item_idx: torch.Tensor,  # noqa: ARG002
-        pos_idx: torch.Tensor,  # noqa: ARG002
-    ) -> torch.Tensor:
-        return self.alignment_loss(user_embed, item_embed, target)
-
-
-class ContrastiveLoss(EmbeddingLoss):
-    def loss(
-        self,
-        user_embed: torch.Tensor,
-        item_embed: torch.Tensor,
-        target: torch.Tensor,
-        *,
-        item_idx: torch.Tensor,
-        pos_idx: torch.Tensor,
-    ) -> torch.Tensor:
-        return self.contrastive_loss(
-            user_embed, item_embed, target, item_idx=item_idx, pos_idx=pos_idx
-        )
-
-
-class AlignmentContrastiveLoss(EmbeddingLoss):
-    def loss(
-        self,
-        user_embed: torch.Tensor,
-        item_embed: torch.Tensor,
-        target: torch.Tensor,
-        *,
-        item_idx: torch.Tensor,
-        pos_idx: torch.Tensor,
-    ) -> torch.Tensor:
-        alignment_loss = self.alignment_loss(user_embed, item_embed, target)
-        contrastive_loss = self.contrastive_loss(
-            user_embed, item_embed, target, item_idx=item_idx, pos_idx=pos_idx
-        )
-        return alignment_loss + contrastive_loss
-
-
-class InfomationNoiseContrastiveEstimationLoss(EmbeddingLoss):
-    def loss(
-        self,
-        user_embed: torch.Tensor,
-        item_embed: torch.Tensor,
-        target: torch.Tensor,
-        *,
-        item_idx: torch.Tensor,
-        pos_idx: torch.Tensor,
-    ) -> torch.Tensor:
-        return self.infonce_loss(
-            user_embed, item_embed, target, item_idx=item_idx, pos_idx=pos_idx
-        )
-
-
-class MutualInformationNeuralEstimationLoss(EmbeddingLoss):
-    def loss(
-        self,
-        user_embed: torch.Tensor,
-        item_embed: torch.Tensor,
-        target: torch.Tensor,
-        *,
-        item_idx: torch.Tensor,
-        pos_idx: torch.Tensor,
-    ) -> torch.Tensor:
-        return self.mine_loss(
-            user_embed, item_embed, target, item_idx=item_idx, pos_idx=pos_idx
-        )
-
-
-class PairwiseEmbeddingLoss(EmbeddingLoss, abc.ABC):
-    def loss(
-        self,
-        user_embed: torch.Tensor,
-        item_embed: torch.Tensor,
-        target: torch.Tensor,
-        *,
-        item_idx: torch.Tensor,
-        pos_idx: torch.Tensor,
-    ) -> torch.Tensor:
-        logits = -squared_distance(user_embed, item_embed)
-        # shape: (batch_size, num_items)
-        logits = logits * target.sign()[:, None] * self.sigma
-        # shape: (batch_size, num_items)
-        negative_masks = self.negative_masks(logits, item_idx=item_idx, pos_idx=pos_idx)
-        # shape: (batch_size, num_items)
-        negative_masks = self.semi_hard_mining(logits, negative_masks)
-        # shape: (batch_size, num_items)
-        losses = self.score_loss_fn(logits - logits.diag()[:, None] + self.margin)
-        # shape: (batch_size, num_items)
-        loss = weighted_mean(losses, negative_masks, dim=-1)
-        # shape: (batch_size)
-        return (loss * target.abs()).sum()
 
     @abc.abstractmethod
-    def score_loss_fn(self, score: torch.Tensor) -> torch.Tensor: ...
+    def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError
 
 
-class PairwiseLogisticLoss(PairwiseEmbeddingLoss):
-    def score_loss_fn(self, score: torch.Tensor) -> torch.Tensor:
-        return -F.logsigmoid(-score)
+class AlignmentLoss(EmbedLoss):
+    def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:
+        return (1 - logits.diagonal()).sum()
 
 
-class PairwiseHingeLoss(PairwiseEmbeddingLoss):
-    def score_loss_fn(self, score: torch.Tensor) -> torch.Tensor:
-        return (score).relu()
+class AlignmentContrastiveLoss(EmbedLoss):
+    def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:
+        losses = (logits - 1 + self.config.margin).relu()
+        # shape: (batch_size, num_items)
+        return (
+            1 - logits.diagonal() + weighted_mean(losses, negative_masks, dim=-1)
+        ).sum()
+
+
+class InfoNCELoss(EmbedLoss):
+    def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:
+        # include positive logits in the diagonal for cross entropy
+        negative_masks |= torch.eye(
+            *logits.size(), dtype=torch.bool, device=negative_masks.device
+        )
+        # shape: (batch_size, num_items)
+        logits = torch.where(negative_masks, logits * self.config.scale, -torch.inf)
+        # shape: (batch_size, num_items)
+        # positives are basically the diagonal elements, so use arange
+        targets = torch.arange(logits.size(0), dtype=torch.long, device=logits.device)
+        # shape: (batch_size,)
+        return torch_fn.cross_entropy(logits, targets, reduction="sum")
+
+
+class NCELoss(EmbedLoss):
+    def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:
+        # positives are the diagonal elements
+        targets = torch.eye(*logits.size(), device=logits.device)
+        # shape: (batch_size, num_items)
+        nce_losses = torch_fn.binary_cross_entropy_with_logits(
+            logits, targets, reduction="none"
+        )
+        # shape: (batch_size, num_items)
+        pos_loss = nce_losses.diagonal()
+        # shape: (batch_size,)
+        return (pos_loss + weighted_mean(nce_losses, negative_masks, dim=-1)).sum()
+
+
+class PairwiseHingeLoss(EmbedLoss):
+    def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:
+        scores = logits - logits.diagonal()[:, None] * (1 - self.config.margin)
+        # shape: (batch_size, num_items)
+        return weighted_mean(scores.relu(), negative_masks, dim=-1).sum()
+
+
+class PairwiseLogisticLoss(EmbedLoss):
+    def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:
+        scores = logits - logits.diagonal()[:, None] * (1 - self.config.margin)
+        # shape: (batch_size, num_items)
+        return weighted_mean(torch_fn.softplus(scores), negative_masks, dim=-1).sum()

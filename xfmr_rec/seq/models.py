@@ -19,6 +19,7 @@ class SeqRecModelConfig(ModelConfig):
     num_attention_heads: int = 4
     intermediate_size: int = 32
     max_seq_length: int | None = 32
+    is_decoder: bool = True
 
     pooling_mode: Literal["mean", "max", "cls", "lasttoken"] = "lasttoken"
 
@@ -51,7 +52,7 @@ class SeqRecModel(torch.nn.Module):
 
     def configure_model(self, device: torch.device | str | None = None) -> None:
         if self.encoder is None:
-            encoder_conf = self.config.model_copy(update={"is_decoder": True})
+            encoder_conf = self.config
             encoder = init_bert(encoder_conf)
             self.encoder = to_sentence_transformer(encoder_conf, encoder, device=device)
 
@@ -60,6 +61,7 @@ class SeqRecModel(torch.nn.Module):
                 update={
                     "vocab_size": None,
                     "max_seq_length": None,
+                    "is_decoder": False,
                     "pooling_mode": "mean",
                 }
             )
@@ -134,6 +136,31 @@ class SeqRecModel(torch.nn.Module):
         attention_mask = (inputs_embeds != 0).any(-1).long()
         features = {"attention_mask": attention_mask, "inputs_embeds": inputs_embeds}
         return self.encoder(features)
+
+    def compute_embeds(
+        self,
+        history_item_text: list[list[str]],
+        pos_item_text: list[list[str]],
+        neg_item_text: list[list[str]],
+    ) -> dict[str, torch.Tensor]:
+        output = self(history_item_text)
+        attention_mask = output["attention_mask"].bool()
+        # shape: (batch_size, seq_len)
+        anchor_embed = output["token_embeddings"]
+        # shape: (batch_size, seq_len, hidden_size)
+        anchor_embed = anchor_embed[attention_mask]
+        # shape: (batch_size * seq_len, hidden_size)
+
+        pos_embed = self.embed_item_text_sequence(pos_item_text)[attention_mask]
+        # shape: (batch_size * seq_len, hidden_size)
+        neg_embed = self.embed_item_text_sequence(neg_item_text)[attention_mask]
+        # shape: (batch_size * seq_len, hidden_size)
+        return {
+            "anchor_embed": anchor_embed,
+            "pos_embed": pos_embed,
+            "neg_embed": neg_embed,
+            "attention_mask": attention_mask,
+        }
 
     def compute_loss(
         self,
