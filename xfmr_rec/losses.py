@@ -62,7 +62,7 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
         self.check_inputs(anchor_embed, pos_embed, neg_embed)
         logits = self.compute_logits(anchor_embed, pos_embed, neg_embed)
         negative_masks = self.mask_false_negatives(logits)
-        negative_masks = self.mine_semihard(logits, negative_masks)
+        negative_masks = self.mine_hard_negatives(logits, negative_masks)
         return self.loss(logits, negative_masks)
 
     def check_inputs(
@@ -120,7 +120,7 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
         return logits < logits.diagonal()[:, None]
         # shape: (batch_size, num_items)
 
-    def mine_semihard(
+    def mine_hard_negatives(
         self, logits: torch.Tensor, negative_masks: torch.Tensor
     ) -> torch.Tensor:
         if self.config.num_negatives <= 0:
