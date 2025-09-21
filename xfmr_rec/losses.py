@@ -188,7 +188,7 @@ class NCELoss(EmbedLoss):
         negative_masks |= targets.bool()
         # shape: (batch_size, num_items)
         nce_losses = torch_fn.binary_cross_entropy_with_logits(
-            logits * self.config.scale, targets, reduction="none"
+            logits, targets, reduction="none"
         )
         # shape: (batch_size, num_items)
         return nce_losses[negative_masks].sum()

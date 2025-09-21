@@ -19,6 +19,7 @@ class SeqRecModelConfig(ModelConfig):
     num_attention_heads: int = 4
     intermediate_size: int = 32
     max_seq_length: int | None = 32
+    is_decoder: bool = True
 
     pooling_mode: Literal["mean", "max", "cls", "lasttoken"] = "lasttoken"
 
@@ -51,7 +52,7 @@ class SeqRecModel(torch.nn.Module):
 
     def configure_model(self, device: torch.device | str | None = None) -> None:
         if self.encoder is None:
-            encoder_conf = self.config.model_copy(update={"is_decoder": True})
+            encoder_conf = self.config
             encoder = init_bert(encoder_conf)
             self.encoder = to_sentence_transformer(encoder_conf, encoder, device=device)
 
@@ -60,6 +61,7 @@ class SeqRecModel(torch.nn.Module):
                 update={
                     "vocab_size": None,
                     "max_seq_length": None,
+                    "is_decoder": False,
                     "pooling_mode": "mean",
                 }
             )
