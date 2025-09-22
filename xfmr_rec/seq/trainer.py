@@ -67,10 +67,12 @@ class SeqRecLightningModule(lp.LightningModule):
     def configure_model(self) -> None:
         if self.model is None:
             self.model = SeqRecModel(config=self.config, device=self.device)
-            # self.model.compile()
 
         if self.loss_fns is None:
             self.loss_fns = self.get_loss_fns()
+
+    def get_model(self) -> SeqRecModel:
+        return SeqRecModel(self.config, device=self.device)
 
     def get_loss_fns(self) -> torch.nn.ModuleList:
         loss_classes = [
