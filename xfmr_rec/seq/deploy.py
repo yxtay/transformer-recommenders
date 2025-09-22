@@ -3,10 +3,20 @@ from __future__ import annotations
 import tempfile
 from typing import TYPE_CHECKING
 
+import bentoml
 import pydantic
 
+from xfmr_rec.common.deploy import test_bento
+from xfmr_rec.common.service import (
+    EXAMPLE_ITEM,
+    EXAMPLE_USER,
+    ItemCandidate,
+    ItemQuery,
+    UserQuery,
+)
 from xfmr_rec.seq import MODEL_NAME
 from xfmr_rec.seq.data import SeqDataModule
+from xfmr_rec.seq.service import Service
 from xfmr_rec.seq.trainer import SeqRecLightningModule, cli_main
 
 if TYPE_CHECKING:
@@ -47,8 +57,6 @@ def prepare_trainer(
 
 
 def save_model(trainer: Trainer) -> None:
-    import bentoml
-
     with bentoml.models.create(MODEL_NAME) as model_ref:
         model: SeqRecLightningModule = trainer.model
         model.save(model_ref.path)
@@ -56,16 +64,6 @@ def save_model(trainer: Trainer) -> None:
 
 def test_queries() -> None:
     import rich
-
-    from xfmr_rec.common.deploy import test_bento
-    from xfmr_rec.common.service import (
-        EXAMPLE_ITEM,
-        EXAMPLE_USER,
-        ItemCandidate,
-        ItemQuery,
-        UserQuery,
-    )
-    from xfmr_rec.seq.service import Service
 
     example_item_data = test_bento(Service, "item_id", {"item_id": "1"})
     example_item = ItemQuery.model_validate(example_item_data)

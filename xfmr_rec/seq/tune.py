@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import flaml.tune
+import flaml.tune.tune
+import mlflow
+import numpy as np
 
 from xfmr_rec.common.trainer import time_now_isoformat
-
-if TYPE_CHECKING:
-    import flaml.tune.tune
-
+from xfmr_rec.params import METRIC
+from xfmr_rec.seq import MODEL_NAME
+from xfmr_rec.seq.trainer import cli_main
 
 ArgsType = dict[str, bool | float | int | str]
 
@@ -37,37 +39,21 @@ def get_lightning_args(
 
 
 def evaluation_function(config: ArgsType) -> dict[str, float]:
-    import mlflow
-    import numpy as np
-
-    from xfmr_rec.params import DATA_DIR
-    from xfmr_rec.seq.trainer import cli_main
-
     config = {
         key: value.item() if isinstance(value, np.generic) else value
         for key, value in config.items()
     }
 
-    data_args = {"data_dir": DATA_DIR}
     trainer_args = {"max_epochs": config["max_epochs"]}
-    args = {"trainer": trainer_args, **get_lightning_args(config, data_args=data_args)}
+    args = {"trainer": trainer_args, **get_lightning_args(config)}
 
     with mlflow.start_run(run_name=time_now_isoformat(), nested=True):
         cli = cli_main({"fit": args}, log_model=False)
-    return {
-        key: value.item()
-        for key, value in cli.trainer.callback_metrics.items()
-        if key.startswith("val/")
-    }
+    metrics = cli.trainer.validate(datamodule=cli.datamodule)
+    return metrics[0]
 
 
 def flaml_tune() -> flaml.tune.tune.ExperimentAnalysis:
-    import flaml.tune
-    import mlflow
-
-    from xfmr_rec.params import METRIC
-    from xfmr_rec.seq import MODEL_NAME
-
     train_losses = ["cross_entropy", "binary_cross_entropy"]
 
     point_to_evaluate = {

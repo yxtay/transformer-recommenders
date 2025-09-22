@@ -309,17 +309,21 @@ if __name__ == "__main__":
 
     trainer_args = {
         "accelerator": "cpu",
+        "logger": False,
         "fast_dev_run": True,
         "max_epochs": 1,
         "limit_train_batches": 1,
         "limit_val_batches": 1,
+        "limit_test_batches": 1,
+        "limit_predict_batches": 1,
         # "overfit_batches": 1,
+        "enable_checkpointing": False,
     }
     data_args = {"config": {"num_workers": 0}}
     cli = cli_main(args={"trainer": trainer_args, "data": data_args}, run=False)
     with contextlib.suppress(ReferenceError):
         # suppress weak reference on ModelCheckpoint callback
-        cli.trainer.fit(cli.model, datamodule=cli.datamodule)
-        cli.trainer.validate(cli.model, datamodule=cli.datamodule)
-        cli.trainer.test(cli.model, datamodule=cli.datamodule)
-        cli.trainer.predict(cli.model, datamodule=cli.datamodule)
+        cli.trainer.fit(model=cli.model, datamodule=cli.datamodule)
+        rich.print(cli.trainer.validate(model=cli.model, datamodule=cli.datamodule))
+        rich.print(cli.trainer.test(model=cli.model, datamodule=cli.datamodule))
+        rich.print(cli.trainer.predict(model=cli.model, datamodule=cli.datamodule))

@@ -5,6 +5,7 @@ import lightning as lp
 import numpy as np
 import pandas as pd
 import polars as pl
+import pyarrow.compute as pc
 import pydantic
 import torch
 import torch.utils.data as torch_data
@@ -182,8 +183,6 @@ class SeqDataModule(lp.LightningDataModule):
             return prepare_movielens(data_dir, overwrite=overwrite)
 
     def setup(self, stage: str | None = None) -> None:
-        import pyarrow.compute as pc
-
         if self.items_dataset is None:
             self.items_dataset = datasets.Dataset.from_parquet(
                 self.config.items_parquet

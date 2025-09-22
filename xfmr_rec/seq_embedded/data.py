@@ -5,10 +5,12 @@ import lightning as lp
 import numpy as np
 import pandas as pd
 import polars as pl
+import pyarrow.compute as pc
 import pydantic
 import torch
 import torch.utils.data as torch_data
 from loguru import logger
+from sentence_transformers import SentenceTransformer
 from torch.nn.utils.rnn import pad_sequence
 
 from xfmr_rec.data import download_unpack_data, prepare_movielens
@@ -193,9 +195,6 @@ class SeqEmbeddedDataModule(lp.LightningDataModule):
             return prepare_movielens(data_dir, overwrite=overwrite)
 
     def setup(self, stage: str | None = None) -> None:
-        import pyarrow.compute as pc
-        from sentence_transformers import SentenceTransformer
-
         if self.items_dataset is None:
             model = SentenceTransformer(self.config.pretrained_model_name)
             self.items_dataset = datasets.Dataset.from_parquet(

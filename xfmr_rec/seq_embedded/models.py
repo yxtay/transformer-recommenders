@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import pandas as pd
 import torch
 from loguru import logger
 from sentence_transformers import SentenceTransformer
@@ -53,8 +54,6 @@ class SeqEmbeddedRecModel(torch.nn.Module):
 
     def configure_embeddings(self, items_dataset: datasets.Dataset) -> None:
         if self.embeddings is None:
-            import pandas as pd
-
             self.id2idx = pd.Series(
                 {k: i + 1 for i, k in enumerate(items_dataset["item_id"])}
             )
