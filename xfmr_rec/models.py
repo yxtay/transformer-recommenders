@@ -1,16 +1,18 @@
 from __future__ import annotations
 
+import tempfile
 from typing import TYPE_CHECKING, Literal
 
 import pydantic
+from sentence_transformers import SentenceTransformer, models
+from transformers import AutoTokenizer
+from transformers.models.bert import BertConfig, BertModel
 
 from xfmr_rec.params import PRETRAINED_MODEL_NAME
 
 if TYPE_CHECKING:
     import torch
-    from sentence_transformers import SentenceTransformer
     from transformers.modeling_utils import PreTrainedModel
-    from transformers.models.bert import BertModel
 
 
 class ModelConfig(pydantic.BaseModel):
@@ -28,10 +30,7 @@ class ModelConfig(pydantic.BaseModel):
 
 
 def init_bert(config: ModelConfig) -> BertModel:
-    from transformers import AutoTokenizer
-    from transformers.models.bert import BertConfig, BertModel
-
-    tokenizer = AutoTokenizer.from_pretrained(config.tokenizer_name)
+    tokenizer = AutoTokenizer.from_pretrained(config.tokenizer_name)  # nosec
 
     if config.vocab_size is None:
         config.vocab_size = tokenizer.vocab_size
@@ -58,10 +57,6 @@ def to_sentence_transformer(
     *,
     device: torch.device | str | None = "cpu",
 ) -> SentenceTransformer:
-    import tempfile
-
-    from sentence_transformers import SentenceTransformer, models
-
     with tempfile.TemporaryDirectory() as tmpdir:
         model.save_pretrained(tmpdir)
 

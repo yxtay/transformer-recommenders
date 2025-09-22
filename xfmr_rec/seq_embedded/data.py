@@ -3,15 +3,19 @@ from collections.abc import Callable
 import datasets
 import lightning as lp
 import numpy as np
+import pandas as pd
 import polars as pl
 import pydantic
 import torch
 import torch.utils.data as torch_data
 from loguru import logger
+from torch.nn.utils.rnn import pad_sequence
 
+from xfmr_rec.data import download_unpack_data, prepare_movielens
 from xfmr_rec.params import (
     DATA_DIR,
     ITEMS_PARQUET,
+    MOVIELENS_1M_URL,
     PRETRAINED_MODEL_NAME,
     USERS_PARQUET,
 )
@@ -39,8 +43,6 @@ class SeqEmbeddedDataset(torch_data.Dataset):
         users_dataset: datasets.Dataset,
         config: SeqEmbeddedDataConfig,
     ) -> None:
-        import pandas as pd
-
         self.config = config
         self.rng = np.random.default_rng()
 
@@ -163,8 +165,6 @@ class SeqEmbeddedDataset(torch_data.Dataset):
         }
 
     def collate(self, batch: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
-        from torch.nn.utils.rnn import pad_sequence
-
         return {
             col: pad_sequence([example[col] for example in batch], batch_first=True)
             for col in batch[0]
@@ -186,9 +186,6 @@ class SeqEmbeddedDataModule(lp.LightningDataModule):
 
     def prepare_data(self, *, overwrite: bool = False) -> pl.LazyFrame:
         from filelock import FileLock
-
-        from xfmr_rec.data import download_unpack_data, prepare_movielens
-        from xfmr_rec.params import MOVIELENS_1M_URL
 
         data_dir = self.config.data_dir
         with FileLock(f"{data_dir}.lock"):

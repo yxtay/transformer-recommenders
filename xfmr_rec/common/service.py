@@ -6,10 +6,12 @@ import bentoml
 import numpy as np
 import numpy.typing as npt
 import pydantic
+from bentoml.exceptions import NotFound
 from bentoml.validators import DType
 from loguru import logger
 
-from xfmr_rec.params import TOP_K
+from xfmr_rec.index import LanceIndex, LanceIndexConfig
+from xfmr_rec.params import ITEMS_TABLE_NAME, LANCE_DB_PATH, TOP_K, USERS_TABLE_NAME
 
 NumpyArrayType = Annotated[npt.NDArray[np.float32], DType("float32")]
 
@@ -67,9 +69,6 @@ ENVS = [{"name": "UV_NO_CACHE", "value": "1"}]
 class BaseItemIndex:
     @logger.catch(reraise=True)
     def __init__(self) -> None:
-        from xfmr_rec.index import LanceIndex, LanceIndexConfig
-        from xfmr_rec.params import ITEMS_TABLE_NAME, LANCE_DB_PATH
-
         lance_db_path = self.model_ref.path_of(LANCE_DB_PATH)
         config = LanceIndexConfig(
             lancedb_path=lance_db_path, table_name=ITEMS_TABLE_NAME
@@ -81,20 +80,18 @@ class BaseItemIndex:
     def search(
         self, query: BaseQuery, exclude_item_ids: list[str], top_k: int = TOP_K
     ) -> list[ItemCandidate]:
-        from pydantic import TypeAdapter
-
         results = self.index.search(
             query.embedding,
             exclude_item_ids=exclude_item_ids,
             top_k=top_k,
         )
-        return TypeAdapter(list[ItemCandidate]).validate_python(results.to_list())
+        return pydantic.TypeAdapter(list[ItemCandidate]).validate_python(
+            results.to_list()
+        )
 
     @bentoml.api()
     @logger.catch(reraise=True)
     def get_id(self, item_id: str) -> ItemQuery:
-        from bentoml.exceptions import NotFound
-
         result = self.index.get_id(item_id)
         if len(result) == 0:
             msg = f"item not found: {item_id = }"
@@ -114,9 +111,6 @@ class BaseItemIndex:
 class BaseUserIndex:
     @logger.catch(reraise=True)
     def __init__(self) -> None:
-        from xfmr_rec.index import LanceIndex, LanceIndexConfig
-        from xfmr_rec.params import LANCE_DB_PATH, USERS_TABLE_NAME
-
         lance_db_path = self.model_ref.path_of(LANCE_DB_PATH)
         config = LanceIndexConfig(
             lancedb_path=lance_db_path, table_name=USERS_TABLE_NAME
@@ -126,8 +120,6 @@ class BaseUserIndex:
     @bentoml.api()
     @logger.catch(reraise=True)
     def get_id(self, user_id: str) -> UserQuery:
-        from bentoml.exceptions import NotFound
-
         result = self.index.get_id(user_id)
         if len(result) == 0:
             msg = f"user not found: {user_id = }"

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import pathlib
+import shutil
+import tempfile
+from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
 import polars as pl
@@ -16,8 +19,6 @@ from xfmr_rec.params import DATA_DIR, MOVIELENS_1M_URL
 def download_data(
     url: str = MOVIELENS_1M_URL, dest_dir: str = DATA_DIR, *, overwrite: bool = False
 ) -> pathlib.Path:
-    import tempfile
-
     import httpx
 
     # prepare destination
@@ -41,8 +42,6 @@ def download_data(
 def unpack_data(
     archive_file: str | pathlib.Path, *, overwrite: bool = False
 ) -> list[str]:
-    import shutil
-
     archive_file = pathlib.Path(archive_file)
     dest_dir = archive_file.parent / archive_file.stem
 
@@ -201,8 +200,6 @@ def process_events(
     src_dir: str = DATA_DIR,
     overwrite: bool = False,
 ) -> pl.LazyFrame:
-    from concurrent.futures import ThreadPoolExecutor
-
     events_parquet = pathlib.Path(src_dir, "ml-1m", "events.parquet")
     if events_parquet.exists() and not overwrite:
         events_processed = pl.scan_parquet(events_parquet)

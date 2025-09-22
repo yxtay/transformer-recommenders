@@ -1,8 +1,11 @@
 import datetime
+import pathlib
+import tempfile
 from typing import TYPE_CHECKING
 
-import lightning.pytorch as lp
+import lightning as lp
 import lightning.pytorch.cli as lp_cli
+import lightning.pytorch.loggers as lp_loggers
 
 if TYPE_CHECKING:
     from mlflow.tracking import MlflowClient
@@ -15,11 +18,6 @@ class LoggerSaveConfigCallback(lp_cli.SaveConfigCallback):
         pl_module: lp.LightningModule,  # noqa: ARG002
         stage: str,  # noqa: ARG002
     ) -> None:
-        import pathlib
-        import tempfile
-
-        import lightning.pytorch.loggers as lp_loggers
-
         for logger in trainer.loggers:
             if not isinstance(logger, lp_loggers.MLFlowLogger):
                 continue

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pathlib
+import shutil
 from typing import TYPE_CHECKING
 
 import lightning as lp
@@ -7,13 +9,24 @@ import lightning.pytorch.callbacks as lp_callbacks
 import lightning.pytorch.cli as lp_cli
 import lightning.pytorch.loggers as lp_loggers
 import mlflow
+import numpy as np
 import torch
 
+from xfmr_rec import losses
 from xfmr_rec.common.trainer import LoggerSaveConfigCallback, time_now_isoformat
 from xfmr_rec.index import LanceIndex, LanceIndexConfig
 from xfmr_rec.losses import LossConfig, LossType
 from xfmr_rec.metrics import compute_retrieval_metrics
-from xfmr_rec.params import ITEMS_TABLE_NAME, TOP_K, USERS_TABLE_NAME
+from xfmr_rec.params import (
+    ITEMS_TABLE_NAME,
+    LANCE_DB_PATH,
+    METRIC,
+    TENSORBOARD_DIR,
+    TOP_K,
+    USERS_TABLE_NAME,
+)
+from xfmr_rec.seq import MODEL_NAME
+from xfmr_rec.seq.data import SeqDataModule, SeqDataModuleConfig
 from xfmr_rec.seq.models import SeqRecModel, SeqRecModelConfig
 
 if TYPE_CHECKING:
@@ -60,11 +73,10 @@ class SeqRecLightningModule(lp.LightningModule):
             self.loss_fns = self.get_loss_fns()
 
     def get_loss_fns(self) -> torch.nn.ModuleList:
-        from xfmr_rec import losses
-
         loss_classes = [
             losses.AlignmentLoss,
             losses.AlignmentContrastiveLoss,
+            losses.ContrastiveLoss,
             losses.InfoNCELoss,
             losses.NCELoss,
             losses.PairwiseHingeLoss,
@@ -134,8 +146,6 @@ class SeqRecLightningModule(lp.LightningModule):
     def compute_metrics(
         self, row: dict[str, list[str]], stage: str = "val"
     ) -> dict[str, torch.Tensor]:
-        import numpy as np
-
         recs = self.predict_step(row)
         metrics = compute_retrieval_metrics(
             rec_ids=recs["item_id"][:],
@@ -199,8 +209,6 @@ class SeqRecLightningModule(lp.LightningModule):
         )
 
     def configure_callbacks(self) -> list[lp.Callback]:
-        from xfmr_rec.params import METRIC
-
         checkpoint = lp_callbacks.ModelCheckpoint(
             monitor=METRIC["name"], mode=METRIC["mode"]
         )
@@ -214,11 +222,6 @@ class SeqRecLightningModule(lp.LightningModule):
         return ([[""], []],)
 
     def save(self, path: str) -> None:
-        import pathlib
-        import shutil
-
-        from xfmr_rec.params import LANCE_DB_PATH
-
         path = pathlib.Path(path)
         self.model.save(path)
 
@@ -230,10 +233,6 @@ def cli_main(
     args: lp_cli.ArgsType = None, *, run: bool = True, log_model: bool = True
 ) -> lp_cli.LightningCLI:
     from jsonargparse import lazy_instance
-
-    from xfmr_rec.params import TENSORBOARD_DIR
-    from xfmr_rec.seq import MODEL_NAME
-    from xfmr_rec.seq.data import SeqDataModule
 
     experiment_name = MODEL_NAME
     run_name = time_now_isoformat()
@@ -290,8 +289,6 @@ if __name__ == "__main__":
     import contextlib
 
     import rich
-
-    from xfmr_rec.seq.data import SeqDataModule, SeqDataModuleConfig
 
     datamodule = SeqDataModule(SeqDataModuleConfig())
     datamodule.prepare_data()
