@@ -8,7 +8,6 @@ import lightning as lp
 import lightning.pytorch.callbacks as lp_callbacks
 import lightning.pytorch.cli as lp_cli
 import lightning.pytorch.loggers as lp_loggers
-import mlflow
 import numpy as np
 import torch
 from loguru import logger
@@ -244,6 +243,7 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
 def cli_main(
     args: lp_cli.ArgsType = None, *, run: bool = True, log_model: bool = True
 ) -> lp_cli.LightningCLI:
+    import mlflow
     from jsonargparse import lazy_instance
 
     experiment_name = MODEL_NAME
@@ -319,17 +319,21 @@ if __name__ == "__main__":
 
     trainer_args = {
         "accelerator": "cpu",
+        "logger": False,
         "fast_dev_run": True,
         "max_epochs": 1,
         "limit_train_batches": 1,
         "limit_val_batches": 1,
+        "limit_test_batches": 1,
+        "limit_predict_batches": 1,
         # "overfit_batches": 1,
+        "enable_checkpointing": False,
     }
     data_args = {"config": {"num_workers": 0}}
     cli = cli_main(args={"trainer": trainer_args, "data": data_args}, run=False)
     with contextlib.suppress(ReferenceError):
         # suppress weak reference on ModelCheckpoint callback
-        cli.trainer.fit(cli.model, datamodule=cli.datamodule)
-        cli.trainer.validate(cli.model, datamodule=cli.datamodule)
-        cli.trainer.test(cli.model, datamodule=cli.datamodule)
-        cli.trainer.predict(cli.model, datamodule=cli.datamodule)
+        cli.trainer.fit(model=cli.model, datamodule=cli.datamodule)
+        rich.print(cli.trainer.validate(model=cli.model, datamodule=cli.datamodule))
+        rich.print(cli.trainer.test(model=cli.model, datamodule=cli.datamodule))
+        rich.print(cli.trainer.predict(model=cli.model, datamodule=cli.datamodule))
