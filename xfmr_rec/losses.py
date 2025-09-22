@@ -32,7 +32,7 @@ def squared_distance_matrix(
 def dot_product_matrix(
     anchor_embed: torch.Tensor, candidate_embed: torch.Tensor
 ) -> torch.Tensor:
-    return (anchor_embed[:, None, :] * candidate_embed[None, :, :]).sum(-1)
+    return (anchor_embed[:, None, :] * candidate_embed[None, :, :]).sum(dim=-1)
 
 
 def cosine_similarity_matrix(
@@ -157,7 +157,7 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
         # torch scatter gives boolean mask of selected negatives
         # bool and with negative masks to ensure true negatives only
         negative_masks &= torch.zeros_like(negative_masks).scatter_(
-            -1, indices, value=True
+            dim=-1, index=indices, value=True
         )
         # shape: (batch_size, num_items)
         return negative_masks
@@ -177,6 +177,11 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
         return weighted_mean(losses, negative_masks, dim=-1).sum()
 
 
+class NegativeDensity(EmbedLoss):
+    def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:  # noqa: ARG002
+        return negative_masks.float().mean(dim=-1).sum()
+
+
 class AlignmentLoss(EmbedLoss):
     def compute_logits(
         self,
@@ -187,11 +192,7 @@ class AlignmentLoss(EmbedLoss):
         return self.cosine_similarity_logits(anchor_embed, pos_embed, neg_embed)
         # shape: (batch_size, 2 * batch_size)
 
-    def loss(
-        self,
-        logits: torch.Tensor,
-        negative_masks: torch.Tensor,  # noqa: ARG002
-    ) -> torch.Tensor:
+    def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:  # noqa: ARG002
         return self.alignment_loss(logits)
 
 

@@ -31,7 +31,6 @@ from xfmr_rec.seq_embedded import MODEL_NAME
 from xfmr_rec.seq_embedded.data import (
     SeqEmbeddedDataModule,
     SeqEmbeddedDataModuleConfig,
-    SeqEmbeddedDataset,
 )
 from xfmr_rec.seq_embedded.models import SeqEmbeddedRecModel, SeqEmbeddedRecModelConfig
 
@@ -67,19 +66,32 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
         self.strict_loading = False
 
         self.model: SeqEmbeddedRecModel | None = None
-        self.items_dataset: SeqEmbeddedDataset | None = None
+        self.items_dataset: datasets.Dataset | None = None
         self.loss_fns: torch.nn.ModuleList | None = None
         self.items_index = LanceIndex(config=self.config.items_config)
         self.users_index = LanceIndex(config=self.config.users_config)
 
     def configure_model(self) -> None:
         if self.model is None:
-            self.model = SeqEmbeddedRecModel(self.config, device=self.device)
-
-        self.configure_embeddings()
+            self.model = self.get_model()
 
         if self.loss_fns is None:
             self.loss_fns = self.get_loss_fns()
+
+    def get_model(self) -> SeqEmbeddedRecModel:
+        model = SeqEmbeddedRecModel(self.config, device=self.device)
+
+        if self.items_dataset is None:
+            try:
+                self.items_dataset = self.trainer.datamodule.items_dataset
+            except RuntimeError as e:
+                # RuntimeError if trainer is not attached
+                logger.warning(repr(e))
+
+        if self.items_dataset is not None:
+            model.configure_embeddings(self.items_dataset)
+
+        return model
 
     def get_loss_fns(self) -> torch.nn.ModuleList:
         loss_classes = [
@@ -88,21 +100,12 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
             losses.ContrastiveLoss,
             losses.InfoNCELoss,
             losses.NCELoss,
+            losses.NegativeDensity,
             losses.PairwiseHingeLoss,
             losses.PairwiseLogisticLoss,
         ]
         loss_fns = [loss_class(config=self.config) for loss_class in loss_classes]
         return torch.nn.ModuleList(loss_fns)
-
-    def configure_embeddings(self) -> None:
-        try:
-            if self.items_dataset is None:
-                self.items_dataset = self.trainer.datamodule.items_dataset
-        except RuntimeError as e:
-            logger.warning(repr(e))
-
-        if self.model is not None and self.items_dataset is not None:
-            self.model.configure_embeddings(self.items_dataset)
 
     def forward(self, item_idx: torch.Tensor) -> dict[str, torch.Tensor]:
         return self.model(item_idx.to(self.device))
@@ -138,7 +141,7 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
             "batch/seq_len": seq_len,
             "batch/numel": numel,
             "batch/non_zero": non_zero,
-            "batch/sparsity": non_zero / (numel + 1e-9),
+            "batch/density": non_zero / (numel + 1e-9),
         }
 
         losses = {}
