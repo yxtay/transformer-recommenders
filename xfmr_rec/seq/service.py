@@ -4,7 +4,10 @@ import bentoml
 import torch
 from loguru import logger
 
-from xfmr_rec.common.service import (
+from xfmr_rec.params import TOP_K
+from xfmr_rec.seq import MODEL_NAME
+from xfmr_rec.seq.models import SeqRecModel
+from xfmr_rec.service import (
     ENVS,
     IMAGE,
     BaseItemIndex,
@@ -15,9 +18,6 @@ from xfmr_rec.common.service import (
     ItemQuery,
     UserQuery,
 )
-from xfmr_rec.params import TOP_K
-from xfmr_rec.seq import MODEL_NAME
-from xfmr_rec.seq.models import SeqRecModel
 
 
 class Query(BaseQuery):
@@ -92,6 +92,8 @@ class Service(BaseService):
     @bentoml.api()
     @logger.catch(reraise=True)
     async def embed_query(self, query: Query) -> Query:
+        if query.embedding is not None:
+            return query
         return (await self.model.to_async.embed([query]))[0]
 
     @bentoml.api()

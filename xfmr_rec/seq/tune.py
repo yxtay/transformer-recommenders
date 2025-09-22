@@ -4,10 +4,10 @@ import flaml.tune
 import mlflow
 import numpy as np
 
-from xfmr_rec.common.trainer import time_now_isoformat
 from xfmr_rec.params import METRIC
 from xfmr_rec.seq import MODEL_NAME
 from xfmr_rec.seq.trainer import cli_main
+from xfmr_rec.trainer import time_now_isoformat
 
 ArgsType = dict[str, bool | float | int | str]
 

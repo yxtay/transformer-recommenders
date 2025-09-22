@@ -6,18 +6,18 @@ from typing import TYPE_CHECKING
 import bentoml
 import pydantic
 
-from xfmr_rec.common.deploy import test_bento
-from xfmr_rec.common.service import (
+from xfmr_rec.deploy import test_bento
+from xfmr_rec.mf import MODEL_NAME
+from xfmr_rec.mf.data import MFDataModule
+from xfmr_rec.mf.service import Service
+from xfmr_rec.mf.trainer import MFRecLightningModule, cli_main
+from xfmr_rec.service import (
     EXAMPLE_ITEM,
     EXAMPLE_USER,
     ItemCandidate,
     ItemQuery,
     UserQuery,
 )
-from xfmr_rec.mf import MODEL_NAME
-from xfmr_rec.mf.data import MFDataModule
-from xfmr_rec.mf.service import Service
-from xfmr_rec.mf.trainer import MFRecLightningModule, cli_main
 
 if TYPE_CHECKING:
     from typing import Any

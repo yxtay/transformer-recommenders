@@ -12,7 +12,6 @@ import numpy as np
 import torch
 
 from xfmr_rec import losses
-from xfmr_rec.common.trainer import LoggerSaveConfigCallback, time_now_isoformat
 from xfmr_rec.index import LanceIndex, LanceIndexConfig
 from xfmr_rec.losses import LossConfig, LossType
 from xfmr_rec.metrics import compute_retrieval_metrics
@@ -27,6 +26,7 @@ from xfmr_rec.params import (
 from xfmr_rec.seq import MODEL_NAME
 from xfmr_rec.seq.data import SeqDataModule, SeqDataModuleConfig
 from xfmr_rec.seq.models import SeqRecModel, SeqRecModelConfig
+from xfmr_rec.trainer import LoggerSaveConfigCallback, time_now_isoformat
 
 if TYPE_CHECKING:
     import datasets
