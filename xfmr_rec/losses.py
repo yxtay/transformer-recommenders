@@ -177,6 +177,11 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
         return weighted_mean(losses, negative_masks, dim=-1).sum()
 
 
+class NegativeDensity(EmbedLoss):
+    def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:  # noqa: ARG002
+        return negative_masks.count_nonzero() / negative_masks.size(1)
+
+
 class AlignmentLoss(EmbedLoss):
     def compute_logits(
         self,
@@ -187,11 +192,7 @@ class AlignmentLoss(EmbedLoss):
         return self.cosine_similarity_logits(anchor_embed, pos_embed, neg_embed)
         # shape: (batch_size, 2 * batch_size)
 
-    def loss(
-        self,
-        logits: torch.Tensor,
-        negative_masks: torch.Tensor,  # noqa: ARG002
-    ) -> torch.Tensor:
+    def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:  # noqa: ARG002
         return self.alignment_loss(logits)
 
 

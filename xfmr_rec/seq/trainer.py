@@ -81,6 +81,7 @@ class SeqRecLightningModule(lp.LightningModule):
             losses.ContrastiveLoss,
             losses.InfoNCELoss,
             losses.NCELoss,
+            losses.NegativeDensity,
             losses.PairwiseHingeLoss,
             losses.PairwiseLogisticLoss,
         ]
@@ -130,7 +131,7 @@ class SeqRecLightningModule(lp.LightningModule):
             "batch/seq_len": seq_len,
             "batch/numel": numel,
             "batch/non_zero": non_zero,
-            "batch/sparsity": non_zero / (numel + 1e-9),
+            "batch/density": non_zero / (numel + 1e-9),
         }
 
         losses = {}
