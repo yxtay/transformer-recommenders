@@ -80,7 +80,7 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
     def __len__(self) -> int:
         return len(self.users_dataset)
 
-    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
+    def __getitem__(self, idx: int) -> dict[str, str]:
         row = self.users_dataset[idx]
         user_text = row["user_text"]
         history_item_idx = row["history_item_idx"]
