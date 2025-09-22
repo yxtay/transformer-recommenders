@@ -66,7 +66,7 @@ class SeqRecLightningModule(lp.LightningModule):
 
     def configure_model(self) -> None:
         if self.model is None:
-            self.model = SeqRecModel(config=self.config, device=self.device)
+            self.model = self.get_model()
 
         if self.loss_fns is None:
             self.loss_fns = self.get_loss_fns()
