@@ -8,7 +8,6 @@ import lightning as lp
 import lightning.pytorch.callbacks as lp_callbacks
 import lightning.pytorch.cli as lp_cli
 import lightning.pytorch.loggers as lp_loggers
-import mlflow
 import numpy as np
 import torch
 from loguru import logger
@@ -244,6 +243,7 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
 def cli_main(
     args: lp_cli.ArgsType = None, *, run: bool = True, log_model: bool = True
 ) -> lp_cli.LightningCLI:
+    import mlflow
     from jsonargparse import lazy_instance
 
     experiment_name = MODEL_NAME
