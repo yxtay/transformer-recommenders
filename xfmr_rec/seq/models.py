@@ -25,6 +25,9 @@ class SeqRecModelConfig(ModelConfig):
 
 
 class SeqRecModel(torch.nn.Module):
+    ENCODER_PATH = "encoder"
+    EMBEDDER_PATH = "embedder"
+
     def __init__(
         self,
         config: ModelConfig,
@@ -72,24 +75,24 @@ class SeqRecModel(torch.nn.Module):
 
     def save(self, path: str) -> None:
         path = pathlib.Path(path)
-        encoder_path = (path / "encoder").as_posix()
+        encoder_path = (path / self.ENCODER_PATH).as_posix()
         self.encoder.save_pretrained(encoder_path)
         logger.info(f"encoder saved: {encoder_path}")
 
-        embedder_path = (path / "embedder").as_posix()
+        embedder_path = (path / self.EMBEDDER_PATH).as_posix()
         self.embedder.save_pretrained(embedder_path)
         logger.info(f"embedder saved: {embedder_path}")
 
     @classmethod
     def load(cls, path: str, device: torch.device | str | None = None) -> SeqRecModel:
         path = pathlib.Path(path)
-        encoder_path = (path / "encoder").as_posix()
+        encoder_path = (path / cls.ENCODER_PATH).as_posix()
         encoder = SentenceTransformer(
             encoder_path, device=device, local_files_only=True
         )
         logger.info(f"encoder loaded: {encoder_path}")
 
-        embedder_path = (path / "embedder").as_posix()
+        embedder_path = (path / cls.EMBEDDER_PATH).as_posix()
         embedder = SentenceTransformer(
             embedder_path, device=encoder.device, local_files_only=True
         )
