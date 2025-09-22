@@ -66,6 +66,7 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
         self.strict_loading = False
 
         self.model: SeqEmbeddedRecModel | None = None
+        self.items_dataset: datasets.Dataset | None = None
         self.loss_fns: torch.nn.ModuleList | None = None
         self.items_index = LanceIndex(config=self.config.items_config)
         self.users_index = LanceIndex(config=self.config.users_config)
@@ -80,12 +81,15 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
     def get_model(self) -> SeqEmbeddedRecModel:
         model = SeqEmbeddedRecModel(self.config, device=self.device)
 
-        try:
-            items_dataset = self.trainer.datamodule.items_dataset
-            model.configure_embeddings(items_dataset)
-        except RuntimeError as e:
-            # RuntimeError if trainer is not attached
-            logger.warning(repr(e))
+        if self.items_dataset is None:
+            try:
+                self.items_dataset = self.trainer.datamodule.items_dataset
+            except RuntimeError as e:
+                # RuntimeError if trainer is not attached
+                logger.warning(repr(e))
+
+        if self.items_dataset is not None:
+            model.configure_embeddings(self.items_dataset)
 
         return model
 
@@ -302,8 +306,7 @@ if __name__ == "__main__":
     datamodule.prepare_data()
     datamodule.setup()
     model = SeqEmbeddedRecLightningModule(SeqEmbeddedRecLightningConfig())
-    model.model = SeqEmbeddedRecModel(model.config, device=model.device)
-    model.model.configure_embeddings(datamodule.items_dataset)
+    model.items_dataset = datamodule.items_dataset
     model.configure_model()
 
     # train
