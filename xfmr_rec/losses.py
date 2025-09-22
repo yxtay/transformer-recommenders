@@ -118,7 +118,7 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
         candidate_embed = torch.cat([pos_embed, neg_embed])
         # shape: (2 * batch_size, embedding_dim)
         # return cosine_similarity_matrix(anchor_embed, candidate_embed)
-        return dot_product_matrix(anchor_embed, candidate_embed)
+        return cosine_similarity_matrix(anchor_embed, candidate_embed)
         # shape: (batch_size, 2 * batch_size)
 
     def cosine_similarity_logits(
