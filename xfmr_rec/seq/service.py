@@ -40,7 +40,7 @@ class Model:
     def embed(self, queries: list[Query]) -> list[Query]:
         item_texts = [query.item_texts for query in queries]
         embeddings = self.model(item_texts)["sentence_embedding"].numpy(force=True)
-        for query, embedding in zip(queries, embeddings, strict=False):
+        for query, embedding in zip(queries, embeddings, strict=True):
             query.embedding = embedding
         return queries
 

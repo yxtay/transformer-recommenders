@@ -5,8 +5,8 @@ import torch
 from loguru import logger
 from sentence_transformers import SentenceTransformer
 
+from xfmr_rec.mf import MODEL_NAME
 from xfmr_rec.params import TOP_K, TRANSFORMER_PATH
-from xfmr_rec.seq import MODEL_NAME
 from xfmr_rec.service import (
     ENVS,
     IMAGE,
@@ -41,7 +41,7 @@ class Model:
     def embed(self, queries: list[Query]) -> list[Query]:
         texts = [query.text for query in queries]
         embeddings = self.model.encode(texts)
-        for query, embedding in zip(queries, embeddings, strict=False):
+        for query, embedding in zip(queries, embeddings, strict=True):
             query.embedding = embedding
         return queries
 
