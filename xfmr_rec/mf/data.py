@@ -93,9 +93,6 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
             "neg_item_text": self.item_text[neg_item_idx],
         }
 
-    def collate(self, batch: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
-        return {col: [example[col] for example in batch] for col in batch[0]}
-
 
 class MFDataModule(lp.LightningDataModule):
     def __init__(self, config: MFDataModuleConfig) -> None:

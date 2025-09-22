@@ -126,7 +126,7 @@ class MFRecLightningModule(lp.LightningModule):
             top_k=top_k or self.config.top_k,
         )
 
-    def compute_losses(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+    def compute_losses(self, batch: dict[str, list[str]]) -> dict[str, torch.Tensor]:
         anchor_embed = self(batch["user_text"])
         pos_embed = self(batch["pos_item_text"])
         neg_embed = self(batch["neg_item_text"])
@@ -159,22 +159,22 @@ class MFRecLightningModule(lp.LightningModule):
         )
         return {f"{stage}/{key}": value for key, value in metrics.items()}
 
-    def training_step(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
+    def training_step(self, batch: dict[str, list[str]]) -> torch.Tensor:
         loss_dict = self.compute_losses(batch)
         self.log_dict(loss_dict)
         return loss_dict[f"loss/{self.config.train_loss}"]
 
-    def validation_step(self, row: dict[str, list[str]]) -> dict[str, float]:
+    def validation_step(self, row: dict[str, str]) -> dict[str, float]:
         metrics = self.compute_metrics(row, stage="val")
         self.log_dict(metrics, batch_size=1)
         return metrics
 
-    def test_step(self, row: dict[str, list[str]]) -> dict[str, float]:
+    def test_step(self, row: dict[str, str]) -> dict[str, float]:
         metrics = self.compute_metrics(row, stage="test")
         self.log_dict(metrics, batch_size=1)
         return metrics
 
-    def predict_step(self, row: dict[str, list[str]]) -> datasets.Dataset:
+    def predict_step(self, row: dict[str, str]) -> datasets.Dataset:
         return self.recommend(
             row["user_text"],
             top_k=self.config.top_k,
