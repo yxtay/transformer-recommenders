@@ -179,7 +179,7 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
 
 class NegativeDensity(EmbedLoss):
     def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:  # noqa: ARG002
-        return negative_masks.count_nonzero() / negative_masks.size(1)
+        return negative_masks.float().mean(dim=-1).sum()
 
 
 class AlignmentLoss(EmbedLoss):
