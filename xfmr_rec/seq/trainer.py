@@ -76,6 +76,7 @@ class SeqRecLightningModule(lp.LightningModule):
         loss_classes = [
             losses.AlignmentLoss,
             losses.AlignmentContrastiveLoss,
+            losses.ContrastiveLoss,
             losses.InfoNCELoss,
             losses.NCELoss,
             losses.PairwiseHingeLoss,
