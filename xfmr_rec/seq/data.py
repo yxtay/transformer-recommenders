@@ -3,13 +3,15 @@ from collections.abc import Callable
 import datasets
 import lightning as lp
 import numpy as np
+import pandas as pd
 import polars as pl
 import pydantic
 import torch
 import torch.utils.data as torch_data
 from loguru import logger
 
-from xfmr_rec.params import DATA_DIR, ITEMS_PARQUET, USERS_PARQUET
+from xfmr_rec.data import download_unpack_data, prepare_movielens
+from xfmr_rec.params import DATA_DIR, ITEMS_PARQUET, MOVIELENS_1M_URL, USERS_PARQUET
 
 
 class SeqDataConfig(pydantic.BaseModel):
@@ -33,8 +35,6 @@ class SeqDataset(torch_data.Dataset):
         users_dataset: datasets.Dataset,
         config: SeqDataConfig,
     ) -> None:
-        import pandas as pd
-
         self.config = config
         self.rng = np.random.default_rng()
 
@@ -175,9 +175,6 @@ class SeqDataModule(lp.LightningDataModule):
 
     def prepare_data(self, *, overwrite: bool = False) -> pl.LazyFrame:
         from filelock import FileLock
-
-        from xfmr_rec.data import download_unpack_data, prepare_movielens
-        from xfmr_rec.params import MOVIELENS_1M_URL
 
         data_dir = self.config.data_dir
         with FileLock(f"{data_dir}.lock"):

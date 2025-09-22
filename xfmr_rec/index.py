@@ -6,6 +6,9 @@ import pathlib
 from typing import TYPE_CHECKING, Any
 
 import datasets
+import pandas as pd
+import pyarrow as pa
+import pyarrow.compute as pc
 import pydantic
 from loguru import logger
 
@@ -14,7 +17,6 @@ from xfmr_rec.params import ITEMS_TABLE_NAME, LANCE_DB_PATH
 if TYPE_CHECKING:
     import lancedb
     import numpy as np
-    import pandas as pd
 
 
 class IndexConfig(pydantic.BaseModel):
@@ -69,10 +71,7 @@ class LanceIndex:
         if self.table is not None and not overwrite:
             return self.table
 
-        import math
-
         import lancedb
-        import pyarrow as pa
 
         schema = dataset.data.schema
         schema = schema.set(
@@ -134,8 +133,6 @@ class LanceIndex:
         exclude_item_ids: list[str] | None = None,
         top_k: int = 20,
     ) -> datasets.Dataset:
-        import pyarrow.compute as pc
-
         exclude_item_ids = exclude_item_ids or [""]
         exclude_filter = ", ".join(
             f"'{str(item).replace("'", "''")}'" for item in exclude_item_ids
@@ -214,8 +211,6 @@ class FaissIndex:
         if self.index is None:
             msg = "index is not initialised"
             raise RuntimeError(msg)
-
-        import pandas as pd
 
         self.id2idx = pd.Series(
             {k: i for i, k in enumerate(self.index[self.config.id_col])}

@@ -1,11 +1,10 @@
 import torch
+import torchmetrics.functional.retrieval as tm_retrieval
 
 
 def compute_retrieval_metrics(
     rec_ids: list[str], target_ids: list[str], top_k: int
 ) -> dict[str, torch.Tensor]:
-    import torchmetrics.functional.retrieval as tm_retrieval
-
     if len(rec_ids) == 0:
         return {}
 

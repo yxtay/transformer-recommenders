@@ -4,6 +4,7 @@ import bentoml
 import numpy as np
 import torch
 from loguru import logger
+from sentence_transformers import SentenceTransformer
 
 from xfmr_rec.common.service import (
     ENVS,
@@ -17,7 +18,7 @@ from xfmr_rec.common.service import (
     NumpyArrayType,
     UserQuery,
 )
-from xfmr_rec.params import TOP_K
+from xfmr_rec.params import TOP_K, TRANSFORMER_PATH
 from xfmr_rec.seq_embedded import MODEL_NAME
 
 
@@ -33,10 +34,6 @@ class Model:
 
     @logger.catch(reraise=True)
     def __init__(self) -> None:
-        from sentence_transformers import SentenceTransformer
-
-        from xfmr_rec.params import TRANSFORMER_PATH
-
         model_path = self.model_ref.path_of(TRANSFORMER_PATH)
         self.model = SentenceTransformer(model_path).eval()
         logger.info("model loaded: {}", model_path)

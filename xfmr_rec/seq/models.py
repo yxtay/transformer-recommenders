@@ -1,15 +1,15 @@
 from __future__ import annotations
 
+import itertools
 import pathlib
 from typing import Literal
 
 import torch
-import torch.nn.functional as torch_fn
 from loguru import logger
 from sentence_transformers import SentenceTransformer
+from torch.nn.utils.rnn import pad_sequence
 
 from xfmr_rec.models import ModelConfig, init_bert, to_sentence_transformer
-from xfmr_rec.params import EMBEDDER_PATH, ENCODER_PATH
 
 
 class SeqRecModelConfig(ModelConfig):
@@ -72,24 +72,24 @@ class SeqRecModel(torch.nn.Module):
 
     def save(self, path: str) -> None:
         path = pathlib.Path(path)
-        embedder_path = (path / EMBEDDER_PATH).as_posix()
-        self.embedder.save_pretrained(embedder_path)
-        logger.info(f"embedder saved: {embedder_path}")
-
-        encoder_path = (path / ENCODER_PATH).as_posix()
+        encoder_path = (path / "encoder").as_posix()
         self.encoder.save_pretrained(encoder_path)
         logger.info(f"encoder saved: {encoder_path}")
+
+        embedder_path = (path / "embedder").as_posix()
+        self.embedder.save_pretrained(embedder_path)
+        logger.info(f"embedder saved: {embedder_path}")
 
     @classmethod
     def load(cls, path: str, device: torch.device | str | None = None) -> SeqRecModel:
         path = pathlib.Path(path)
-        encoder_path = (path / ENCODER_PATH).as_posix()
+        encoder_path = (path / "encoder").as_posix()
         encoder = SentenceTransformer(
             encoder_path, device=device, local_files_only=True
         )
         logger.info(f"encoder loaded: {encoder_path}")
 
-        embedder_path = (path / EMBEDDER_PATH).as_posix()
+        embedder_path = (path / "embedder").as_posix()
         embedder = SentenceTransformer(
             embedder_path, device=encoder.device, local_files_only=True
         )
@@ -120,10 +120,6 @@ class SeqRecModel(torch.nn.Module):
     def embed_item_text_sequence(
         self, item_text_sequence: list[list[str]]
     ) -> torch.Tensor:
-        import itertools
-
-        from torch.nn.utils.rnn import pad_sequence
-
         item_text_sequence = [seq[-self.max_seq_length :] for seq in item_text_sequence]
         num_items = [len(seq) for seq in item_text_sequence]
         embeddings = self.embed_item_text(list(itertools.chain(*item_text_sequence)))
@@ -160,57 +156,4 @@ class SeqRecModel(torch.nn.Module):
             "pos_embed": pos_embed,
             "neg_embed": neg_embed,
             "attention_mask": attention_mask,
-        }
-
-    def compute_loss(
-        self,
-        history_item_text: list[list[str]],
-        pos_item_text: list[list[str]],
-        neg_item_text: list[list[str]],
-    ) -> dict[str, torch.Tensor]:
-        output = self(history_item_text)
-        attention_mask = output["attention_mask"].bool()
-        # shape: (batch_size, seq_len)
-        output_embeds = output["token_embeddings"]
-        # shape: (batch_size, seq_len, hidden_size)
-        output_embeds = output_embeds[attention_mask][:, None, :]
-        # shape: (batch_size * seq_len, 1, hidden_size)
-        output_embeds = torch_fn.normalize(output_embeds, dim=-1)
-        # shape: (batch_size * seq_len, 1, hidden_size)
-
-        pos_embeds = self.embed_item_text_sequence(pos_item_text)[attention_mask]
-        # shape: (batch_size * seq_len, hidden_size)
-        neg_embeds = self.embed_item_text_sequence(neg_item_text)[attention_mask]
-        # shape: (batch_size * seq_len, hidden_size)
-        candidate_embeddings = torch.stack([pos_embeds, neg_embeds], dim=-2)
-        # shape: (batch_size * seq_len, 2, hidden_size)
-
-        logits = (output_embeds * candidate_embeddings).sum(dim=-1)
-        # shape: (batch_size * seq_len, 2)
-        labels_bce = torch.zeros_like(logits)
-        # positive item is always at zero index
-        labels_bce[:, 0] = 1
-        # shape: (batch_size * seq_len, 1 + seq_len * num_neg)
-        loss_bce = torch_fn.binary_cross_entropy_with_logits(
-            logits, labels_bce, reduction="sum"
-        )
-
-        # positive item is always at zero index
-        labels_ce = torch.zeros_like(logits[:, 0], dtype=torch.long)
-        # shape: (batch_size * seq_len)
-        loss_ce = torch_fn.cross_entropy(logits, labels_ce, reduction="sum")
-
-        batch_size, seq_len = attention_mask.size()
-        numel = attention_mask.numel()
-        non_zero = logits.size(0)
-        return {
-            "batch/size": batch_size,
-            "batch/seq_len": seq_len,
-            "batch/numel": numel,
-            "batch/non_zero": non_zero,
-            "batch/sparsity": non_zero / (numel + 1e-10),
-            "loss/binary_cross_entropy": loss_bce,
-            "loss/binary_cross_entropy_mean": loss_bce / (non_zero + 1e-10),
-            "loss/cross_entropy": loss_ce,
-            "loss/cross_entropy_mean": loss_ce / (non_zero + 1e-10),
         }

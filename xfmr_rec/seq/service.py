@@ -17,6 +17,7 @@ from xfmr_rec.common.service import (
 )
 from xfmr_rec.params import TOP_K
 from xfmr_rec.seq import MODEL_NAME
+from xfmr_rec.seq.models import SeqRecModel
 
 
 class Query(BaseQuery):
@@ -30,8 +31,6 @@ class Model:
 
     @logger.catch(reraise=True)
     def __init__(self) -> None:
-        from xfmr_rec.seq.models import SeqRecModel
-
         self.model = SeqRecModel.load(self.model_ref.path).eval()
         logger.info("model loaded: {}", self.model_ref.path)
 

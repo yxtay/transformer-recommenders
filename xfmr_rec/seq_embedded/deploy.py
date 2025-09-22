@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import tempfile
 from typing import TYPE_CHECKING
 
-from xfmr_rec.seq_embedded.trainer import SeqEmbeddedRecLightningModule
+import pydantic
+
+from xfmr_rec.seq_embedded import MODEL_NAME
+from xfmr_rec.seq_embedded.data import SeqEmbeddedDataModule
+from xfmr_rec.seq_embedded.trainer import SeqEmbeddedRecLightningModule, cli_main
 
 if TYPE_CHECKING:
     from typing import Any
@@ -11,8 +16,6 @@ if TYPE_CHECKING:
 
 
 def load_args(ckpt_path: str) -> dict[str, Any]:
-    from xfmr_rec.seq_embedded.data import SeqEmbeddedDataModule
-
     if not ckpt_path:
         return {"data": {"config": {"num_workers": 0}}}
 
@@ -27,10 +30,6 @@ def load_args(ckpt_path: str) -> dict[str, Any]:
 def prepare_trainer(
     ckpt_path: str = "", stage: str = "validate", fast_dev_run: int = 0
 ) -> Trainer:
-    import tempfile
-
-    from xfmr_rec.seq_embedded.trainer import cli_main
-
     if not ckpt_path:
         args = {"trainer": {"fast_dev_run": True}}
         return cli_main({"fit": args}).trainer
@@ -50,15 +49,12 @@ def prepare_trainer(
 def save_model(trainer: Trainer) -> None:
     import bentoml
 
-    from xfmr_rec.seq_embedded import MODEL_NAME
-
     with bentoml.models.create(MODEL_NAME) as model_ref:
         model: SeqEmbeddedRecLightningModule = trainer.model
         model.save(model_ref.path)
 
 
 def test_queries() -> None:
-    import pydantic
     import rich
 
     from xfmr_rec.common.deploy import test_bento

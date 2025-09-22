@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-import torch.nn.functional as torch_fn
 from loguru import logger
 from sentence_transformers import SentenceTransformer
 
@@ -144,59 +143,4 @@ class SeqEmbeddedRecModel(torch.nn.Module):
             "pos_embed": pos_embed,
             "neg_embed": neg_embed,
             "attention_mask": attention_mask,
-        }
-
-    def compute_loss(
-        self,
-        history_item_idx: torch.Tensor,
-        pos_item_idx: torch.Tensor,
-        neg_item_idx: torch.Tensor,
-    ) -> dict[str, torch.Tensor]:
-        output = self(history_item_idx)
-        attention_mask = output["attention_mask"].bool()
-        # shape: (batch_size, seq_len)
-        output_embeds = output["token_embeddings"]
-        # shape: (batch_size, seq_len, hidden_size)
-        output_embeds = output_embeds[attention_mask][:, None, :]
-        # shape: (batch_size * seq_len, 1, hidden_size)
-        output_embeds = torch_fn.normalize(output_embeds, dim=-1)
-        # shape: (batch_size * seq_len, 1, hidden_size)
-
-        pos_item_idx = pos_item_idx[attention_mask]
-        # shape: (batch_size * seq_len)
-        neg_item_idx = neg_item_idx[attention_mask]
-        # shape: (batch_size * seq_len)
-        candidate_idx = torch.stack([pos_item_idx, neg_item_idx], dim=-1)
-        # shape: (batch_size * seq_len, 2)
-        candidate_embeds = self.embeddings(candidate_idx)
-        # shape: (batch_size * seq_len, 2, hidden_size)
-
-        logits = (output_embeds * candidate_embeds).sum(dim=-1)
-        # shape: (batch_size * seq_len, 2)
-        labels_bce = torch.zeros_like(logits)
-        # positive item is always at zero index
-        labels_bce[:, 0] = 1
-        # shape: (batch_size * seq_len, 2)
-        loss_bce = torch_fn.binary_cross_entropy_with_logits(
-            logits, labels_bce, reduction="sum"
-        )
-
-        # positive item is always at zero index
-        labels_ce = torch.zeros_like(logits[:, 0], dtype=torch.long)
-        # shape: (batch_size * seq_len)
-        loss_ce = torch_fn.cross_entropy(logits, labels_ce, reduction="sum")
-
-        batch_size, seq_len = attention_mask.size()
-        numel = attention_mask.numel()
-        non_zero = logits.size(0)
-        return {
-            "batch/size": batch_size,
-            "batch/seq_len": seq_len,
-            "batch/numel": numel,
-            "batch/non_zero": non_zero,
-            "batch/sparsity": non_zero / (numel + 1e-10),
-            "loss/binary_cross_entropy": loss_bce,
-            "loss/binary_cross_entropy_mean": loss_bce / (non_zero + 1e-10),
-            "loss/cross_entropy": loss_ce,
-            "loss/cross_entropy_mean": loss_ce / (non_zero + 1e-10),
         }

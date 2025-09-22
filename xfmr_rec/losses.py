@@ -18,7 +18,7 @@ LossType = Literal[
 
 
 class LossConfig(pydantic.BaseModel):
-    num_negatives: int = 32
+    num_negatives: int = 0
     scale: float = 100.0
     margin: float = 0.5
 
@@ -116,7 +116,7 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
 
     def mask_false_negatives(self, logits: torch.Tensor) -> torch.Tensor:
         # items with logits >= positive logits are false negatives
-        # this implicitly masks the positive logits in the diagonal
+        # this also masks the diagonal positive logits
         return logits < logits.diagonal()[:, None]
         # shape: (batch_size, num_items)
 
@@ -166,14 +166,15 @@ class AlignmentContrastiveLoss(EmbedLoss):
 
 class InfoNCELoss(EmbedLoss):
     def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:
-        # include positive logits in the diagonal for cross entropy
+        # include diagonal positive logits for cross entropy
         negative_masks |= torch.eye(
             *logits.size(), dtype=torch.bool, device=negative_masks.device
         )
         # shape: (batch_size, num_items)
+        # set false negative logits to -inf
         logits = torch.where(negative_masks, logits * self.config.scale, -torch.inf)
         # shape: (batch_size, num_items)
-        # positives are basically the diagonal elements, so use arange
+        # targets are indices of diagonal positive logits
         targets = torch.arange(logits.size(0), dtype=torch.long, device=logits.device)
         # shape: (batch_size,)
         return torch_fn.cross_entropy(logits, targets, reduction="sum")
@@ -181,7 +182,7 @@ class InfoNCELoss(EmbedLoss):
 
 class NCELoss(EmbedLoss):
     def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:
-        # positives are the diagonal elements
+        # positive logits are in the diagonal
         targets = torch.eye(*logits.size(), device=logits.device)
         # shape: (batch_size, num_items)
         nce_losses = torch_fn.binary_cross_entropy_with_logits(
