@@ -146,17 +146,16 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
         if self.config.num_negatives >= logits.size(1):
             return negative_masks
 
-        # modifiy logits of false negatives to be -inf
-        # take top-k from modified logits
+        # take top-k logits from negatives only
         indices = (
-            torch.where(negative_masks, logits, -torch.inf)
+            logits.where(negative_masks, -torch.inf)
             .topk(k=self.config.num_negatives, dim=-1, sorted=False)
             .indices
         )
         # shape: (batch_size, num_negatives)
-        # torch scatter gives boolean mask of selected negatives
-        # bool and with negative masks to ensure true negatives only
-        negative_masks &= torch.zeros_like(negative_masks).scatter_(
+        # use scatter to set selected indices to True
+        # bool_and with negative masks to ensure true negatives only
+        negative_masks &= torch.zeros_like(negative_masks).scatter(
             dim=-1, index=indices, value=True
         )
         # shape: (batch_size, num_items)
@@ -179,7 +178,11 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
 
 class NegativeDensity(EmbedLoss):
     def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:  # noqa: ARG002
-        return negative_masks.float().mean(dim=-1).sum()
+        # num_negatives should exclude the diagonal positives
+        num_negatives = negative_masks.size(1) - 1
+        if self.config.num_negatives > 0:
+            num_negatives = min(num_negatives, self.config.num_negatives)
+        return (negative_masks.sum(dim=-1) / num_negatives).sum()
 
 
 class AlignmentLoss(EmbedLoss):
@@ -234,7 +237,7 @@ class InfoNCELoss(EmbedLoss):
         )
         # shape: (batch_size, num_items)
         # set false negative logits to -inf
-        logits = torch.where(negative_masks, logits, -torch.inf)
+        logits = logits.where(negative_masks, -torch.inf)
         # shape: (batch_size, num_items)
         # targets are indices of diagonal positive logits
         targets = torch.arange(logits.size(0), dtype=torch.long, device=logits.device)

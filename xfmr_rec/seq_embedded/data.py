@@ -38,7 +38,7 @@ class SeqEmbeddedDataModuleConfig(SeqEmbeddedDataConfig):
     num_workers: int = 1
 
 
-class SeqEmbeddedDataset(torch_data.Dataset):
+class SeqEmbeddedDataset(torch_data.Dataset[dict[str, torch.Tensor]]):
     def __init__(
         self,
         items_dataset: datasets.Dataset,
@@ -59,7 +59,7 @@ class SeqEmbeddedDataset(torch_data.Dataset):
         logger.info(repr(self.config))
         logger.info(f"num_rows: {len(self)}, num_items: {len(self.id2idx)}")
 
-    def process_events(self, events_dataset: datasets.Dataset) -> datasets.Dataset:
+    def process_events(self, users_dataset: datasets.Dataset) -> datasets.Dataset:
         def map_item_idx(example: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
             item_ids = example["history.item_id"]
             labels = example["history.label"]
@@ -89,7 +89,7 @@ class SeqEmbeddedDataset(torch_data.Dataset):
             }
 
         return (
-            events_dataset.flatten()
+            users_dataset.flatten()
             .select_columns(["history.item_id", "history.label"])
             .with_format("numpy")
             .map(map_item_idx)
@@ -114,12 +114,11 @@ class SeqEmbeddedDataset(torch_data.Dataset):
         history_label: torch.Tensor,
         sampled_indices: torch.Tensor,
     ) -> torch.Tensor:
-        seq_len = len(sampled_indices)
         positives = torch.zeros_like(sampled_indices)
         pos_lookahead = self.config.pos_lookahead
 
-        for i in range(seq_len):
-            start_idx = sampled_indices[i] + 1
+        for i, idx in enumerate(sampled_indices):
+            start_idx = idx + 1
             end_idx = start_idx + pos_lookahead if pos_lookahead > 0 else None
             pos_candidates = history_item_idx[start_idx:end_idx]
             pos_candidates = pos_candidates[history_label[start_idx:end_idx]]
@@ -150,6 +149,7 @@ class SeqEmbeddedDataset(torch_data.Dataset):
         row = self.users_dataset[idx]
         history_item_idx = row["history_item_idx"]
         history_label = row["history.label"]
+
         sampled_indices = self.sample_sequence(history_item_idx)
         pos_item_idx = self.sample_positive(
             history_item_idx=history_item_idx,

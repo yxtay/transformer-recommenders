@@ -16,23 +16,30 @@ from xfmr_rec.common.trainer import LoggerSaveConfigCallback, time_now_isoformat
 from xfmr_rec.index import LanceIndex, LanceIndexConfig
 from xfmr_rec.losses import LossConfig, LossType
 from xfmr_rec.metrics import compute_retrieval_metrics
+from xfmr_rec.mf import MODEL_NAME
+from xfmr_rec.mf.data import MFDataModule, MFDataModuleConfig
+from xfmr_rec.models import ModelConfig, init_sent_transformer
 from xfmr_rec.params import (
     ITEMS_TABLE_NAME,
     LANCE_DB_PATH,
     METRIC,
     TENSORBOARD_DIR,
     TOP_K,
+    TRANSFORMER_PATH,
     USERS_TABLE_NAME,
 )
-from xfmr_rec.seq import MODEL_NAME
-from xfmr_rec.seq.data import SeqDataModule, SeqDataModuleConfig
-from xfmr_rec.seq.models import SeqRecModel, SeqRecModelConfig
 
 if TYPE_CHECKING:
     import datasets
+    from sentence_transformers import SentenceTransformer
 
 
-class SeqRecLightningConfig(SeqRecModelConfig, LossConfig):
+class MFRecLightningConfig(ModelConfig, LossConfig):
+    hidden_size: int = 32
+    num_hidden_layers: int = 1
+    num_attention_heads: int = 4
+    intermediate_size: int = 32
+
     train_loss: LossType = "InfoNCELoss"
     learning_rate: float = 0.001
     weight_decay: float = 0.01
@@ -52,13 +59,13 @@ class SeqRecLightningConfig(SeqRecModelConfig, LossConfig):
     top_k: int = TOP_K
 
 
-class SeqRecLightningModule(lp.LightningModule):
-    def __init__(self, config: SeqRecLightningConfig) -> None:
+class MFRecLightningModule(lp.LightningModule):
+    def __init__(self, config: MFRecLightningConfig) -> None:
         super().__init__()
-        self.config = SeqRecLightningConfig.model_validate(config)
+        self.config = MFRecLightningConfig.model_validate(config)
         self.save_hyperparameters(self.config.model_dump())
 
-        self.model: SeqRecModel | None = None
+        self.model: SentenceTransformer | None = None
         self.loss_fns: torch.nn.ModuleList | None = None
         self.items_index = LanceIndex(config=self.config.items_config)
         self.users_index = LanceIndex(config=self.config.users_config)
@@ -70,8 +77,8 @@ class SeqRecLightningModule(lp.LightningModule):
         if self.loss_fns is None:
             self.loss_fns = self.get_loss_fns()
 
-    def get_model(self) -> SeqRecModel:
-        return SeqRecModel(self.config, device=self.device)
+    def get_model(self) -> SentenceTransformer:
+        return init_sent_transformer(self.config, device=self.device)
 
     def get_loss_fns(self) -> torch.nn.ModuleList:
         loss_classes = [
@@ -90,24 +97,29 @@ class SeqRecLightningModule(lp.LightningModule):
     @torch.inference_mode()
     def index_items(self, items_dataset: datasets.Dataset) -> None:
         item_embeddings = items_dataset.map(
-            lambda batch: {"embedding": self.model.embed_item_text(batch["item_text"])},
+            lambda batch: {"embedding": self.model.encode(batch["item_text"])},
             batched=True,
             batch_size=32,
         )
         self.items_index.index_data(item_embeddings, overwrite=True)
 
-    def forward(self, item_texts: list[list[str]]) -> dict[str, torch.Tensor]:
-        return self.model(item_texts)
+    def forward(self, text: list[str]) -> dict[str, torch.Tensor]:
+        tokenized = self.model.tokenize(text)
+        tokenized = {
+            key: value.to(self.device) if isinstance(value, torch.Tensor) else value
+            for key, value in tokenized.items()
+        }
+        return self.model(tokenized)["sentence_embedding"]
 
     @torch.inference_mode()
     def recommend(
         self,
-        item_text: list[str],
+        user_text: list[str],
         *,
         top_k: int = 0,
         exclude_item_ids: list[str] | None = None,
     ) -> datasets.Dataset:
-        embedding = self([item_text])["sentence_embedding"].numpy(force=True)
+        embedding = self.model.encode(user_text)
         return self.items_index.search(
             embedding,
             exclude_item_ids=exclude_item_ids,
@@ -115,34 +127,25 @@ class SeqRecLightningModule(lp.LightningModule):
         )
 
     def compute_losses(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
-        embeds = self.model.compute_embeds(
-            batch["history_item_text"],
-            batch["pos_item_text"],
-            batch["neg_item_text"],
-        )
+        anchor_embed = self(batch["user_text"])
+        pos_embed = self(batch["pos_item_text"])
+        neg_embed = self(batch["neg_item_text"])
 
-        attention_mask = embeds["attention_mask"]
-        batch_size, seq_len = attention_mask.size()
-        numel = attention_mask.numel()
-        non_zero = embeds["anchor_embed"].size(0)
+        batch_size = anchor_embed.size(0)
         metrics = {
             "batch/size": batch_size,
-            "batch/seq_len": seq_len,
-            "batch/numel": numel,
-            "batch/non_zero": non_zero,
-            "batch/density": non_zero / (numel + 1e-9),
         }
 
         losses = {}
         for loss_fn in self.loss_fns:
             key = f"loss/{loss_fn.__class__.__name__}"
             loss = loss_fn(
-                anchor_embed=embeds["anchor_embed"],
-                pos_embed=embeds["pos_embed"],
-                neg_embed=embeds["neg_embed"],
+                anchor_embed=anchor_embed,
+                pos_embed=pos_embed,
+                neg_embed=neg_embed,
             )
             losses[key] = loss
-            losses[f"{key}Mean"] = loss / (non_zero + 1e-9)
+            losses[f"{key}Mean"] = loss / (batch_size + 1e-9)
         return losses | metrics
 
     def compute_metrics(
@@ -173,7 +176,7 @@ class SeqRecLightningModule(lp.LightningModule):
 
     def predict_step(self, row: dict[str, list[str]]) -> datasets.Dataset:
         return self.recommend(
-            row["history"]["item_text"],
+            row["user_text"],
             top_k=self.config.top_k,
             exclude_item_ids=row["history"]["item_id"],
         )
@@ -220,12 +223,12 @@ class SeqRecLightningModule(lp.LightningModule):
         return [checkpoint, early_stop]
 
     @property
-    def example_input_array(self) -> tuple[list[list[str]]]:
-        return ([[], [""]],)
+    def example_input_array(self) -> tuple[list[str]]:
+        return (["", ""],)
 
     def save(self, path: str) -> None:
         path = pathlib.Path(path)
-        self.model.save(path)
+        self.model.save(path / TRANSFORMER_PATH)
 
         lancedb_path = self.config.items_config.lancedb_path
         shutil.copytree(lancedb_path, path / LANCE_DB_PATH)
@@ -275,8 +278,8 @@ def cli_main(
         "num_sanity_val_steps": 0,
     }
     return lp_cli.LightningCLI(
-        SeqRecLightningModule,
-        SeqDataModule,
+        MFRecLightningModule,
+        MFDataModule,
         save_config_callback=LoggerSaveConfigCallback,
         trainer_defaults=trainer_defaults,
         args=args,
@@ -293,10 +296,10 @@ if __name__ == "__main__":
 
     import rich
 
-    datamodule = SeqDataModule(SeqDataModuleConfig())
+    datamodule = MFDataModule(MFDataModuleConfig())
     datamodule.prepare_data()
     datamodule.setup()
-    model = SeqRecLightningModule(SeqRecLightningConfig())
+    model = MFRecLightningModule(MFRecLightningConfig())
     model.configure_model()
 
     # train

@@ -34,11 +34,14 @@ dev = [
   "rich!=14.1.0",
   "pytest~=8.4",
   "standard-imghdr~=3.13",
+  "huggingface-hub[cli]>=0.35.0",
 ]
 
 [project.scripts]
 data = "xfmr_rec.data:main"
-flaml = "xfmr_rec.flaml:main"
+mf_deploy = "xfmr_rec.mf.deploy:main"
+mf_train = "xfmr_rec.mf.trainer:main"
+mf_tune = "xfmr_rec.mf.tune:main"
 seq_deploy = "xfmr_rec.seq.deploy:main"
 seq_train = "xfmr_rec.seq.trainer:main"
 seq_tune = "xfmr_rec.seq.tune:main"
