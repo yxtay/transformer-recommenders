@@ -29,7 +29,7 @@ class SeqDataModuleConfig(SeqDataConfig):
     num_workers: int = 1
 
 
-class SeqDataset(torch_data.Dataset[dict[str, torch.Tensor]]):
+class SeqDataset(torch_data.Dataset[dict[str, list[str]]]):
     def __init__(
         self,
         items_dataset: datasets.Dataset,
