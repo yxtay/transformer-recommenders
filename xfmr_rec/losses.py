@@ -20,6 +20,7 @@ LossType = Literal[
 
 class LossConfig(pydantic.BaseModel):
     num_negatives: int = 0
+    scale: float = 1.0
     margin: float = 0.5
 
 
@@ -254,7 +255,7 @@ class InfoNCELoss(EmbedLoss):
         )
         # shape: (batch_size, num_items)
         # set false negative logits to -inf
-        logits = logits.where(negative_masks, -torch.inf)
+        logits = logits.where(negative_masks * self.config.scale, -torch.inf)
         # shape: (batch_size, num_items)
         # targets are indices of diagonal positive logits
         targets = torch.arange(logits.size(0), dtype=torch.long, device=logits.device)

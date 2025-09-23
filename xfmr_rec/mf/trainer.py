@@ -40,8 +40,8 @@ class MFRecLightningConfig(ModelConfig, LossConfig):
     num_hidden_layers: int = 1
     num_attention_heads: int = 4
     intermediate_size: int = 32
-    is_normalized: bool = False
 
+    scale: float = 30
     train_loss: LossType = "InfoNCELoss"
     learning_rate: float = 0.001
     weight_decay: float = 0.01

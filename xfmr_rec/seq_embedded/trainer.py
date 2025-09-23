@@ -25,10 +25,7 @@ from xfmr_rec.params import (
     TRANSFORMER_PATH,
     USERS_TABLE_NAME,
 )
-from xfmr_rec.seq.data import (
-    SeqDataModule,
-    SeqDataModuleConfig,
-)
+from xfmr_rec.seq.data import SeqDataModule, SeqDataModuleConfig
 from xfmr_rec.seq_embedded import MODEL_NAME
 from xfmr_rec.seq_embedded.models import SeqEmbeddedRecModel, SeqEmbeddedRecModelConfig
 from xfmr_rec.trainer import LoggerSaveConfigCallback, time_now_isoformat
@@ -67,8 +64,8 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
         self.model: SeqEmbeddedRecModel | None = None
         self.items_dataset: datasets.Dataset | None = None
         self.loss_fns: torch.nn.ModuleList | None = None
-        self.items_index = LanceIndex(config=self.config.items_config)
-        self.users_index = LanceIndex(config=self.config.users_config)
+        self.items_index = LanceIndex(self.config.items_config)
+        self.users_index = LanceIndex(self.config.users_config)
 
         logger.info(repr(self.config))
 
@@ -95,7 +92,7 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
         return model
 
     def get_loss_fns(self) -> torch.nn.ModuleList:
-        loss_fns = [loss_class(config=self.config) for loss_class in LOSS_CLASSES]
+        loss_fns = [loss_class(self.config) for loss_class in LOSS_CLASSES]
         return torch.nn.ModuleList(loss_fns)
 
     def forward(self, item_idx: torch.Tensor) -> dict[str, torch.Tensor]:

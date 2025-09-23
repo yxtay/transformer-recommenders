@@ -32,7 +32,9 @@ class Model:
     @logger.catch(reraise=True)
     def __init__(self) -> None:
         model_path = self.model_ref.path_of(TRANSFORMER_PATH)
-        self.model = SentenceTransformer(model_path).eval()
+        self.model = SentenceTransformer(
+            model_path, local_files_only=True, backend="onnx"
+        ).eval()
         logger.info("model loaded: {}", model_path)
 
     @bentoml.api(batchable=True)
