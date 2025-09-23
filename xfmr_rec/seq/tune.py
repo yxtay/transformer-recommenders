@@ -111,7 +111,7 @@ def flaml_tune() -> flaml.tune.tune.ExperimentAnalysis:
             config=config,
             low_cost_partial_config=low_cost_partial_config,
             points_to_evaluate=[point_to_evaluate],
-            time_budget_s=60 * 60 * 8,
+            time_budget_s=60 * 60 * 6,
             num_samples=-1,
             resource_attr="max_epochs",
             min_resource=1,
