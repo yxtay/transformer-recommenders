@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 
 import lightning as lp
 import lightning.pytorch.callbacks as lp_callbacks
-import lightning.pytorch.cli as lp_cli
 import lightning.pytorch.loggers as lp_loggers
 import numpy as np
 import torch
@@ -19,7 +18,6 @@ from xfmr_rec.params import (
     ITEMS_TABLE_NAME,
     LANCE_DB_PATH,
     METRIC,
-    TENSORBOARD_DIR,
     TOP_K,
     TRANSFORMER_PATH,
     USERS_TABLE_NAME,
@@ -27,7 +25,7 @@ from xfmr_rec.params import (
 from xfmr_rec.seq.data import SeqDataModule, SeqDataModuleConfig
 from xfmr_rec.seq_embedded import MODEL_NAME
 from xfmr_rec.seq_embedded.models import SeqEmbeddedModel, SeqEmbeddedModelConfig
-from xfmr_rec.trainer import LoggerSaveConfigCallback, time_now_isoformat
+from xfmr_rec.trainer import LightningCLI
 
 if TYPE_CHECKING:
     import datasets
@@ -222,7 +220,7 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
 
     def state_dict(self, *args: object, **kwargs: object) -> dict[str, torch.Tensor]:
         state_dict = super().state_dict(*args, **kwargs)
-        del state_dict["model.embeddings.weight"]
+        state_dict.pop("model.embeddings.weight", None)
         return state_dict
 
     def save(self, path: str) -> None:
@@ -231,57 +229,11 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         self.items_index.save(path / LANCE_DB_PATH)
 
 
-def cli_main(
-    args: lp_cli.ArgsType = None, *, run: bool = True, log_model: bool = True
-) -> lp_cli.LightningCLI:
-    import mlflow
-    from jsonargparse import lazy_instance
-
-    experiment_name = MODEL_NAME
-    run_name = time_now_isoformat()
-    run_id = None
-    if active_run := mlflow.active_run():
-        experiment_name = mlflow.get_experiment(active_run.info.experiment_id).name
-        run_name = active_run.info.run_name
-        run_id = active_run.info.run_id
-
-    tensorboard_logger = {
-        "class_path": "TensorBoardLogger",
-        "init_args": {
-            "save_dir": TENSORBOARD_DIR,
-            "name": experiment_name,
-            "version": run_name,
-            # "log_graph": True,
-            "default_hp_metric": False,
-        },
-    }
-    mlflow_logger = {
-        "class_path": "MLFlowLogger",
-        "init_args": {
-            "experiment_name": experiment_name,
-            "run_name": run_name,
-            "run_id": run_id,
-            "log_model": log_model,
-        },
-    }
-
-    progress_bar = lazy_instance(lp_callbacks.RichProgressBar)
-    trainer_defaults = {
-        "precision": "bf16-mixed",
-        "logger": [tensorboard_logger, mlflow_logger],
-        "callbacks": [progress_bar],
-        "max_epochs": 1,
-        "max_time": "00:08:00:00",
-        "num_sanity_val_steps": 0,
-    }
-    return lp_cli.LightningCLI(
-        SeqEmbeddedLightningModule,
-        SeqDataModule,
-        save_config_callback=LoggerSaveConfigCallback,
-        trainer_defaults=trainer_defaults,
-        args=args,
-        run=run,
-    )
+cli_main = LightningCLI(
+    lightning_module_cls=SeqEmbeddedLightningModule,
+    data_module_cls=SeqDataModule,
+    experiment_name=MODEL_NAME,
+).main
 
 
 def main() -> None:
