@@ -26,17 +26,20 @@ from xfmr_rec.params import (
 
 class SeqExample(TypedDict):
     history_item_idx: torch.Tensor
-    history_item_text: np.ndarray[str]
+    history_item_text: list[str]
     pos_item_idx: torch.Tensor
-    pos_item_text: np.ndarray[str]
+    pos_item_text: list[str]
     neg_item_idx: torch.Tensor
-    neg_item_text: np.ndarray[str]
+    neg_item_text: list[str]
 
 
-class SeqBatch(SeqExample):
-    history_item_text: list[np.ndarray[str]]
-    pos_item_text: list[np.ndarray[str]]
-    neg_item_text: list[np.ndarray[str]]
+class SeqBatch(TypedDict):
+    history_item_idx: torch.Tensor
+    history_item_text: list[list[str]]
+    pos_item_idx: torch.Tensor
+    pos_item_text: list[list[str]]
+    neg_item_idx: torch.Tensor
+    neg_item_text: list[list[str]]
 
 
 class SeqDataConfig(pydantic.BaseModel):
@@ -69,9 +72,7 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
             {k: i + 1 for i, k in enumerate(items_dataset["item_id"])}
         )
         self.all_idx = set(self.id2idx)
-        self.item_text: np.ndarray = np.insert(
-            items_dataset.with_format("numpy")["item_text"], 0, ""
-        )
+        self.item_text: list[str] = items_dataset["item_text"]
 
         self.users_dataset = self.process_events(users_dataset)
 
@@ -180,11 +181,11 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         )
         return {
             "history_item_idx": history_item_idx[sampled_indices],
-            "history_item_text": self.item_text[history_item_idx[sampled_indices]],
+            "history_item_text": self.item_text[history_item_idx[sampled_indices] - 1],
             "pos_item_idx": pos_item_idx,
-            "pos_item_text": self.item_text[pos_item_idx],
+            "pos_item_text": self.item_text[pos_item_idx - 1],
             "neg_item_idx": neg_item_idx,
-            "neg_item_text": self.item_text[neg_item_idx],
+            "neg_item_text": self.item_text[neg_item_idx - 1],
         }
 
     def collate(self, batch: list[SeqExample]) -> SeqBatch:
