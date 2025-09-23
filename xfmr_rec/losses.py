@@ -55,7 +55,7 @@ def weighted_mean(
 
 
 class EmbedLoss(torch.nn.Module, abc.ABC):
-    def __init__(self, *, config: LossConfig) -> None:
+    def __init__(self, config: LossConfig) -> None:
         super().__init__()
         self.config = config
 
@@ -176,13 +176,30 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
         return weighted_mean(losses, negative_masks, dim=-1).sum()
 
 
-class NegativeDensity(EmbedLoss):
-    def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:  # noqa: ARG002
+class LogitsStatistics(EmbedLoss):
+    def loss(
+        self, logits: torch.Tensor, negative_masks: torch.Tensor
+    ) -> dict[str, torch.Tensor]:
         # num_negatives should exclude the diagonal positives
         num_negatives = negative_masks.size(1) - 1
         if self.config.num_negatives > 0:
             num_negatives = min(num_negatives, self.config.num_negatives)
-        return (negative_masks.sum(dim=-1) / num_negatives).sum()
+
+        neg_density = (negative_masks.sum(dim=-1) / (num_negatives + 1e-9)).mean()
+        stats = {"logits/neg/density": neg_density}
+
+        for key, value in {
+            "pos": logits.diagonal(),
+            "neg": logits[negative_masks],
+        }.items():
+            if value.numel() > 0:
+                stats |= {
+                    f"logits/{key}/mean": value.mean(),
+                    f"logits/{key}/std": value.std(),
+                    f"logits/{key}/min": value.min(),
+                    f"logits/{key}/max": value.max(),
+                }
+        return stats
 
 
 class AlignmentLoss(EmbedLoss):
@@ -271,3 +288,14 @@ class PairwiseLogisticLoss(EmbedLoss):
         scores = logits - logits.diagonal()[:, None] * (1 - self.config.margin)
         # shape: (batch_size, num_items)
         return weighted_mean(torch_fn.softplus(scores), negative_masks, dim=-1).sum()
+
+
+LOSS_CLASSES = [
+    AlignmentLoss,
+    AlignmentContrastiveLoss,
+    ContrastiveLoss,
+    InfoNCELoss,
+    NCELoss,
+    PairwiseHingeLoss,
+    PairwiseLogisticLoss,
+]

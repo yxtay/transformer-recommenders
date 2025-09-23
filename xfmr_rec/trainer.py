@@ -18,11 +18,11 @@ class LoggerSaveConfigCallback(lp_cli.SaveConfigCallback):
         pl_module: lp.LightningModule,  # noqa: ARG002
         stage: str,  # noqa: ARG002
     ) -> None:
-        for logger in trainer.loggers:
-            if not isinstance(logger, lp_loggers.MLFlowLogger):
+        for lp_logger in trainer.loggers:
+            if not isinstance(lp_logger, lp_loggers.MLFlowLogger):
                 continue
 
-            logger.log_hyperparams(self.config.as_dict())
+            lp_logger.log_hyperparams(self.config.as_dict())
             with tempfile.TemporaryDirectory() as path:
                 config_path = pathlib.Path(path, self.config_filename)
                 self.parser.save(
@@ -32,8 +32,10 @@ class LoggerSaveConfigCallback(lp_cli.SaveConfigCallback):
                     overwrite=self.overwrite,
                     multifile=self.multifile,
                 )
-                mlflow_client: MlflowClient = logger.experiment
-                mlflow_client.log_artifact(run_id=logger.run_id, local_path=config_path)
+                mlflow_client: MlflowClient = lp_logger.experiment
+                mlflow_client.log_artifact(
+                    run_id=lp_logger.run_id, local_path=config_path
+                )
 
 
 def time_now_isoformat() -> str:
