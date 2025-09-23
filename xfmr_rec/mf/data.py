@@ -32,23 +32,21 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
     ) -> None:
         self.rng = np.random.default_rng()
 
-        self.item_id_map = pd.Series(
-            {k: i for i, k in enumerate(items_dataset["item_id"])}
-        )
-        self.all_item_idx = set(self.item_id_map)
+        self.id2idx = pd.Series({k: i for i, k in enumerate(items_dataset["item_id"])})
+        self.all_idx = set(self.id2idx)
         self.item_text: list[str] = items_dataset["item_text"]
 
         self.users_dataset = self.process_events(users_dataset)
 
-        logger.info(f"num_rows: {len(self)}, num_items: {len(self.item_id_map)}")
+        logger.info(f"num_rows: {len(self)}, num_items: {len(self.id2idx)}")
 
     def process_events(self, users_dataset: datasets.Dataset) -> datasets.Dataset:
         def map_item_idx(example: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
             item_ids = example["history.item_id"]
             labels = example["history.label"]
 
-            mask = [item_id in self.item_id_map.index for item_id in item_ids]
-            item_idx = self.item_id_map[item_ids[mask]].to_numpy()
+            mask = [item_id in self.id2idx.index for item_id in item_ids]
+            item_idx = self.id2idx[item_ids[mask]].to_numpy()
             return {"history_item_idx": item_idx[labels[mask]]}
 
         def duplicate_rows(
@@ -72,9 +70,9 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
         return self.rng.choice(pos_candidates)
 
     def sample_negative(self, history_item_idx: torch.Tensor) -> torch.Tensor:
-        neg_candidates = list(self.all_item_idx - set(history_item_idx.tolist()))
+        neg_candidates = list(self.all_idx - set(history_item_idx.tolist()))
         if len(neg_candidates) == 0:
-            neg_candidates = list(self.all_item_idx)
+            neg_candidates = list(self.all_idx)
         return self.rng.choice(neg_candidates)
 
     def __len__(self) -> int:
