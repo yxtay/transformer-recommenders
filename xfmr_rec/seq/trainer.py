@@ -85,7 +85,6 @@ class SeqRecLightningModule(lp.LightningModule):
         item_embeddings = items_dataset.map(
             lambda batch: {"embedding": self.model.embed_item_text(batch["item_text"])},
             batched=True,
-            batch_size=32,
         )
         self.items_index.index_data(item_embeddings, overwrite=True)
 

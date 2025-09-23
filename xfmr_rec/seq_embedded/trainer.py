@@ -25,11 +25,11 @@ from xfmr_rec.params import (
     TRANSFORMER_PATH,
     USERS_TABLE_NAME,
 )
-from xfmr_rec.seq_embedded import MODEL_NAME
-from xfmr_rec.seq_embedded.data import (
-    SeqEmbeddedDataModule,
-    SeqEmbeddedDataModuleConfig,
+from xfmr_rec.seq.data import (
+    SeqDataModule,
+    SeqDataModuleConfig,
 )
+from xfmr_rec.seq_embedded import MODEL_NAME
 from xfmr_rec.seq_embedded.models import SeqEmbeddedRecModel, SeqEmbeddedRecModelConfig
 from xfmr_rec.trainer import LoggerSaveConfigCallback, time_now_isoformat
 
@@ -282,7 +282,7 @@ def cli_main(
     }
     return lp_cli.LightningCLI(
         SeqEmbeddedRecLightningModule,
-        SeqEmbeddedDataModule,
+        SeqDataModule,
         save_config_callback=LoggerSaveConfigCallback,
         trainer_defaults=trainer_defaults,
         args=args,
@@ -299,7 +299,7 @@ if __name__ == "__main__":
 
     import rich
 
-    datamodule = SeqEmbeddedDataModule(SeqEmbeddedDataModuleConfig())
+    datamodule = SeqDataModule(SeqDataModuleConfig())
     datamodule.prepare_data()
     datamodule.setup()
     model = SeqEmbeddedRecLightningModule(SeqEmbeddedRecLightningConfig())

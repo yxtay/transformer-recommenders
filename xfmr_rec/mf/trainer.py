@@ -94,7 +94,6 @@ class MFRecLightningModule(lp.LightningModule):
         item_embeddings = items_dataset.map(
             lambda batch: {"embedding": self.model.encode(batch["item_text"])},
             batched=True,
-            batch_size=32,
         )
         self.items_index.index_data(item_embeddings, overwrite=True)
 

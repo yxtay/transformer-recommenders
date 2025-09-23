@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from typing import TypedDict
 
 import datasets
 import lightning as lp
@@ -10,9 +11,34 @@ import pydantic
 import torch
 import torch.utils.data as torch_data
 from loguru import logger
+from sentence_transformers import SentenceTransformer
+from torch.nn.utils.rnn import pad_sequence
 
 from xfmr_rec.data import download_unpack_data, prepare_movielens
-from xfmr_rec.params import DATA_DIR, ITEMS_PARQUET, MOVIELENS_1M_URL, USERS_PARQUET
+from xfmr_rec.params import (
+    DATA_DIR,
+    ITEMS_PARQUET,
+    MOVIELENS_1M_URL,
+    PRETRAINED_MODEL_NAME,
+    USERS_PARQUET,
+)
+
+np.typing.NDArray[str]
+
+
+class SeqExample(TypedDict):
+    history_item_idx: torch.Tensor
+    history_item_text: np.ndarray[str]
+    pos_item_idx: torch.Tensor
+    pos_item_text: np.ndarray[str]
+    neg_item_idx: torch.Tensor
+    neg_item_text: np.ndarray[str]
+
+
+class SeqBatch(SeqExample):
+    history_item_text: list[np.ndarray[str]]
+    pos_item_text: list[np.ndarray[str]]
+    neg_item_text: list[np.ndarray[str]]
 
 
 class SeqDataConfig(pydantic.BaseModel):
@@ -25,24 +51,29 @@ class SeqDataModuleConfig(SeqDataConfig):
     items_parquet: str = ITEMS_PARQUET
     users_parquet: str = USERS_PARQUET
 
-    batch_size: int = 32
+    pretrained_model_name: str = PRETRAINED_MODEL_NAME
+    batch_size: int = 16
     num_workers: int = 1
 
 
-class SeqDataset(torch_data.Dataset[dict[str, list[str]]]):
+class SeqDataset(torch_data.Dataset[SeqExample]):
     def __init__(
         self,
-        config: SeqDataConfig,
-        *,
+        config: SeqDataModuleConfig,
         items_dataset: datasets.Dataset,
         users_dataset: datasets.Dataset,
     ) -> None:
         self.config = config
         self.rng = np.random.default_rng()
 
-        self.id2idx = pd.Series({k: i for i, k in enumerate(items_dataset["item_id"])})
-        self.all_item_idx = set(self.id2idx)
-        self.item_text: list[str] = items_dataset["item_text"]
+        # idx 0 for padding
+        self.id2idx = pd.Series(
+            {k: i + 1 for i, k in enumerate(items_dataset["item_id"])}
+        )
+        self.all_idx = set(self.id2idx)
+        self.item_text: np.ndarray = np.insert(
+            items_dataset.with_format("numpy")["item_text"], 0, ""
+        )
 
         self.users_dataset = self.process_events(users_dataset)
 
@@ -89,7 +120,6 @@ class SeqDataset(torch_data.Dataset[dict[str, list[str]]]):
 
     def sample_sequence(self, history_item_idx: torch.Tensor) -> torch.Tensor:
         indices = torch.arange(len(history_item_idx) - 1)
-
         max_seq_length = self.config.max_seq_length
         if len(indices) <= max_seq_length:
             return indices
@@ -123,9 +153,9 @@ class SeqDataset(torch_data.Dataset[dict[str, list[str]]]):
         sampled_indices: torch.Tensor,
     ) -> torch.Tensor:
         seq_len = len(sampled_indices)
-        neg_candidates = list(self.all_item_idx - set(history_item_idx.tolist()))
+        neg_candidates = list(self.all_idx - set(history_item_idx.tolist()))
         if len(neg_candidates) == 0:
-            neg_candidates = list(self.all_item_idx)
+            neg_candidates = list(self.all_idx)
 
         sampled_negatives = self.rng.choice(
             neg_candidates, seq_len, replace=len(neg_candidates) < seq_len
@@ -135,7 +165,7 @@ class SeqDataset(torch_data.Dataset[dict[str, list[str]]]):
     def __len__(self) -> int:
         return len(self.users_dataset)
 
-    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
+    def __getitem__(self, idx: int) -> SeqExample:
         row = self.users_dataset[idx]
         history_item_idx = row["history_item_idx"]
         history_label = row["history.label"]
@@ -151,13 +181,22 @@ class SeqDataset(torch_data.Dataset[dict[str, list[str]]]):
             sampled_indices=sampled_indices,
         )
         return {
+            "history_item_idx": history_item_idx[sampled_indices],
             "history_item_text": self.item_text[history_item_idx[sampled_indices]],
+            "pos_item_idx": pos_item_idx,
             "pos_item_text": self.item_text[pos_item_idx],
+            "neg_item_idx": neg_item_idx,
             "neg_item_text": self.item_text[neg_item_idx],
         }
 
-    def collate(self, batch: list[dict[str, list[str]]]) -> dict[str, list[list[str]]]:
-        return {col: [example[col] for example in batch] for col in batch[0]}
+    def collate(self, batch: list[SeqExample]) -> SeqBatch:
+        collated = {field: [example[field] for example in batch] for field in batch[0]}
+        return {
+            field: pad_sequence(val, batch_first=True)
+            if isinstance(val[0], torch.Tensor)
+            else val
+            for field, val in collated.items()
+        }
 
 
 class SeqDataModule(lp.LightningDataModule):
@@ -183,8 +222,12 @@ class SeqDataModule(lp.LightningDataModule):
 
     def setup(self, stage: str | None = None) -> None:
         if self.items_dataset is None:
+            model = SentenceTransformer(self.config.pretrained_model_name)
             self.items_dataset = datasets.Dataset.from_parquet(
                 self.config.items_parquet
+            ).map(
+                lambda batch: {"embedding": model.encode(batch["item_text"])},
+                batched=True,
             )
 
         if self.users_dataset is None:
@@ -268,10 +311,10 @@ if __name__ == "__main__":
         datamodule.users_dataset,
         datamodule.train_dataset,
         datamodule.train_dataloader(),
-        datamodule.val_dataset,
-        datamodule.val_dataloader(),
-        datamodule.test_dataset,
-        datamodule.test_dataloader(),
+        # datamodule.val_dataset,
+        # datamodule.val_dataloader(),
+        # datamodule.test_dataset,
+        # datamodule.test_dataloader(),
     ]
     for dataloader in dataloaders:
         batch = next(iter(dataloader))

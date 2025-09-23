@@ -4,7 +4,6 @@ from typing import Annotated
 
 import bentoml
 import numpy as np
-import numpy.typing as npt
 import pydantic
 from bentoml.exceptions import NotFound
 from bentoml.validators import DType
@@ -13,7 +12,7 @@ from loguru import logger
 from xfmr_rec.index import LanceIndex, LanceIndexConfig
 from xfmr_rec.params import ITEMS_TABLE_NAME, LANCE_DB_PATH, TOP_K, USERS_TABLE_NAME
 
-NumpyArrayType = Annotated[npt.NDArray[np.float32], DType("float32")]
+NumpyArrayType = Annotated[np.typing.NDArray[np.float32], DType("float32")]
 
 
 class Activity(pydantic.BaseModel):
