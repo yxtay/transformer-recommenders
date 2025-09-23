@@ -271,9 +271,9 @@ if __name__ == "__main__":
         args = {"trainer": trainer_args, "data": data_args}
 
         cli = cli_main(args={"fit": args})
-        rich.print(cli.trainer.validate(datamodule=cli.datamodule))
-        rich.print(cli.trainer.test(datamodule=cli.datamodule))
-        rich.print(cli.trainer.predict(datamodule=cli.datamodule))
+        rich.print(cli.trainer.validate(ckpt_path="best", datamodule=cli.datamodule))
+        rich.print(cli.trainer.test(ckpt_path="best", datamodule=cli.datamodule))
+        rich.print(cli.trainer.predict(ckpt_path="best", datamodule=cli.datamodule))
 
         ckpt_path = next(pathlib.Path(tmpdir).glob("**/*.ckpt"))
         model = SeqRecLightningModule.load_from_checkpoint(ckpt_path)
