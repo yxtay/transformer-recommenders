@@ -52,7 +52,7 @@ class SeqDataModuleConfig(SeqDataConfig):
     users_parquet: str = USERS_PARQUET
 
     pretrained_model_name: str = PRETRAINED_MODEL_NAME
-    batch_size: int = 16
+    batch_size: int = 32
     num_workers: int = 1
 
 
