@@ -23,8 +23,6 @@ from xfmr_rec.params import (
     USERS_PARQUET,
 )
 
-np.typing.NDArray[str]
-
 
 class SeqExample(TypedDict):
     history_item_idx: torch.Tensor
@@ -311,10 +309,10 @@ if __name__ == "__main__":
         datamodule.users_dataset,
         datamodule.train_dataset,
         datamodule.train_dataloader(),
-        # datamodule.val_dataset,
-        # datamodule.val_dataloader(),
-        # datamodule.test_dataset,
-        # datamodule.test_dataloader(),
+        datamodule.val_dataset,
+        datamodule.val_dataloader(),
+        datamodule.test_dataset,
+        datamodule.test_dataloader(),
     ]
     for dataloader in dataloaders:
         batch = next(iter(dataloader))
