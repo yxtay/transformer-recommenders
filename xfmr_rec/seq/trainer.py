@@ -127,6 +127,11 @@ class SeqRecLightningModule(lp.LightningModule):
             "batch/non_zero": non_zero,
             "batch/density": non_zero / (numel + 1e-9),
         }
+        metrics |= loss_classes.LogitsStatistics(self.config)(
+            anchor_embed=embeds["anchor_embed"],
+            pos_embed=embeds["pos_embed"],
+            neg_embed=embeds["neg_embed"],
+        )
 
         losses = {}
         for loss_fn in self.loss_fns:
@@ -135,11 +140,6 @@ class SeqRecLightningModule(lp.LightningModule):
                 pos_embed=embeds["pos_embed"],
                 neg_embed=embeds["neg_embed"],
             )
-
-            if isinstance(loss_fn, loss_classes.LogitsStatistics):
-                losses |= loss
-                continue
-
             key = f"loss/{loss_fn.__class__.__name__}"
             losses[key] = loss
             losses[f"{key}Mean"] = loss / (non_zero + 1e-9)

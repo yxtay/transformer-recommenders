@@ -127,9 +127,10 @@ class MFRecLightningModule(lp.LightningModule):
         neg_embed = self(batch["neg_item_text"])
 
         batch_size = anchor_embed.size(0)
-        metrics = {
-            "batch/size": batch_size,
-        }
+        metrics = {"batch/size": batch_size}
+        metrics |= loss_classes.LogitsStatistics(self.config)(
+            anchor_embed=anchor_embed, pos_embed=pos_embed, neg_embed=neg_embed
+        )
 
         losses = {}
         for loss_fn in self.loss_fns:
@@ -138,11 +139,6 @@ class MFRecLightningModule(lp.LightningModule):
                 pos_embed=pos_embed,
                 neg_embed=neg_embed,
             )
-
-            if isinstance(loss_fn, loss_classes.LogitsStatistics):
-                losses |= loss
-                continue
-
             key = f"loss/{loss_fn.__class__.__name__}"
             losses[key] = loss
             losses[f"{key}Mean"] = loss / (batch_size + 1e-9)

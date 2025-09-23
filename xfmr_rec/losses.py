@@ -291,7 +291,6 @@ class PairwiseLogisticLoss(EmbedLoss):
 
 
 LOSS_CLASSES = [
-    LogitsStatistics,
     AlignmentLoss,
     AlignmentContrastiveLoss,
     ContrastiveLoss,
