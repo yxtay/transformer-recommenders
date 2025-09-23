@@ -61,8 +61,8 @@ class SeqRecLightningModule(lp.LightningModule):
 
         self.model: SeqRecModel | None = None
         self.loss_fns: torch.nn.ModuleList | None = None
-        self.items_index = LanceIndex(config=self.config.items_config)
-        self.users_index = LanceIndex(config=self.config.users_config)
+        self.items_index = LanceIndex(self.config.items_config)
+        self.users_index = LanceIndex(self.config.users_config)
 
         logger.info(repr(self.config))
 
@@ -77,7 +77,7 @@ class SeqRecLightningModule(lp.LightningModule):
         return SeqRecModel(self.config, device=self.device)
 
     def get_loss_fns(self) -> torch.nn.ModuleList:
-        loss_fns = [loss_class(config=self.config) for loss_class in LOSS_CLASSES]
+        loss_fns = [loss_class(self.config) for loss_class in LOSS_CLASSES]
         return torch.nn.ModuleList(loss_fns)
 
     @torch.inference_mode()

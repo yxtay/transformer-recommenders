@@ -41,9 +41,9 @@ class SeqEmbeddedDataModuleConfig(SeqEmbeddedDataConfig):
 class SeqEmbeddedDataset(torch_data.Dataset[dict[str, torch.Tensor]]):
     def __init__(
         self,
+        config: SeqEmbeddedDataConfig,
         items_dataset: datasets.Dataset,
         users_dataset: datasets.Dataset,
-        config: SeqEmbeddedDataConfig,
     ) -> None:
         self.config = config
         self.rng = np.random.default_rng()
@@ -215,9 +215,9 @@ class SeqEmbeddedDataModule(lp.LightningDataModule):
                 self.config.users_parquet, filters=pc.field("is_train")
             )
             self.train_dataset = SeqEmbeddedDataset(
+                config=self.config,
                 items_dataset=self.items_dataset,
                 users_dataset=train_dataset,
-                config=self.config,
             )
 
         if self.val_dataset is None and stage in {"fit", "validate", None}:

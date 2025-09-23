@@ -32,9 +32,10 @@ class SeqDataModuleConfig(SeqDataConfig):
 class SeqDataset(torch_data.Dataset[dict[str, list[str]]]):
     def __init__(
         self,
+        config: SeqDataConfig,
+        *,
         items_dataset: datasets.Dataset,
         users_dataset: datasets.Dataset,
-        config: SeqDataConfig,
     ) -> None:
         self.config = config
         self.rng = np.random.default_rng()
@@ -196,9 +197,9 @@ class SeqDataModule(lp.LightningDataModule):
                 self.config.users_parquet, filters=pc.field("is_train")
             )
             self.train_dataset = SeqDataset(
+                config=self.config,
                 items_dataset=self.items_dataset,
                 users_dataset=train_dataset,
-                config=self.config,
             )
 
         if self.val_dataset is None and stage in {"fit", "validate", None}:

@@ -55,7 +55,7 @@ def weighted_mean(
 
 
 class EmbedLoss(torch.nn.Module, abc.ABC):
-    def __init__(self, *, config: LossConfig) -> None:
+    def __init__(self, config: LossConfig) -> None:
         super().__init__()
         self.config = config
 
