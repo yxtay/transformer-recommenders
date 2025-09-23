@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import bentoml
-import numpy as np
 import torch
 from loguru import logger
 from sentence_transformers import SentenceTransformer
 
+from xfmr_rec.mf import MODEL_NAME
 from xfmr_rec.params import TOP_K, TRANSFORMER_PATH
-from xfmr_rec.seq_embedded import MODEL_NAME
 from xfmr_rec.service import (
     ENVS,
     IMAGE,
@@ -17,15 +16,13 @@ from xfmr_rec.service import (
     BaseUserIndex,
     ItemCandidate,
     ItemQuery,
-    NumpyArrayType,
     UserQuery,
 )
 
 
 class Query(BaseQuery):
     item_ids: list[str] | None = None
-    item_texts: list[str] | None = None
-    input_embeds: NumpyArrayType | None = None
+    text: str | None = None
 
 
 @bentoml.service()
@@ -38,20 +35,15 @@ class Model:
         self.model = SentenceTransformer(model_path).eval()
         logger.info("model loaded: {}", model_path)
 
-    @bentoml.api()
+    @bentoml.api(batchable=True)
     @logger.catch(reraise=True)
     @torch.inference_mode()
-    def embed(self, query: Query) -> Query:
-        if query.input_embeds is None or query.input_embeds.size == 0:
-            embedding_dim = self.model.get_sentence_embedding_dimension()
-            query.embedding = np.zeros((1, embedding_dim), dtype=np.float32)
-            return query
-
-        inputs_embeds = torch.as_tensor(query.input_embeds, device=self.model.device)
-        query.embedding = self.model(
-            {"inputs_embeds": inputs_embeds[None, -self.model.max_seq_length :, :]}
-        )["sentence_embedding"].numpy(force=True)
-        return query
+    def embed(self, queries: list[Query]) -> list[Query]:
+        texts = [query.text for query in queries]
+        embeddings = self.model.encode(texts)
+        for query, embedding in zip(queries, embeddings, strict=True):
+            query.embedding = embedding
+        return queries
 
 
 @bentoml.service()
@@ -78,33 +70,18 @@ class Service(BaseService):
         exclude_item_ids: list[str] | None = None,
         top_k: int = TOP_K,
     ) -> list[ItemCandidate]:
-        query = await self.process_query(query)
         query = await self.embed_query(query)
         exclude_item_ids = [*(exclude_item_ids or []), *(query.item_ids or [])]
         return await self.search_items(
             query, exclude_item_ids=exclude_item_ids, top_k=top_k
         )
 
-    async def process_query(self, query: Query) -> Query:
-        if query.item_ids is None:
-            return query
-
-        if query.input_embeds is not None:
-            return query
-
-        items = await self.item_index.to_async.get_ids(query.item_ids)
-        embeddings = [
-            items[item_id].embedding for item_id in query.item_ids if item_id in items
-        ]
-        query.input_embeds = np.stack(embeddings) if embeddings else None
-        return query
-
     @bentoml.api()
     @logger.catch(reraise=True)
     async def embed_query(self, query: Query) -> Query:
         if query.embedding is not None:
             return query
-        return await self.model.to_async.embed(query)
+        return (await self.model.to_async.embed([query]))[0]
 
     @bentoml.api()
     @logger.catch(reraise=True)
@@ -122,11 +99,7 @@ class Service(BaseService):
     @bentoml.api()
     @logger.catch(reraise=True)
     async def process_item(self, item: ItemQuery) -> Query:
-        return Query(
-            item_ids=[item.item_id],
-            item_texts=[item.item_text],
-            input_embeds=item.embedding[None, :],
-        )
+        return Query(item_ids=[item.item_id], text=item.item_text)
 
     @bentoml.api()
     @logger.catch(reraise=True)
@@ -140,6 +113,11 @@ class Service(BaseService):
         return await self.recommend_with_item(
             item, exclude_item_ids=exclude_item_ids, top_k=top_k
         )
+
+    @bentoml.api()
+    @logger.catch(reraise=True)
+    async def item_id(self, item_id: str) -> ItemQuery:
+        return await self.item_index.to_async.get_id(item_id)
 
     @bentoml.api()
     @logger.catch(reraise=True)
@@ -165,7 +143,7 @@ class Service(BaseService):
         if user.target:
             item_ids += user.target.item_id
             item_texts += user.target.item_text
-        return Query(item_ids=item_ids, item_texts=item_texts)
+        return Query(item_ids=item_ids, text=user.user_text)
 
     @bentoml.api()
     @logger.catch(reraise=True)

@@ -9,7 +9,7 @@ from loguru import logger
 from sentence_transformers import SentenceTransformer
 from torch.nn.utils.rnn import pad_sequence
 
-from xfmr_rec.models import ModelConfig, init_bert, to_sentence_transformer
+from xfmr_rec.models import ModelConfig, init_sent_transformer
 
 
 class SeqRecModelConfig(ModelConfig):
@@ -56,8 +56,7 @@ class SeqRecModel(torch.nn.Module):
     def configure_model(self, device: torch.device | str | None = None) -> None:
         if self.encoder is None:
             encoder_conf = self.config
-            encoder = init_bert(encoder_conf)
-            self.encoder = to_sentence_transformer(encoder_conf, encoder, device=device)
+            self.encoder = init_sent_transformer(encoder_conf, device=device)
 
         if self.embedder is None:
             embedding_conf = self.config.model_copy(
@@ -68,19 +67,16 @@ class SeqRecModel(torch.nn.Module):
                     "pooling_mode": "mean",
                 }
             )
-            embedder = init_bert(embedding_conf)
-            self.embedder = to_sentence_transformer(
-                embedding_conf, embedder, device=self.device
-            )
+            self.embedder = init_sent_transformer(embedding_conf, device=self.device)
 
     def save(self, path: str) -> None:
         path = pathlib.Path(path)
         encoder_path = (path / self.ENCODER_PATH).as_posix()
-        self.encoder.save_pretrained(encoder_path)
+        self.encoder.save(encoder_path)
         logger.info(f"encoder saved: {encoder_path}")
 
         embedder_path = (path / self.EMBEDDER_PATH).as_posix()
-        self.embedder.save_pretrained(embedder_path)
+        self.embedder.save(embedder_path)
         logger.info(f"embedder saved: {embedder_path}")
 
     @classmethod

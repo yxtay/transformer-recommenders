@@ -7,7 +7,7 @@ import torch
 from loguru import logger
 from sentence_transformers import SentenceTransformer
 
-from xfmr_rec.models import ModelConfig, init_bert, to_sentence_transformer
+from xfmr_rec.models import ModelConfig, init_sent_transformer
 
 if TYPE_CHECKING:
     import datasets
@@ -18,7 +18,7 @@ class SeqEmbeddedRecModelConfig(ModelConfig):
     hidden_size: int = 384
     num_hidden_layers: int = 1
     num_attention_heads: int = 12
-    intermediate_size: int = 384
+    intermediate_size: int = 48
     max_seq_length: int | None = 32
 
 
@@ -49,8 +49,7 @@ class SeqEmbeddedRecModel(torch.nn.Module):
 
     def configure_model(self, device: torch.device | str | None = None) -> None:
         if self.model is None:
-            bert_model = init_bert(self.config)
-            self.model = to_sentence_transformer(self.config, bert_model, device=device)
+            self.model = init_sent_transformer(self.config, device=device)
 
     def configure_embeddings(self, items_dataset: datasets.Dataset) -> None:
         if self.embeddings is None:

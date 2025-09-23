@@ -51,7 +51,7 @@ def init_bert(config: ModelConfig) -> BertModel:
     return BertModel(bert_config)
 
 
-def to_sentence_transformer(
+def to_sent_transformer(
     config: ModelConfig,
     model: PreTrainedModel,
     *,
@@ -71,3 +71,10 @@ def to_sentence_transformer(
         return SentenceTransformer(
             modules=[transformer, pooling, normalize], device=device
         )
+
+
+def init_sent_transformer(
+    config: ModelConfig, device: torch.device | str | None = "cpu"
+) -> SentenceTransformer:
+    bert_model = init_bert(config)
+    return to_sent_transformer(config, bert_model, device=device)

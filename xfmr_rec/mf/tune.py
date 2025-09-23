@@ -4,9 +4,9 @@ import flaml.tune
 import mlflow
 import numpy as np
 
+from xfmr_rec.mf import MODEL_NAME
+from xfmr_rec.mf.trainer import cli_main
 from xfmr_rec.params import METRIC
-from xfmr_rec.seq import MODEL_NAME
-from xfmr_rec.seq.trainer import cli_main
 from xfmr_rec.trainer import time_now_isoformat
 
 ArgsType = dict[str, bool | float | int | str]
@@ -17,22 +17,17 @@ def get_lightning_args(
     data_args: ArgsType | None = None,
     model_args: ArgsType | None = None,
 ) -> dict[str, dict[str, ArgsType]]:
-    max_seq_length = 2 ** config["log_max_seq_length"]
     hidden_size = 2 ** config["log_hidden_size"]
     num_attention_heads = 2 ** config["log_num_attention_heads"]
     intermediate_size = int(hidden_size * 2 ** config["log_intermediate_size"])
     num_negatives = 2 ** config["log_num_negatives"] - 1
 
-    data_args = (data_args or {}) | {
-        "max_seq_length": max_seq_length,
-    }
+    data_args = (data_args or {}) | {}
     model_args = (model_args or {}) | {
         "hidden_size": hidden_size,
         "num_hidden_layers": config["num_hidden_layers"],
         "num_attention_heads": num_attention_heads,
         "intermediate_size": intermediate_size,
-        "max_seq_length": max_seq_length,
-        "is_decoder": config["is_decoder"],
         "num_negatives": num_negatives,
         "margin": config["margin"],
         "train_loss": config["train_loss"],
@@ -66,8 +61,6 @@ def flaml_tune() -> flaml.tune.tune.ExperimentAnalysis:
         "num_hidden_layers": 1,
         "log_num_attention_heads": 2,
         "log_intermediate_size": 1,
-        "log_max_seq_length": 5,
-        "is_decoder": True,
         "log_num_negatives": 0,
         "margin": 0.5,
         "train_loss": "InfoNCELoss",
@@ -80,8 +73,6 @@ def flaml_tune() -> flaml.tune.tune.ExperimentAnalysis:
         "num_hidden_layers": flaml.tune.randint(1, 4),
         "log_num_attention_heads": flaml.tune.randint(0, 4),
         "log_intermediate_size": flaml.tune.randint(-1, 3),
-        "log_max_seq_length": flaml.tune.randint(5, 9),
-        "is_decoder": flaml.tune.choice([False, True]),
         "log_num_negatives": flaml.tune.randint(0, 11),
         "margin": flaml.tune.quniform(0.5, 1.5, 0.1),
         "train_loss": flaml.tune.choice(train_losses),
@@ -94,8 +85,6 @@ def flaml_tune() -> flaml.tune.tune.ExperimentAnalysis:
         "num_hidden_layers": 1,
         "log_num_attention_heads": 0,
         "log_intermediate_size": -1,
-        "log_max_seq_length": 5,
-        # "is_decoder": True,
         # "log_num_negatives": 0,
         # "margin": 0.5,
         # "train_loss": "InfoNCELoss",

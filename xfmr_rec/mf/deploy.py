@@ -7,10 +7,10 @@ import bentoml
 import pydantic
 
 from xfmr_rec.deploy import test_bento
-from xfmr_rec.seq import MODEL_NAME
-from xfmr_rec.seq.data import SeqDataModule
-from xfmr_rec.seq.service import Service
-from xfmr_rec.seq.trainer import SeqRecLightningModule, cli_main
+from xfmr_rec.mf import MODEL_NAME
+from xfmr_rec.mf.data import MFDataModule
+from xfmr_rec.mf.service import Service
+from xfmr_rec.mf.trainer import MFRecLightningModule, cli_main
 from xfmr_rec.service import (
     EXAMPLE_ITEM,
     EXAMPLE_USER,
@@ -29,8 +29,8 @@ def load_args(ckpt_path: str) -> dict[str, Any]:
     if not ckpt_path:
         return {"data": {"config": {"num_workers": 0}}}
 
-    datamodule = SeqDataModule.load_from_checkpoint(ckpt_path)
-    model = SeqRecLightningModule.load_from_checkpoint(ckpt_path)
+    datamodule = MFDataModule.load_from_checkpoint(ckpt_path)
+    model = MFRecLightningModule.load_from_checkpoint(ckpt_path)
     return {
         "data": {"config": datamodule.config.model_dump()},
         "model": {"config": model.config.model_dump()},
@@ -58,7 +58,7 @@ def prepare_trainer(
 
 def save_model(trainer: Trainer) -> None:
     with bentoml.models.create(MODEL_NAME) as model_ref:
-        model: SeqRecLightningModule = trainer.model
+        model: MFRecLightningModule = trainer.model
         model.save(model_ref.path)
 
 
