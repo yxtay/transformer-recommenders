@@ -26,14 +26,14 @@ from xfmr_rec.params import (
 )
 from xfmr_rec.seq.data import SeqDataModule, SeqDataModuleConfig
 from xfmr_rec.seq_embedded import MODEL_NAME
-from xfmr_rec.seq_embedded.models import SeqEmbeddedRecModel, SeqEmbeddedRecModelConfig
+from xfmr_rec.seq_embedded.models import SeqEmbeddedModel, SeqEmbeddedModelConfig
 from xfmr_rec.trainer import LoggerSaveConfigCallback, time_now_isoformat
 
 if TYPE_CHECKING:
     import datasets
 
 
-class SeqEmbeddedRecLightningConfig(LossConfig, SeqEmbeddedRecModelConfig):
+class SeqEmbeddedLightningConfig(LossConfig, SeqEmbeddedModelConfig):
     train_loss: LossType = "InfoNCELoss"
     learning_rate: float = 0.001
     weight_decay: float = 0.01
@@ -53,14 +53,14 @@ class SeqEmbeddedRecLightningConfig(LossConfig, SeqEmbeddedRecModelConfig):
     top_k: int = TOP_K
 
 
-class SeqEmbeddedRecLightningModule(lp.LightningModule):
-    def __init__(self, config: SeqEmbeddedRecLightningConfig) -> None:
+class SeqEmbeddedLightningModule(lp.LightningModule):
+    def __init__(self, config: SeqEmbeddedLightningConfig) -> None:
         super().__init__()
-        self.config = SeqEmbeddedRecLightningConfig.model_validate(config)
+        self.config = SeqEmbeddedLightningConfig.model_validate(config)
         self.save_hyperparameters(self.config.model_dump())
         self.strict_loading = False
 
-        self.model: SeqEmbeddedRecModel | None = None
+        self.model: SeqEmbeddedModel | None = None
         self.items_dataset: datasets.Dataset | None = None
         self.loss_fns: torch.nn.ModuleList | None = None
         self.items_index = LanceIndex(self.config.items_config)
@@ -75,8 +75,8 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
         if self.loss_fns is None:
             self.loss_fns = self.get_loss_fns()
 
-    def get_model(self) -> SeqEmbeddedRecModel:
-        model = SeqEmbeddedRecModel(self.config, device=self.device)
+    def get_model(self) -> SeqEmbeddedModel:
+        model = SeqEmbeddedModel(self.config, device=self.device)
 
         if self.items_dataset is None:
             try:
@@ -275,7 +275,7 @@ def cli_main(
         "num_sanity_val_steps": 0,
     }
     return lp_cli.LightningCLI(
-        SeqEmbeddedRecLightningModule,
+        SeqEmbeddedLightningModule,
         SeqDataModule,
         save_config_callback=LoggerSaveConfigCallback,
         trainer_defaults=trainer_defaults,
@@ -296,7 +296,7 @@ if __name__ == "__main__":
     datamodule = SeqDataModule(SeqDataModuleConfig())
     datamodule.prepare_data()
     datamodule.setup()
-    model = SeqEmbeddedRecLightningModule(SeqEmbeddedRecLightningConfig())
+    model = SeqEmbeddedLightningModule(SeqEmbeddedLightningConfig())
     model.items_dataset = datamodule.items_dataset
     model.configure_model()
 
