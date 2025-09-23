@@ -327,3 +327,7 @@ if __name__ == "__main__":
         rich.print(cli.trainer.validate(datamodule=cli.datamodule))
         rich.print(cli.trainer.test(datamodule=cli.datamodule))
         rich.print(cli.trainer.predict(datamodule=cli.datamodule))
+
+        ckpt_path = next(pathlib.Path(tmpdir).glob("**/*.ckpt"))
+        model = SeqEmbeddedLightningModule.load_from_checkpoint(ckpt_path)
+        rich.print(model)
