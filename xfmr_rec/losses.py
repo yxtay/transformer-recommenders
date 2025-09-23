@@ -185,7 +185,7 @@ class LogitsStatistics(EmbedLoss):
         if self.config.num_negatives > 0:
             num_negatives = min(num_negatives, self.config.num_negatives)
 
-        neg_density = (negative_masks.sum(dim=-1) / num_negatives).mean()
+        neg_density = (negative_masks.sum(dim=-1) / (num_negatives + 1e-9)).mean()
         stats = {"logits/neg/density": neg_density}
 
         logits = {"pos": logits.diagonal(), "neg": logits[negative_masks]}
