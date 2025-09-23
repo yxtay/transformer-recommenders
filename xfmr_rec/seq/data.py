@@ -73,7 +73,6 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
             {k: i + 1 for i, k in enumerate(items_dataset["item_id"])}
         )
         self.all_idx = set(self.id2idx)
-        self.item_text: datasets.Column = items_dataset["item_text"]
 
         self.users_dataset = self.process_events(users_dataset)
 
@@ -182,20 +181,14 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         )
         return {
             "history_item_idx": history_item_idx[sampled_indices],
-            "history_item_text": self.item_text[history_item_idx[sampled_indices] - 1],
             "pos_item_idx": pos_item_idx,
-            "pos_item_text": self.item_text[pos_item_idx - 1],
             "neg_item_idx": neg_item_idx,
-            "neg_item_text": self.item_text[neg_item_idx - 1],
         }
 
     def collate(self, batch: list[SeqExample]) -> SeqBatch:
-        collated = {field: [example[field] for example in batch] for field in batch[0]}
         return {
-            field: pad_sequence(val, batch_first=True)
-            if isinstance(val[0], torch.Tensor)
-            else val
-            for field, val in collated.items()
+            field: pad_sequence([example[field] for example in batch], batch_first=True)
+            for field in batch[0]
         }
 
 

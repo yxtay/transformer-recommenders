@@ -60,8 +60,6 @@ def evaluation_function(config: ArgsType) -> dict[str, float]:
 
 
 def flaml_tune() -> flaml.tune.tune.ExperimentAnalysis:
-    train_losses = ["InfoNCELoss", "NCELoss", "PairwiseLogisticLoss"]
-
     point_to_evaluate = {
         "log_hidden_size": 5,
         "num_hidden_layers": 1,
@@ -83,9 +81,9 @@ def flaml_tune() -> flaml.tune.tune.ExperimentAnalysis:
         "log_intermediate_size": flaml.tune.randint(-1, 3),
         "log_max_seq_length": flaml.tune.randint(5, 9),
         "is_decoder": flaml.tune.choice([False, True]),
-        "log_num_negatives": flaml.tune.randint(0, 11),
-        "margin": flaml.tune.quniform(0.5, 1.5, 0.1),
-        "train_loss": flaml.tune.choice(train_losses),
+        # "log_num_negatives": flaml.tune.randint(0, 11),
+        # "margin": flaml.tune.quniform(0.5, 1.5, 0.1),
+        # "train_loss": flaml.tune.choice(train_losses),
         # "learning_rate": flaml.tune.qloguniform(0.0001, 0.01, 0.0001),
         # "weight_decay": flaml.tune.qloguniform(0.001, 0.1, 0.001),
     }
@@ -113,7 +111,7 @@ def flaml_tune() -> flaml.tune.tune.ExperimentAnalysis:
             config=config,
             low_cost_partial_config=low_cost_partial_config,
             points_to_evaluate=[point_to_evaluate],
-            time_budget_s=60 * 60 * 1,
+            time_budget_s=60 * 60 * 6,
             num_samples=-1,
             resource_attr="max_epochs",
             min_resource=1,

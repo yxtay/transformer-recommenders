@@ -55,8 +55,6 @@ def evaluation_function(config: ArgsType) -> dict[str, float]:
 
 
 def flaml_tune() -> flaml.tune.tune.ExperimentAnalysis:
-    train_losses = ["InfoNCELoss", "NCELoss", "PairwiseLogisticLoss"]
-
     point_to_evaluate = {
         "log_hidden_size": 5,
         "num_hidden_layers": 1,
@@ -75,8 +73,8 @@ def flaml_tune() -> flaml.tune.tune.ExperimentAnalysis:
         "log_num_attention_heads": flaml.tune.randint(0, 4),
         "log_intermediate_size": flaml.tune.randint(-1, 3),
         "log_num_negatives": flaml.tune.randint(0, 11),
-        "margin": flaml.tune.quniform(0.5, 1.5, 0.1),
-        "train_loss": flaml.tune.choice(train_losses),
+        # "margin": flaml.tune.quniform(0.5, 1.5, 0.1),
+        # "train_loss": flaml.tune.choice(train_losses),
         # "learning_rate": flaml.tune.qloguniform(0.0001, 0.01, 0.0001),
         # "weight_decay": flaml.tune.qloguniform(0.001, 0.1, 0.001),
     }

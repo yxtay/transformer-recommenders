@@ -7,6 +7,7 @@ import lightning as lp
 import lightning.pytorch.callbacks as lp_callbacks
 import lightning.pytorch.loggers as lp_loggers
 import numpy as np
+import pandas as pd
 import torch
 from loguru import logger
 
@@ -57,6 +58,8 @@ class SeqRecLightningModule(lp.LightningModule):
         self.save_hyperparameters(self.config.model_dump())
 
         self.model: SeqRecModel | None = None
+        self.items_dataset: datasets.Dataset | None = None
+        self.id2idx: pd.Series | None = None
         self.loss_fns: torch.nn.ModuleList | None = None
         self.items_index = LanceIndex(self.config.items_config)
         self.users_index = LanceIndex(self.config.users_config)
@@ -71,6 +74,18 @@ class SeqRecLightningModule(lp.LightningModule):
             self.loss_fns = self.get_loss_fns()
 
     def get_model(self) -> SeqRecModel:
+        if self.items_dataset is None:
+            try:
+                self.items_dataset = self.trainer.datamodule.items_dataset
+            except RuntimeError as e:
+                # RuntimeError if trainer is not attached
+                logger.warning(repr(e))
+
+        if self.id2idx is None and self.items_dataset is not None:
+            self.id2idx = pd.Series(
+                {k: i + 1 for i, k in enumerate(self.items_dataset["item_id"])}
+            )
+
         return SeqRecModel(self.config, device=self.device)
 
     def get_loss_fns(self) -> torch.nn.ModuleList:
@@ -91,11 +106,14 @@ class SeqRecLightningModule(lp.LightningModule):
     @torch.inference_mode()
     def recommend(
         self,
-        item_text: list[str],
+        item_ids: list[str],
         *,
         top_k: int = 0,
         exclude_item_ids: list[str] | None = None,
     ) -> datasets.Dataset:
+        item_ids = [item_id for item_id in item_ids if item_id in self.id2idx.index]
+        item_idx = self.id2idx[item_ids].to_numpy()
+        item_text = self.items_dataset["item_text"][item_idx - 1]
         embedding = self([item_text])["sentence_embedding"].numpy(force=True)
         return self.items_index.search(
             embedding,
@@ -106,11 +124,13 @@ class SeqRecLightningModule(lp.LightningModule):
     def compute_losses(
         self, batch: dict[str, list[list[str]]]
     ) -> dict[str, torch.Tensor]:
-        embeds = self.model.compute_embeds(
-            batch["history_item_text"],
-            batch["pos_item_text"],
-            batch["neg_item_text"],
-        )
+        item_texts = {}
+        for field in ["history", "pos", "neg"]:
+            item_idx = [example[example != 0] for example in batch[f"{field}_item_idx"]]
+            item_text = [self.items_dataset["item_text"][idx - 1] for idx in item_idx]
+            item_texts[f"{field}_item_text"] = item_text
+
+        embeds = self.model.compute_embeds(**item_texts)
 
         attention_mask = embeds["attention_mask"]
         batch_size, seq_len = attention_mask.size()
@@ -169,7 +189,7 @@ class SeqRecLightningModule(lp.LightningModule):
 
     def predict_step(self, row: dict[str, list[str]]) -> datasets.Dataset:
         return self.recommend(
-            row["history"]["item_text"],
+            row["history"]["item_id"],
             top_k=self.config.top_k,
             exclude_item_ids=row["history"]["item_id"],
         )
@@ -245,6 +265,7 @@ if __name__ == "__main__":
     datamodule.prepare_data()
     datamodule.setup()
     model = SeqRecLightningModule(SeqRecLightningConfig())
+    model.items_dataset = datamodule.items_dataset
     model.configure_model()
 
     # train
