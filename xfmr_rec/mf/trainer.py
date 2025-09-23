@@ -10,10 +10,11 @@ import lightning.pytorch.cli as lp_cli
 import lightning.pytorch.loggers as lp_loggers
 import numpy as np
 import torch
+from loguru import logger
 
-from xfmr_rec import losses
+from xfmr_rec import losses as loss_classes
 from xfmr_rec.index import LanceIndex, LanceIndexConfig
-from xfmr_rec.losses import LossConfig, LossType
+from xfmr_rec.losses import LOSS_CLASSES, LossConfig, LossType
 from xfmr_rec.metrics import compute_retrieval_metrics
 from xfmr_rec.mf import MODEL_NAME
 from xfmr_rec.mf.data import MFDataModule, MFDataModuleConfig
@@ -39,6 +40,7 @@ class MFRecLightningConfig(ModelConfig, LossConfig):
     num_hidden_layers: int = 1
     num_attention_heads: int = 4
     intermediate_size: int = 32
+    is_normalized: bool = False
 
     train_loss: LossType = "InfoNCELoss"
     learning_rate: float = 0.001
@@ -70,9 +72,12 @@ class MFRecLightningModule(lp.LightningModule):
         self.items_index = LanceIndex(config=self.config.items_config)
         self.users_index = LanceIndex(config=self.config.users_config)
 
+        logger.info(repr(self.config))
+
     def configure_model(self) -> None:
         if self.model is None:
             self.model = self.get_model()
+            logger.info(self.model)
 
         if self.loss_fns is None:
             self.loss_fns = self.get_loss_fns()
@@ -81,17 +86,7 @@ class MFRecLightningModule(lp.LightningModule):
         return init_sent_transformer(self.config, device=self.device)
 
     def get_loss_fns(self) -> torch.nn.ModuleList:
-        loss_classes = [
-            losses.AlignmentLoss,
-            losses.AlignmentContrastiveLoss,
-            losses.ContrastiveLoss,
-            losses.InfoNCELoss,
-            losses.NCELoss,
-            losses.NegativeDensity,
-            losses.PairwiseHingeLoss,
-            losses.PairwiseLogisticLoss,
-        ]
-        loss_fns = [loss_class(config=self.config) for loss_class in loss_classes]
+        loss_fns = [loss_class(config=self.config) for loss_class in LOSS_CLASSES]
         return torch.nn.ModuleList(loss_fns)
 
     @torch.inference_mode()
@@ -138,12 +133,17 @@ class MFRecLightningModule(lp.LightningModule):
 
         losses = {}
         for loss_fn in self.loss_fns:
-            key = f"loss/{loss_fn.__class__.__name__}"
             loss = loss_fn(
                 anchor_embed=anchor_embed,
                 pos_embed=pos_embed,
                 neg_embed=neg_embed,
             )
+
+            if isinstance(loss_fn, loss_classes.LogitsStatistics):
+                losses |= loss
+                continue
+
+            key = f"loss/{loss_fn.__class__.__name__}"
             losses[key] = loss
             losses[f"{key}Mean"] = loss / (batch_size + 1e-9)
         return losses | metrics
@@ -188,13 +188,13 @@ class MFRecLightningModule(lp.LightningModule):
             for key, value in self.trainer.callback_metrics.items()
             if key.startswith("val/")
         }
-        for logger in self.loggers:
-            if isinstance(logger, lp_loggers.TensorBoardLogger):
-                logger.log_hyperparams(params=params, metrics=metrics)
+        for lp_logger in self.loggers:
+            if isinstance(lp_logger, lp_loggers.TensorBoardLogger):
+                lp_logger.log_hyperparams(params=params, metrics=metrics)
 
-            if isinstance(logger, lp_loggers.MLFlowLogger):
+            if isinstance(lp_logger, lp_loggers.MLFlowLogger):
                 # reset mlflow run status to "RUNNING"
-                logger.experiment.update_run(logger.run_id, status="RUNNING")
+                lp_logger.experiment.update_run(lp_logger.run_id, status="RUNNING")
 
     def on_validation_start(self) -> None:
         self.index_items(self.trainer.datamodule.items_dataset)

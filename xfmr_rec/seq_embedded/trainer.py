@@ -12,9 +12,9 @@ import numpy as np
 import torch
 from loguru import logger
 
-from xfmr_rec import losses
+from xfmr_rec import losses as loss_classes
 from xfmr_rec.index import LanceIndex, LanceIndexConfig
-from xfmr_rec.losses import LossConfig, LossType
+from xfmr_rec.losses import LOSS_CLASSES, LossConfig, LossType
 from xfmr_rec.metrics import compute_retrieval_metrics
 from xfmr_rec.params import (
     ITEMS_TABLE_NAME,
@@ -70,6 +70,8 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
         self.items_index = LanceIndex(config=self.config.items_config)
         self.users_index = LanceIndex(config=self.config.users_config)
 
+        logger.info(repr(self.config))
+
     def configure_model(self) -> None:
         if self.model is None:
             self.model = self.get_model()
@@ -93,17 +95,7 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
         return model
 
     def get_loss_fns(self) -> torch.nn.ModuleList:
-        loss_classes = [
-            losses.AlignmentLoss,
-            losses.AlignmentContrastiveLoss,
-            losses.ContrastiveLoss,
-            losses.InfoNCELoss,
-            losses.NCELoss,
-            losses.NegativeDensity,
-            losses.PairwiseHingeLoss,
-            losses.PairwiseLogisticLoss,
-        ]
-        loss_fns = [loss_class(config=self.config) for loss_class in loss_classes]
+        loss_fns = [loss_class(config=self.config) for loss_class in LOSS_CLASSES]
         return torch.nn.ModuleList(loss_fns)
 
     def forward(self, item_idx: torch.Tensor) -> dict[str, torch.Tensor]:
@@ -145,12 +137,17 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
 
         losses = {}
         for loss_fn in self.loss_fns:
-            key = f"loss/{loss_fn.__class__.__name__}"
             loss = loss_fn(
                 anchor_embed=embeds["anchor_embed"],
                 pos_embed=embeds["pos_embed"],
                 neg_embed=embeds["neg_embed"],
             )
+
+            if isinstance(loss_fn, loss_classes.LogitsStatistics):
+                losses |= loss
+                continue
+
+            key = f"loss/{loss_fn.__class__.__name__}"
             losses[key] = loss
             losses[f"{key}Mean"] = loss / (non_zero + 1e-9)
         return losses | metrics
@@ -196,7 +193,7 @@ class SeqEmbeddedRecLightningModule(lp.LightningModule):
             if key.startswith("val/")
         }
         for lp_logger in self.loggers:
-            if isinstance(logger, lp_loggers.TensorBoardLogger):
+            if isinstance(lp_logger, lp_loggers.TensorBoardLogger):
                 lp_logger.log_hyperparams(params=params, metrics=metrics)
 
             if isinstance(lp_logger, lp_loggers.MLFlowLogger):

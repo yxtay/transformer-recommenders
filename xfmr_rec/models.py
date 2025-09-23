@@ -27,6 +27,7 @@ class ModelConfig(pydantic.BaseModel):
 
     tokenizer_name: str = PRETRAINED_MODEL_NAME
     pooling_mode: Literal["mean", "max", "cls", "lasttoken"] = "mean"
+    is_normalized: bool = True
 
 
 def init_bert(config: ModelConfig) -> BertModel:
@@ -59,18 +60,17 @@ def to_sent_transformer(
 ) -> SentenceTransformer:
     with tempfile.TemporaryDirectory() as tmpdir:
         model.save_pretrained(tmpdir)
+        modules = [
+            models.Transformer(tmpdir, tokenizer_name_or_path=config.tokenizer_name)
+        ]
 
-        transformer = models.Transformer(
-            tmpdir, tokenizer_name_or_path=config.tokenizer_name
-        )
-        pooling = models.Pooling(
-            transformer.get_word_embedding_dimension(), pooling_mode=config.pooling_mode
-        )
-        normalize = models.Normalize()
+    modules.append(
+        models.Pooling(model.config.hidden_size, pooling_mode=config.pooling_mode)
+    )
+    if config.is_normalized:
+        modules.append(models.Normalize())
 
-        return SentenceTransformer(
-            modules=[transformer, pooling, normalize], device=device
-        )
+    return SentenceTransformer(modules=modules, device=device)
 
 
 def init_sent_transformer(
