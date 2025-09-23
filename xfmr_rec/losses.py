@@ -188,14 +188,17 @@ class LogitsStatistics(EmbedLoss):
         neg_density = (negative_masks.sum(dim=-1) / (num_negatives + 1e-9)).mean()
         stats = {"logits/neg/density": neg_density}
 
-        logits = {"pos": logits.diagonal(), "neg": logits[negative_masks]}
-        for key, value in logits.items():
-            stats |= {
-                f"logits/{key}/mean": value.mean(),
-                f"logits/{key}/std": value.std(),
-                f"logits/{key}/min": value.min(),
-                f"logits/{key}/max": value.max(),
-            }
+        for key, value in {
+            "pos": logits.diagonal(),
+            "neg": logits[negative_masks],
+        }.items():
+            if value.numel() > 0:
+                stats |= {
+                    f"logits/{key}/mean": value.mean(),
+                    f"logits/{key}/std": value.std(),
+                    f"logits/{key}/min": value.min(),
+                    f"logits/{key}/max": value.max(),
+                }
         return stats
 
 
