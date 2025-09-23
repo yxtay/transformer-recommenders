@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pathlib
-import shutil
 from typing import TYPE_CHECKING
 
 import lightning as lp
@@ -33,7 +32,7 @@ if TYPE_CHECKING:
     import datasets
 
 
-class SeqRecLightningConfig(SeqRecModelConfig, LossConfig):
+class SeqRecLightningConfig(LossConfig, SeqRecModelConfig):
     train_loss: LossType = "InfoNCELoss"
     learning_rate: float = 0.001
     weight_decay: float = 0.01
@@ -225,9 +224,7 @@ class SeqRecLightningModule(lp.LightningModule):
     def save(self, path: str) -> None:
         path = pathlib.Path(path)
         self.model.save(path)
-
-        lancedb_path = self.config.items_config.lancedb_path
-        shutil.copytree(lancedb_path, path / LANCE_DB_PATH)
+        self.items_index.save(path / LANCE_DB_PATH)
 
 
 def cli_main(
@@ -288,7 +285,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    import contextlib
+    import tempfile
 
     import rich
 
@@ -306,23 +303,26 @@ if __name__ == "__main__":
     model.index_items(datamodule.items_dataset)
     rich.print(model.compute_metrics(next(iter(datamodule.val_dataloader())), "val"))
 
-    trainer_args = {
-        "accelerator": "cpu",
-        "logger": False,
-        "fast_dev_run": True,
-        "max_epochs": 1,
-        "limit_train_batches": 1,
-        "limit_val_batches": 1,
-        "limit_test_batches": 1,
-        "limit_predict_batches": 1,
-        # "overfit_batches": 1,
-        "enable_checkpointing": False,
-    }
-    data_args = {"config": {"num_workers": 0}}
-    cli = cli_main(args={"trainer": trainer_args, "data": data_args}, run=False)
-    with contextlib.suppress(ReferenceError):
-        # suppress weak reference on ModelCheckpoint callback
-        cli.trainer.fit(model=cli.model, datamodule=cli.datamodule)
-        rich.print(cli.trainer.validate(model=cli.model, datamodule=cli.datamodule))
-        rich.print(cli.trainer.test(model=cli.model, datamodule=cli.datamodule))
-        rich.print(cli.trainer.predict(model=cli.model, datamodule=cli.datamodule))
+    with tempfile.TemporaryDirectory() as tmpdir:
+        trainer_args = {
+            "accelerator": "cpu",
+            "logger": False,
+            "max_epochs": 1,
+            "limit_train_batches": 1,
+            "limit_val_batches": 1,
+            "limit_test_batches": 1,
+            "limit_predict_batches": 1,
+            # "overfit_batches": 1,
+            "default_root_dir": tmpdir,
+        }
+        data_args = {"config": {"num_workers": 0}}
+        args = {"trainer": trainer_args, "data": data_args}
+
+        cli = cli_main(args={"fit": args})
+        rich.print(cli.trainer.validate(datamodule=cli.datamodule))
+        rich.print(cli.trainer.test(datamodule=cli.datamodule))
+        rich.print(cli.trainer.predict(datamodule=cli.datamodule))
+
+        ckpt_path = next(pathlib.Path(tmpdir).glob("**/*.ckpt"))
+        model = SeqRecLightningModule.load_from_checkpoint(ckpt_path)
+        rich.print(model)

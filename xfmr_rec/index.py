@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import math
 import pathlib
+import shutil
 from typing import TYPE_CHECKING, Any
 
 import datasets
@@ -37,6 +38,9 @@ class LanceIndex:
         super().__init__()
         self.config = config
         self.table = table
+
+    def save(self, path: str) -> None:
+        shutil.copytree(self.config.lancedb_path, path)
 
     @classmethod
     def load(cls, config: LanceIndexConfig) -> LanceIndex:
