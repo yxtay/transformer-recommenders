@@ -255,7 +255,7 @@ class InfoNCELoss(EmbedLoss):
         )
         # shape: (batch_size, num_items)
         # set false negative logits to -inf
-        logits = logits.where(negative_masks * self.config.scale, -torch.inf)
+        logits = logits.where(negative_masks, -torch.inf) * self.config.scale
         # shape: (batch_size, num_items)
         # targets are indices of diagonal positive logits
         targets = torch.arange(logits.size(0), dtype=torch.long, device=logits.device)
