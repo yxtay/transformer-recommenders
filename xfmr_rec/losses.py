@@ -20,6 +20,7 @@ LossType = Literal[
 
 class LossConfig(pydantic.BaseModel):
     num_negatives: int = 0
+    scale: float = 1.0
     margin: float = 0.5
 
 
@@ -186,7 +187,7 @@ class LogitsStatistics(EmbedLoss):
             num_negatives = min(num_negatives, self.config.num_negatives)
 
         neg_density = (negative_masks.sum(dim=-1) / (num_negatives + 1e-9)).mean()
-        stats = {"logits/neg/density": neg_density}
+        stats = {"logits/neg/density": neg_density.item()}
 
         for key, value in {
             "pos": logits.diagonal(),
@@ -194,10 +195,10 @@ class LogitsStatistics(EmbedLoss):
         }.items():
             if value.numel() > 0:
                 stats |= {
-                    f"logits/{key}/mean": value.mean(),
-                    f"logits/{key}/std": value.std(),
-                    f"logits/{key}/min": value.min(),
-                    f"logits/{key}/max": value.max(),
+                    f"logits/{key}/mean": value.mean().item(),
+                    f"logits/{key}/std": value.std().item(),
+                    f"logits/{key}/min": value.min().item(),
+                    f"logits/{key}/max": value.max().item(),
                 }
         return stats
 
@@ -254,7 +255,7 @@ class InfoNCELoss(EmbedLoss):
         )
         # shape: (batch_size, num_items)
         # set false negative logits to -inf
-        logits = logits.where(negative_masks, -torch.inf)
+        logits = logits.where(negative_masks, -torch.inf) * self.config.scale
         # shape: (batch_size, num_items)
         # targets are indices of diagonal positive logits
         targets = torch.arange(logits.size(0), dtype=torch.long, device=logits.device)

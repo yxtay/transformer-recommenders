@@ -22,7 +22,6 @@ class SeqRecModelConfig(ModelConfig):
     is_decoder: bool = True
 
     pooling_mode: Literal["mean", "max", "cls", "lasttoken"] = "lasttoken"
-    is_normalized: bool = False
 
 
 class SeqRecModel(torch.nn.Module):

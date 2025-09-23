@@ -7,8 +7,8 @@ import bentoml
 import pydantic
 
 from xfmr_rec.deploy import test_bento
+from xfmr_rec.seq.data import SeqDataModule
 from xfmr_rec.seq_embedded import MODEL_NAME
-from xfmr_rec.seq_embedded.data import SeqEmbeddedDataModule
 from xfmr_rec.seq_embedded.service import Service
 from xfmr_rec.seq_embedded.trainer import SeqEmbeddedRecLightningModule, cli_main
 from xfmr_rec.service import (
@@ -29,7 +29,7 @@ def load_args(ckpt_path: str) -> dict[str, Any]:
     if not ckpt_path:
         return {"data": {"config": {"num_workers": 0}}}
 
-    datamodule = SeqEmbeddedDataModule.load_from_checkpoint(ckpt_path)
+    datamodule = SeqDataModule.load_from_checkpoint(ckpt_path)
     model = SeqEmbeddedRecLightningModule.load_from_checkpoint(ckpt_path)
     return {
         "data": {"config": datamodule.config.model_dump()},

@@ -3851,7 +3851,7 @@ requires-dist = [
     { name = "loguru", specifier = ">=0.7,<1.0" },
     { name = "mlflow-skinny", specifier = "~=3.1" },
     { name = "polars", extras = ["pandas"], specifier = "~=1.19" },
-    { name = "pylance", specifier = ">=0.32.1" },
+    { name = "pylance", specifier = ">=0.32,<1.0" },
     { name = "sentence-transformers", extras = ["onnx", "train"], specifier = "~=5.0" },
     { name = "tensorboard", specifier = "~=2.18" },
     { name = "torch", specifier = "~=2.5", index = "https://download.pytorch.org/whl/cpu" },
@@ -3860,7 +3860,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "flaml", extras = ["automl", "blendsearch"], specifier = "~=2.3" },
-    { name = "huggingface-hub", extras = ["cli"], specifier = ">=0.35.0" },
+    { name = "huggingface-hub", extras = ["cli"], specifier = ">=0.35,<1.0" },
     { name = "mlflow" },
     { name = "pytest", specifier = "~=8.4" },
     { name = "rich", specifier = "!=14.1.0" },
