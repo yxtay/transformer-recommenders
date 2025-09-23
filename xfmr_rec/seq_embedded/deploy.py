@@ -10,7 +10,7 @@ from xfmr_rec.deploy import test_bento
 from xfmr_rec.seq.data import SeqDataModule
 from xfmr_rec.seq_embedded import MODEL_NAME
 from xfmr_rec.seq_embedded.service import Service
-from xfmr_rec.seq_embedded.trainer import SeqEmbeddedRecLightningModule, cli_main
+from xfmr_rec.seq_embedded.trainer import SeqEmbeddedLightningModule, cli_main
 from xfmr_rec.service import (
     EXAMPLE_ITEM,
     EXAMPLE_USER,
@@ -30,7 +30,7 @@ def load_args(ckpt_path: str) -> dict[str, Any]:
         return {"data": {"config": {"num_workers": 0}}}
 
     datamodule = SeqDataModule.load_from_checkpoint(ckpt_path)
-    model = SeqEmbeddedRecLightningModule.load_from_checkpoint(ckpt_path)
+    model = SeqEmbeddedLightningModule.load_from_checkpoint(ckpt_path)
     return {
         "data": {"config": datamodule.config.model_dump()},
         "model": {"config": model.config.model_dump()},
@@ -58,7 +58,7 @@ def prepare_trainer(
 
 def save_model(trainer: Trainer) -> None:
     with bentoml.models.create(MODEL_NAME) as model_ref:
-        model: SeqEmbeddedRecLightningModule = trainer.model
+        model: SeqEmbeddedLightningModule = trainer.model
         model.save(model_ref.path)
 
 

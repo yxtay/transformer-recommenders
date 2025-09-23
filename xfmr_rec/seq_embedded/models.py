@@ -13,19 +13,20 @@ if TYPE_CHECKING:
     import datasets
 
 
-class SeqEmbeddedRecModelConfig(ModelConfig):
+class SeqEmbeddedModelConfig(ModelConfig):
     vocab_size: int | None = 1
     hidden_size: int = 384
     num_hidden_layers: int = 1
     num_attention_heads: int = 12
     intermediate_size: int = 48
     max_seq_length: int | None = 32
+    is_decoder: bool = True
 
 
-class SeqEmbeddedRecModel(torch.nn.Module):
+class SeqEmbeddedModel(torch.nn.Module):
     def __init__(
         self,
-        config: ModelConfig,
+        config: SeqEmbeddedModelConfig,
         *,
         device: torch.device | str | None = None,
         model: SentenceTransformer | None = None,
@@ -71,14 +72,14 @@ class SeqEmbeddedRecModel(torch.nn.Module):
     @classmethod
     def load(
         cls, path: str, device: torch.device | str | None = None
-    ) -> SeqEmbeddedRecModel:
+    ) -> SeqEmbeddedModel:
         model = SentenceTransformer(path, device=device, local_files_only=True)
         logger.info(f"model loaded: {path}")
 
         tokenizer_name = model[0].tokenizer.name_or_path
         pooling_mode = model[1].get_pooling_mode_str()
         model_conf = model[0].auto_model.config
-        config = SeqEmbeddedRecModelConfig.model_validate(
+        config = SeqEmbeddedModelConfig.model_validate(
             model_conf, from_attributes=True
         ).model_copy(
             update={

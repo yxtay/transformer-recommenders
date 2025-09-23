@@ -60,7 +60,8 @@ class SeqDataModuleConfig(SeqDataConfig):
 class SeqDataset(torch_data.Dataset[SeqExample]):
     def __init__(
         self,
-        config: SeqDataModuleConfig,
+        config: SeqDataConfig,
+        *,
         items_dataset: datasets.Dataset,
         users_dataset: datasets.Dataset,
     ) -> None:
@@ -72,7 +73,7 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
             {k: i + 1 for i, k in enumerate(items_dataset["item_id"])}
         )
         self.all_idx = set(self.id2idx)
-        self.item_text: list[str] = items_dataset["item_text"]
+        self.item_text: datasets.Column = items_dataset["item_text"]
 
         self.users_dataset = self.process_events(users_dataset)
 
@@ -167,7 +168,7 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
     def __getitem__(self, idx: int) -> SeqExample:
         row = self.users_dataset[idx]
         history_item_idx = row["history_item_idx"]
-        history_label = row["history.label"]
+        history_label = row["history_label"]
 
         sampled_indices = self.sample_sequence(history_item_idx)
         pos_item_idx = self.sample_positive(

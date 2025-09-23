@@ -34,7 +34,7 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
 
         self.id2idx = pd.Series({k: i for i, k in enumerate(items_dataset["item_id"])})
         self.all_idx = set(self.id2idx)
-        self.item_text: list[str] = items_dataset["item_text"]
+        self.item_text: datasets.Column = items_dataset["item_text"]
 
         self.users_dataset = self.process_events(users_dataset)
 

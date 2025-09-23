@@ -30,7 +30,7 @@ class SeqRecModel(torch.nn.Module):
 
     def __init__(
         self,
-        config: ModelConfig,
+        config: SeqRecModelConfig,
         *,
         device: torch.device | str | None = None,
         embedder: SentenceTransformer | None = None,
@@ -55,8 +55,7 @@ class SeqRecModel(torch.nn.Module):
 
     def configure_model(self, device: torch.device | str | None = None) -> None:
         if self.encoder is None:
-            encoder_conf = self.config
-            self.encoder = init_sent_transformer(encoder_conf, device=device)
+            self.encoder = init_sent_transformer(self.config, device=device)
 
         if self.embedder is None:
             embedding_conf = self.config.model_copy(

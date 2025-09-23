@@ -1,7 +1,6 @@
 # paths
 MOVIELENS_1M_URL = "https://files.grouplens.org/datasets/movielens/ml-1m.zip"
 DATA_DIR = "data"
-TENSORBOARD_DIR = "lightning_logs"
 
 # data
 ITEMS_PARQUET = "data/ml-1m/items.parquet"
