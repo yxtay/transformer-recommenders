@@ -102,7 +102,7 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
         self, query_embed: torch.Tensor, candidate_embed: torch.Tensor
     ) -> torch.Tensor:
         return dot_product_matrix(query_embed, candidate_embed)
-        # shape: (batch_size, 2 * batch_size)
+        # shape: (batch_size, num_candidates)
 
     def cosine_similarity_logits(
         self, query_embed: torch.Tensor, candidate_embed: torch.Tensor
