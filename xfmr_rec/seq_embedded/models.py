@@ -86,7 +86,7 @@ class SeqEmbeddedModel(torch.nn.Module):
         ).model_copy(
             update={
                 "max_seq_length": model_conf.max_position_embeddings,
-                "tokenizer_name": tokenizer_name,
+                "pretrained_model_name": tokenizer_name,
                 "pooling_mode": pooling_mode,
             }
         )
