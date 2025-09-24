@@ -128,7 +128,7 @@ class MFRecLightningModule(lp.LightningModule):
             top_k=top_k or self.config.top_k,
         )
 
-    def compute_losses(self, batch: dict[str, str]) -> dict[str, torch.Tensor]:
+    def compute_losses(self, batch: dict[str, list[str]]) -> dict[str, torch.Tensor]:
         anchor_embed = self(batch["anchor_text"])
         pos_embed = self(batch["pos_item_text"])
         neg_embed = self(batch["neg_item_text"])
