@@ -40,7 +40,8 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
         self.rng = np.random.default_rng()
 
         self.id2idx = pd.Series(
-            np.arange(len(items_dataset)), index=items_dataset["item_id"]
+            pd.RangeIndex(len(items_dataset)),
+            index=items_dataset.with_format("pandas")["item_id"],
         )
         self.all_idx = set(self.id2idx)
         self.item_text: datasets.Column = items_dataset["item_text"]

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import numpy as np
 import pandas as pd
 import torch
 from loguru import logger
@@ -64,7 +63,8 @@ class SeqEmbeddedModel(torch.nn.Module):
 
         if self.id2idx is None:
             self.id2idx = pd.Series(
-                np.arange(len(items_dataset)) + 1, index=items_dataset["item_id"]
+                pd.RangeIndex(len(items_dataset)) + 1,
+                index=items_dataset.with_format("pandas")["item_id"],
             )
 
     def save(self, path: str) -> None:
