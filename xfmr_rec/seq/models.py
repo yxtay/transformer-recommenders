@@ -14,10 +14,10 @@ from xfmr_rec.models import ModelConfig, init_sent_transformer
 
 class SeqRecModelConfig(ModelConfig):
     vocab_size: int | None = 1
-    hidden_size: int = 32
-    num_hidden_layers: int = 1
-    num_attention_heads: int = 4
-    intermediate_size: int = 32
+    hidden_size: int | None = 32
+    num_hidden_layers: int | None = 1
+    num_attention_heads: int | None = 4
+    intermediate_size: int | None = 32
     max_seq_length: int | None = 32
     is_decoder: bool = True
 
