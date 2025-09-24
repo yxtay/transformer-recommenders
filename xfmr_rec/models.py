@@ -33,16 +33,15 @@ class ModelConfig(pydantic.BaseModel):
 def init_bert(config: ModelConfig) -> BertModel:
     model = None
     tokenizer = None
-    if config.vocab_size is None:
+    if config.vocab_size is None or config.max_seq_length is None:
         tokenizer = AutoTokenizer.from_pretrained(  # nosec
             config.pretrained_model_name
         )
+
+    if config.vocab_size is None:
         config.vocab_size = tokenizer.vocab_size
 
     if config.max_seq_length is None:
-        tokenizer = tokenizer or AutoTokenizer.from_pretrained(  # nosec
-            config.pretrained_model_name
-        )
         config.max_seq_length = tokenizer.model_max_length
 
     if config.hidden_size is None:
