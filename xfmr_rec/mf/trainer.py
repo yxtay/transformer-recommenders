@@ -191,7 +191,7 @@ class MFRecLightningModule(lp.LightningModule):
         }
         return metrics | item_metrics
 
-    def training_step(self, batch: dict[str, str]) -> torch.Tensor:
+    def training_step(self, batch: dict[str, list[str]]) -> torch.Tensor:
         loss_dict = self.compute_losses(batch)
         self.log_dict(loss_dict)
         return loss_dict[f"loss/{self.config.train_loss}"]
