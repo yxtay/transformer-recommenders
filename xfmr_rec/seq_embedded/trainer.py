@@ -21,7 +21,7 @@ from xfmr_rec.params import (
     TRANSFORMER_PATH,
     USERS_TABLE_NAME,
 )
-from xfmr_rec.seq.data import SeqDataModule, SeqDataModuleConfig
+from xfmr_rec.seq.data import SeqBatch, SeqDataModule, SeqDataModuleConfig
 from xfmr_rec.seq_embedded import MODEL_NAME
 from xfmr_rec.seq_embedded.models import SeqEmbeddedModel, SeqEmbeddedModelConfig
 from xfmr_rec.trainer import LightningCLI
@@ -105,7 +105,7 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
             top_k=top_k or self.config.top_k,
         )
 
-    def compute_losses(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+    def compute_losses(self, batch: SeqBatch) -> dict[str, torch.Tensor]:
         embeds = self.model.compute_embeds(
             batch["history_item_idx"],
             batch["pos_item_idx"],
@@ -154,7 +154,7 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         )
         return {f"{stage}/{key}": value for key, value in metrics.items()}
 
-    def training_step(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
+    def training_step(self, batch: SeqBatch) -> torch.Tensor:
         loss_dict = self.compute_losses(batch)
         self.log_dict(loss_dict)
         return loss_dict[f"loss/{self.config.train_loss}"]

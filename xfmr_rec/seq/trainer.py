@@ -22,7 +22,7 @@ from xfmr_rec.params import (
     USERS_TABLE_NAME,
 )
 from xfmr_rec.seq import MODEL_NAME
-from xfmr_rec.seq.data import SeqDataModule, SeqDataModuleConfig
+from xfmr_rec.seq.data import SeqBatch, SeqDataModule, SeqDataModuleConfig
 from xfmr_rec.seq.models import SeqRecModel, SeqRecModelConfig
 from xfmr_rec.trainer import LightningCLI
 
@@ -119,17 +119,12 @@ class SeqRecLightningModule(lp.LightningModule):
             top_k=top_k or self.config.top_k,
         )
 
-    def compute_losses(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
-        item_texts = {}
-        for field in ["history", "pos", "neg"]:
-            item_idx = [
-                example[example != 0].numpy(force=True)
-                for example in batch[f"{field}_item_idx"]
-            ]
-            item_text = [self.items_dataset["item_text"][idx - 1] for idx in item_idx]
-            item_texts[f"{field}_item_text"] = item_text
-
-        embeds = self.model.compute_embeds(**item_texts)
+    def compute_losses(self, batch: SeqBatch) -> dict[str, torch.Tensor]:
+        embeds = self.model.compute_embeds(
+            batch["history_item_text"],
+            batch["pos_item_text"],
+            batch["neg_item_text"],
+        )
 
         attention_mask = embeds["attention_mask"]
         batch_size, seq_len = attention_mask.size()
@@ -173,7 +168,7 @@ class SeqRecLightningModule(lp.LightningModule):
         )
         return {f"{stage}/{key}": value for key, value in metrics.items()}
 
-    def training_step(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
+    def training_step(self, batch: SeqBatch) -> torch.Tensor:
         loss_dict = self.compute_losses(batch)
         self.log_dict(loss_dict)
         return loss_dict[f"loss/{self.config.train_loss}"]
