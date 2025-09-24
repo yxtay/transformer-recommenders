@@ -184,7 +184,7 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         collated = {key: [example[key] for example in batch] for key in batch[0]}
         return {
             key: pad_sequence(value, batch_first=True)
-            if isinstance(value, torch.Tensor)
+            if isinstance(value[0], torch.Tensor)
             else value
             for key, value in collated.items()
         }
