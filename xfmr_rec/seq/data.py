@@ -70,7 +70,7 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
 
         # idx 0 for padding
         self.id2idx = pd.Series(
-            {k: i + 1 for i, k in enumerate(items_dataset["item_id"])}
+            np.arange(len(items_dataset)) + 1, index=items_dataset["item_id"]
         )
         self.all_idx = set(self.id2idx)
         self.item_texts: datasets.Column = items_dataset["item_text"]

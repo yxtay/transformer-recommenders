@@ -59,7 +59,7 @@ class SeqRecLightningModule(lp.LightningModule):
 
         self.model: SeqRecModel | None = None
         self.items_dataset: datasets.Dataset | None = None
-        self.id2idx: pd.Series | None = None
+        self.id2text: pd.Series | None = None
         self.loss_fns: torch.nn.ModuleList | None = None
         self.items_index = LanceIndex(self.config.items_config)
         self.users_index = LanceIndex(self.config.users_config)
@@ -77,9 +77,9 @@ class SeqRecLightningModule(lp.LightningModule):
                 # RuntimeError if trainer is not attached
                 logger.warning(repr(e))
 
-        if self.id2idx is None and self.items_dataset is not None:
-            self.id2idx = pd.Series(
-                {k: i + 1 for i, k in enumerate(self.items_dataset["item_id"])}
+        if self.id2text is None and self.items_dataset is not None:
+            self.id2text = pd.Series(
+                self.items_dataset["item_text"], index=self.items_dataset["item_id"]
             )
 
         if self.loss_fns is None:
@@ -108,10 +108,8 @@ class SeqRecLightningModule(lp.LightningModule):
         top_k: int = 0,
         exclude_item_ids: list[str] | None = None,
     ) -> datasets.Dataset:
-        item_ids = [item_id for item_id in item_ids if item_id in self.id2idx.index]
-        item_idx = self.id2idx[item_ids].to_numpy()
-        item_text = self.items_dataset["item_text"][item_idx - 1]
-
+        item_ids = [item_id for item_id in item_ids if item_id in self.id2text.index]
+        item_text = self.id2text[item_ids].tolist()
         embedding = self([item_text])["sentence_embedding"].numpy(force=True)
         return self.items_index.search(
             embedding,
