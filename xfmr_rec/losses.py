@@ -108,7 +108,7 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
         self, query_embed: torch.Tensor, candidate_embed: torch.Tensor
     ) -> torch.Tensor:
         return cosine_similarity_matrix(query_embed, candidate_embed)
-        # shape: (batch_size, 2 * batch_size)
+        # shape: (batch_size, num_candidates)
 
     def mask_false_negatives(self, logits: torch.Tensor) -> torch.Tensor:
         # items with logits >= positive logits are false negatives
