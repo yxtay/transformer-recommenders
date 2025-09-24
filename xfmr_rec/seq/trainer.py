@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 import lightning as lp
 import lightning.pytorch.callbacks as lp_callbacks
 import lightning.pytorch.loggers as lp_loggers
-import numpy as np
 import pandas as pd
 import torch
 from loguru import logger
@@ -68,12 +67,8 @@ class SeqRecLightningModule(lp.LightningModule):
 
     def configure_model(self) -> None:
         if self.model is None:
-            self.model = self.get_model()
+            self.model = SeqRecModel(self.config, device=self.device)
 
-        if self.loss_fns is None:
-            self.loss_fns = self.get_loss_fns()
-
-    def get_model(self) -> SeqRecModel:
         if self.items_dataset is None:
             try:
                 self.items_dataset = self.trainer.datamodule.items_dataset
@@ -86,7 +81,8 @@ class SeqRecLightningModule(lp.LightningModule):
                 {k: i + 1 for i, k in enumerate(self.items_dataset["item_id"])}
             )
 
-        return SeqRecModel(self.config, device=self.device)
+        if self.loss_fns is None:
+            self.loss_fns = self.get_loss_fns()
 
     def get_loss_fns(self) -> torch.nn.ModuleList:
         loss_fns = [loss_class(self.config) for loss_class in LOSS_CLASSES]
@@ -114,6 +110,7 @@ class SeqRecLightningModule(lp.LightningModule):
         item_ids = [item_id for item_id in item_ids if item_id in self.id2idx.index]
         item_idx = self.id2idx[item_ids].to_numpy()
         item_text = self.items_dataset["item_text"][item_idx - 1]
+
         embedding = self([item_text])["sentence_embedding"].numpy(force=True)
         return self.items_index.search(
             embedding,
@@ -121,12 +118,13 @@ class SeqRecLightningModule(lp.LightningModule):
             top_k=top_k or self.config.top_k,
         )
 
-    def compute_losses(
-        self, batch: dict[str, list[list[str]]]
-    ) -> dict[str, torch.Tensor]:
+    def compute_losses(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         item_texts = {}
         for field in ["history", "pos", "neg"]:
-            item_idx = [example[example != 0] for example in batch[f"{field}_item_idx"]]
+            item_idx = [
+                example[example != 0].numpy(force=True)
+                for example in batch[f"{field}_item_idx"]
+            ]
             item_text = [self.items_dataset["item_text"][idx - 1] for idx in item_idx]
             item_texts[f"{field}_item_text"] = item_text
 
@@ -162,36 +160,38 @@ class SeqRecLightningModule(lp.LightningModule):
         return losses | metrics
 
     def compute_metrics(
-        self, row: dict[str, list[str]], stage: str = "val"
+        self, row: dict[str, np.ndarray], stage: str = "val"
     ) -> dict[str, torch.Tensor]:
         recs = self.predict_step(row)
         metrics = compute_retrieval_metrics(
             rec_ids=recs["item_id"][:],
-            target_ids=np.asarray(row["target"]["item_id"])[row["target"]["label"]],
+            target_ids=row["target"]["item_id"][
+                row["target"]["label"].tolist()
+            ].tolist(),
             top_k=self.config.top_k,
         )
         return {f"{stage}/{key}": value for key, value in metrics.items()}
 
-    def training_step(self, batch: dict[str, list[list[str]]]) -> torch.Tensor:
+    def training_step(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
         loss_dict = self.compute_losses(batch)
         self.log_dict(loss_dict)
         return loss_dict[f"loss/{self.config.train_loss}"]
 
-    def validation_step(self, row: dict[str, list[str]]) -> dict[str, float]:
+    def validation_step(self, row: dict[str, np.ndarray]) -> dict[str, float]:
         metrics = self.compute_metrics(row, stage="val")
         self.log_dict(metrics, batch_size=1)
         return metrics
 
-    def test_step(self, row: dict[str, list[str]]) -> dict[str, float]:
+    def test_step(self, row: dict[str, np.ndarray]) -> dict[str, float]:
         metrics = self.compute_metrics(row, stage="test")
         self.log_dict(metrics, batch_size=1)
         return metrics
 
-    def predict_step(self, row: dict[str, list[str]]) -> datasets.Dataset:
+    def predict_step(self, row: dict[str, np.ndarray]) -> datasets.Dataset:
         return self.recommend(
-            row["history"]["item_id"],
+            row["history"]["item_id"].tolist(),
             top_k=self.config.top_k,
-            exclude_item_ids=row["history"]["item_id"],
+            exclude_item_ids=row["history"]["item_id"].tolist(),
         )
 
     def on_train_start(self) -> None:

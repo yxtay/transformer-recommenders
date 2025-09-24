@@ -35,6 +35,7 @@ class SeqEmbeddedModel(torch.nn.Module):
         self.config = config
         self.model = model
         self.embeddings: torch.nn.Embedding | None = None
+        self.id2idx: pd.Series | None = None
 
         self.configure_model(device=device)
         logger.info(repr(self.config))
@@ -54,16 +55,17 @@ class SeqEmbeddedModel(torch.nn.Module):
 
     def configure_embeddings(self, items_dataset: datasets.Dataset) -> None:
         if self.embeddings is None:
-            self.id2idx = pd.Series(
-                {k: i + 1 for i, k in enumerate(items_dataset["item_id"])}
-            )
-
             weights = items_dataset.with_format("torch")["embedding"][:]
             # add idx 0 for padding
             weights = torch.cat([torch.zeros_like(weights[[0], :]), weights])
             self.embeddings = torch.nn.Embedding.from_pretrained(
                 weights, freeze=True, padding_idx=0
             ).to(self.device)
+
+        if self.id2idx is None:
+            self.id2idx = pd.Series(
+                {k: i + 1 for i, k in enumerate(items_dataset["item_id"])}
+            )
 
     def save(self, path: str) -> None:
         self.model.save(path)

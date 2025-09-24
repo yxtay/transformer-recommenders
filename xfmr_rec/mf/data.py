@@ -15,7 +15,11 @@ from xfmr_rec.data import download_unpack_data, prepare_movielens
 from xfmr_rec.params import DATA_DIR, ITEMS_PARQUET, MOVIELENS_1M_URL, USERS_PARQUET
 
 
-class MFDataModuleConfig(pydantic.BaseModel):
+class MFDatasetConfig(pydantic.BaseModel):
+    anchor_sampling_prob: float = 0.5
+
+
+class MFDataModuleConfig(MFDatasetConfig):
     data_dir: str = DATA_DIR
     items_parquet: str = ITEMS_PARQUET
     users_parquet: str = USERS_PARQUET
@@ -27,9 +31,12 @@ class MFDataModuleConfig(pydantic.BaseModel):
 class MFDataset(torch_data.Dataset[dict[str, str]]):
     def __init__(
         self,
+        config: MFDatasetConfig,
+        *,
         items_dataset: datasets.Dataset,
         users_dataset: datasets.Dataset,
     ) -> None:
+        self.config = MFDatasetConfig.model_validate(config)
         self.rng = np.random.default_rng()
 
         self.id2idx = pd.Series({k: i for i, k in enumerate(items_dataset["item_id"])})
@@ -41,18 +48,10 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
         logger.info(f"num_rows: {len(self)}, num_items: {len(self.id2idx)}")
 
     def process_events(self, users_dataset: datasets.Dataset) -> datasets.Dataset:
-        def map_item_idx(example: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
-            item_ids = example["history.item_id"]
-            labels = example["history.label"]
-
-            mask = [item_id in self.id2idx.index for item_id in item_ids]
-            item_idx = self.id2idx[item_ids[mask]].to_numpy()
-            return {"history_item_idx": item_idx[labels[mask]]}
-
         def duplicate_rows(
             batch: dict[str, list[np.ndarray]],
         ) -> dict[str, list[np.ndarray]]:
-            history_item_idx = batch["history_item_idx"]
+            history_item_idx = batch["history.item_id"]
             num_copies = [len(seq) for seq in history_item_idx]
             return {key: np.repeat(batch[key], num_copies) for key in batch}
 
@@ -60,35 +59,60 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
             users_dataset.flatten()
             .select_columns(["user_text", "history.item_id", "history.label"])
             .with_format("numpy")
-            .map(map_item_idx)
             .map(duplicate_rows, batched=True)
-            .with_format("torch")
         )
-
-    def sample_positive(self, history_item_idx: torch.Tensor) -> torch.Tensor:
-        pos_candidates = history_item_idx
-        return self.rng.choice(pos_candidates)
-
-    def sample_negative(self, history_item_idx: torch.Tensor) -> torch.Tensor:
-        neg_candidates = list(self.all_idx - set(history_item_idx.tolist()))
-        if len(neg_candidates) == 0:
-            neg_candidates = list(self.all_idx)
-        return self.rng.choice(neg_candidates)
 
     def __len__(self) -> int:
         return len(self.users_dataset)
 
-    def __getitem__(self, idx: int) -> dict[str, str]:
-        row = self.users_dataset[idx]
-        user_text = row["user_text"]
-        history_item_idx = row["history_item_idx"]
+    def map_id2idx(self, item_ids: np.ndarray, labels: np.ndarray) -> list[int]:
+        mask = [item_id in self.id2idx.index for item_id in item_ids]
+        item_idx = self.id2idx[item_ids[mask]].to_numpy()
+        return item_idx[labels[mask]].tolist()
 
-        pos_item_idx = self.sample_positive(history_item_idx=history_item_idx)
+    def sample_positive_idx(self, history_item_idx: list[int]) -> int:
+        indices = range(len(history_item_idx))
+        return self.rng.choice(indices).item()
+
+    def sample_negative(self, history_item_idx: list[int]) -> int:
+        neg_candidates = list(self.all_idx - set(history_item_idx))
+        if len(neg_candidates) == 0:
+            neg_candidates = list(self.all_idx)
+        return self.rng.choice(neg_candidates).item()
+
+    def sample_anchor_text(
+        self,
+        user_text: str,
+        pos_idx: int,
+        history_item_idx: list[int],
+    ) -> str:
+        anchor_candidates = history_item_idx[:pos_idx]
+        if (
+            self.rng.random() > self.config.anchor_sampling_prob
+            or len(anchor_candidates) == 0
+        ):
+            return user_text
+
+        anchor_idx = self.rng.choice(anchor_candidates)
+        return self.item_text[anchor_idx]
+
+    def __getitem__(self, idx: int) -> dict[str, str]:
+        user_text = self.users_dataset["user_text"][idx]
+        item_ids = self.users_dataset["history.item_id"][idx]
+        labels = self.users_dataset["history.label"][idx]
+
+        history_item_idx = self.map_id2idx(item_ids, labels)
+        pos_idx = self.sample_positive_idx(history_item_idx=history_item_idx)
         neg_item_idx = self.sample_negative(history_item_idx=history_item_idx)
+        anchor_text = self.sample_anchor_text(
+            user_text=user_text,
+            pos_idx=pos_idx,
+            history_item_idx=history_item_idx,
+        )
         return {
-            "user_text": user_text,
-            "pos_item_text": self.item_text[pos_item_idx],
+            "pos_item_text": self.item_text[history_item_idx[pos_idx]],
             "neg_item_text": self.item_text[neg_item_idx],
+            "anchor_text": anchor_text,
         }
 
 
@@ -129,23 +153,25 @@ class MFDataModule(lp.LightningDataModule):
                 self.config.users_parquet, filters=pc.field("is_train")
             )
             self.train_dataset = MFDataset(
-                items_dataset=self.items_dataset, users_dataset=train_dataset
+                self.config,
+                items_dataset=self.items_dataset,
+                users_dataset=train_dataset,
             )
 
         if self.val_dataset is None and stage in {"fit", "validate", None}:
             self.val_dataset = datasets.Dataset.from_parquet(
                 self.config.users_parquet, filters=pc.field("is_val")
-            )
+            ).with_format("numpy")
 
         if self.test_dataset is None and stage in {"test", None}:
             self.test_dataset = datasets.Dataset.from_parquet(
                 self.config.users_parquet, filters=pc.field("is_test")
-            )
+            ).with_format("numpy")
 
         if self.predict_dataset is None:
             self.predict_dataset = datasets.Dataset.from_parquet(
                 self.config.users_parquet, filters=pc.field("is_predict")
-            )
+            ).with_format("numpy")
 
     def get_dataloader(
         self,
@@ -196,10 +222,10 @@ if __name__ == "__main__":
         datamodule.users_dataset,
         datamodule.train_dataset,
         datamodule.train_dataloader(),
-        # datamodule.val_dataset,
-        # datamodule.val_dataloader(),
-        # datamodule.test_dataset,
-        # datamodule.test_dataloader(),
+        datamodule.val_dataset,
+        datamodule.val_dataloader(),
+        datamodule.test_dataset,
+        datamodule.test_dataloader(),
     ]
     for dataloader in dataloaders:
         batch = next(iter(dataloader))

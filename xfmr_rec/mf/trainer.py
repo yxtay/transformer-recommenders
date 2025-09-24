@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import lightning as lp
 import lightning.pytorch.callbacks as lp_callbacks
 import lightning.pytorch.loggers as lp_loggers
-import numpy as np
+import pandas as pd
 import torch
 from loguru import logger
 
@@ -65,6 +65,8 @@ class MFRecLightningModule(lp.LightningModule):
         self.save_hyperparameters(self.config.model_dump())
 
         self.model: SentenceTransformer | None = None
+        self.items_dataset: datasets.Dataset | None = None
+        self.id2idx: pd.Series | None = None
         self.loss_fns: torch.nn.ModuleList | None = None
         self.items_index = LanceIndex(self.config.items_config)
         self.users_index = LanceIndex(self.config.users_config)
@@ -73,14 +75,23 @@ class MFRecLightningModule(lp.LightningModule):
 
     def configure_model(self) -> None:
         if self.model is None:
-            self.model = self.get_model()
+            self.model = init_sent_transformer(self.config, device=self.device)
             logger.info(self.model)
+
+        if self.items_dataset is None:
+            try:
+                self.items_dataset = self.trainer.datamodule.items_dataset
+            except RuntimeError as e:
+                # RuntimeError if trainer is not attached
+                logger.warning(repr(e))
+
+        if self.id2idx is None and self.items_dataset is not None:
+            self.id2idx = pd.Series(
+                {k: i for i, k in enumerate(self.items_dataset["item_id"])}
+            )
 
         if self.loss_fns is None:
             self.loss_fns = self.get_loss_fns()
-
-    def get_model(self) -> SentenceTransformer:
-        return init_sent_transformer(self.config, device=self.device)
 
     def get_loss_fns(self) -> torch.nn.ModuleList:
         loss_fns = [loss_class(self.config) for loss_class in LOSS_CLASSES]
@@ -105,20 +116,20 @@ class MFRecLightningModule(lp.LightningModule):
     @torch.inference_mode()
     def recommend(
         self,
-        user_text: list[str],
+        anchor_text: str,
         *,
         top_k: int = 0,
         exclude_item_ids: list[str] | None = None,
     ) -> datasets.Dataset:
-        embedding = self.model.encode(user_text)
+        embedding = self.model.encode(anchor_text)
         return self.items_index.search(
             embedding,
             exclude_item_ids=exclude_item_ids,
             top_k=top_k or self.config.top_k,
         )
 
-    def compute_losses(self, batch: dict[str, list[str]]) -> dict[str, torch.Tensor]:
-        anchor_embed = self(batch["user_text"])
+    def compute_losses(self, batch: dict[str, str]) -> dict[str, torch.Tensor]:
+        anchor_embed = self(batch["anchor_text"])
         pos_embed = self(batch["pos_item_text"])
         neg_embed = self(batch["neg_item_text"])
 
@@ -146,12 +157,41 @@ class MFRecLightningModule(lp.LightningModule):
         recs = self.predict_step(row)
         metrics = compute_retrieval_metrics(
             rec_ids=recs["item_id"][:],
-            target_ids=np.asarray(row["target"]["item_id"])[row["target"]["label"]],
+            target_ids=row["target"]["item_id"][
+                row["target"]["label"].tolist()
+            ].tolist(),
             top_k=self.config.top_k,
         )
-        return {f"{stage}/{key}": value for key, value in metrics.items()}
+        metrics = {f"{stage}/{key}": value for key, value in metrics.items()}
 
-    def training_step(self, batch: dict[str, list[str]]) -> torch.Tensor:
+        try:
+            item_id = next(
+                item_id
+                for item_id in reversed(row["history"]["item_id"].tolist())
+                if item_id in self.id2idx.index
+            )
+        except StopIteration:
+            return metrics
+
+        item_text = self.items_dataset["item_text"][self.id2idx[item_id]]
+        item_recs = self.recommend(
+            item_text,
+            top_k=self.config.top_k,
+            exclude_item_ids=row["history"]["item_id"].tolist(),
+        )
+        item_metrics = compute_retrieval_metrics(
+            rec_ids=item_recs["item_id"][:],
+            target_ids=row["target"]["item_id"][
+                row["target"]["label"].tolist()
+            ].tolist(),
+            top_k=self.config.top_k,
+        )
+        item_metrics = {
+            f"{stage}/item/{key}": value for key, value in item_metrics.items()
+        }
+        return metrics | item_metrics
+
+    def training_step(self, batch: dict[str, str]) -> torch.Tensor:
         loss_dict = self.compute_losses(batch)
         self.log_dict(loss_dict)
         return loss_dict[f"loss/{self.config.train_loss}"]
@@ -170,7 +210,7 @@ class MFRecLightningModule(lp.LightningModule):
         return self.recommend(
             row["user_text"],
             top_k=self.config.top_k,
-            exclude_item_ids=row["history"]["item_id"],
+            exclude_item_ids=row["history"]["item_id"].tolist(),
         )
 
     def on_train_start(self) -> None:
@@ -210,7 +250,7 @@ class MFRecLightningModule(lp.LightningModule):
             monitor=METRIC["name"], mode=METRIC["mode"]
         )
         early_stop = lp_callbacks.EarlyStopping(
-            monitor=METRIC["name"], mode=METRIC["mode"]
+            monitor=METRIC["name"], mode=METRIC["mode"], patience=7
         )
         return [checkpoint, early_stop]
 
@@ -244,6 +284,7 @@ if __name__ == "__main__":
     datamodule.prepare_data()
     datamodule.setup()
     model = MFRecLightningModule(MFRecLightningConfig())
+    model.items_dataset = datamodule.items_dataset
     model.configure_model()
 
     # train
