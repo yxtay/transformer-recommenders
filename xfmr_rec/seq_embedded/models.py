@@ -15,10 +15,9 @@ if TYPE_CHECKING:
 
 class SeqEmbeddedModelConfig(ModelConfig):
     vocab_size: int | None = 1
-    hidden_size: int = 384
-    num_hidden_layers: int = 1
-    num_attention_heads: int = 12
-    intermediate_size: int = 48
+    num_hidden_layers: int | None = 1
+    num_attention_heads: int | None = 12
+    intermediate_size: int | None = 48
     max_seq_length: int | None = 32
     is_decoder: bool = True
 
