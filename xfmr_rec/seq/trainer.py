@@ -79,8 +79,8 @@ class SeqRecLightningModule(lp.LightningModule):
 
         if self.id2text is None and self.items_dataset is not None:
             self.id2text = pd.Series(
-                self.items_dataset.with_format("numpy")["item_text"],
-                index=self.items_dataset.with_format("numpy")["item_id"],
+                self.items_dataset.with_format("pandas")["item_text"].array,
+                index=self.items_dataset.with_format("pandas")["item_id"].array,
             )
 
         if self.loss_fns is None:
