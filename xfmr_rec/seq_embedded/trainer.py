@@ -28,6 +28,7 @@ from xfmr_rec.trainer import LightningCLI
 
 if TYPE_CHECKING:
     import datasets
+    import numpy as np
 
 
 class SeqEmbeddedLightningConfig(LossConfig, SeqEmbeddedModelConfig):
