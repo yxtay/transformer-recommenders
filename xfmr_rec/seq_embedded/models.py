@@ -64,7 +64,7 @@ class SeqEmbeddedModel(torch.nn.Module):
         if self.id2idx is None:
             self.id2idx = pd.Series(
                 pd.RangeIndex(len(items_dataset)) + 1,
-                index=items_dataset.with_format("pandas")["item_id"],
+                index=items_dataset.with_format("numpy")["item_id"],
             )
 
     def save(self, path: str) -> None:

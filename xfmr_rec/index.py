@@ -218,7 +218,7 @@ class FaissIndex:
 
         self.id2idx = pd.Series(
             pd.RangeIndex(len(self.index)),
-            index=self.index.with_format("pandas")[self.config.id_col],
+            index=self.index.with_format("numpy")[self.config.id_col],
         )
         return self
 
