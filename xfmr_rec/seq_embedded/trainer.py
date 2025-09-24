@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 import lightning as lp
 import lightning.pytorch.callbacks as lp_callbacks
 import lightning.pytorch.loggers as lp_loggers
-import numpy as np
 import torch
 from loguru import logger
 
@@ -29,6 +28,7 @@ from xfmr_rec.trainer import LightningCLI
 
 if TYPE_CHECKING:
     import datasets
+    import numpy as np
 
 
 class SeqEmbeddedLightningConfig(LossConfig, SeqEmbeddedModelConfig):
@@ -68,13 +68,7 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
 
     def configure_model(self) -> None:
         if self.model is None:
-            self.model = self.get_model()
-
-        if self.loss_fns is None:
-            self.loss_fns = self.get_loss_fns()
-
-    def get_model(self) -> SeqEmbeddedModel:
-        model = SeqEmbeddedModel(self.config, device=self.device)
+            self.model = SeqEmbeddedModel(self.config, device=self.device)
 
         if self.items_dataset is None:
             try:
@@ -84,9 +78,10 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
                 logger.warning(repr(e))
 
         if self.items_dataset is not None:
-            model.configure_embeddings(self.items_dataset)
+            self.model.configure_embeddings(self.items_dataset)
 
-        return model
+        if self.loss_fns is None:
+            self.loss_fns = self.get_loss_fns()
 
     def get_loss_fns(self) -> torch.nn.ModuleList:
         loss_fns = [loss_class(self.config) for loss_class in LOSS_CLASSES]
@@ -152,7 +147,9 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         recs = self.predict_step(row)
         metrics = compute_retrieval_metrics(
             rec_ids=recs["item_id"][:],
-            target_ids=np.asarray(row["target"]["item_id"])[row["target"]["label"]],
+            target_ids=row["target"]["item_id"][
+                row["target"]["label"].tolist()
+            ].tolist(),
             top_k=self.config.top_k,
         )
         return {f"{stage}/{key}": value for key, value in metrics.items()}
@@ -162,21 +159,21 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         self.log_dict(loss_dict)
         return loss_dict[f"loss/{self.config.train_loss}"]
 
-    def validation_step(self, row: dict[str, list[str]]) -> dict[str, float]:
+    def validation_step(self, row: dict[str, np.ndarray]) -> dict[str, float]:
         metrics = self.compute_metrics(row, stage="val")
         self.log_dict(metrics, batch_size=1)
         return metrics
 
-    def test_step(self, row: dict[str, list[str]]) -> dict[str, float]:
+    def test_step(self, row: dict[str, np.ndarray]) -> dict[str, float]:
         metrics = self.compute_metrics(row, stage="test")
         self.log_dict(metrics, batch_size=1)
         return metrics
 
-    def predict_step(self, row: dict[str, list[str]]) -> datasets.Dataset:
+    def predict_step(self, row: dict[str, np.ndarray]) -> datasets.Dataset:
         return self.recommend(
-            row["history"]["item_id"],
+            row["history"]["item_id"].tolist(),
             top_k=self.config.top_k,
-            exclude_item_ids=row["history"]["item_id"],
+            exclude_item_ids=row["history"]["item_id"].tolist(),
         )
 
     def on_train_start(self) -> None:

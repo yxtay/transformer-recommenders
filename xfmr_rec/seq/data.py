@@ -80,21 +80,10 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         logger.info(f"num_rows: {len(self)}, num_items: {len(self.id2idx)}")
 
     def process_events(self, users_dataset: datasets.Dataset) -> datasets.Dataset:
-        def map_item_idx(example: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
-            item_ids = example["history.item_id"]
-            labels = example["history.label"]
-
-            mask = [item_id in self.id2idx.index for item_id in item_ids]
-            item_idx = self.id2idx[item_ids[mask]].to_numpy()
-            return {
-                "history_item_idx": item_idx,
-                "history_label": labels[mask],
-            }
-
         def duplicate_rows(
             batch: dict[str, list[np.ndarray]],
         ) -> dict[str, list[np.ndarray]]:
-            history_item_idx = batch["history_item_idx"]
+            history_item_idx = batch["history.item_id"]
             num_copies = [
                 ((len(seq) - 1) // self.config.max_seq_length + 1)
                 for seq in history_item_idx
@@ -112,28 +101,34 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
             users_dataset.flatten()
             .select_columns(["history.item_id", "history.label"])
             .with_format("numpy")
-            .map(map_item_idx)
             .map(duplicate_rows, batched=True)
-            .with_format("torch")
         )
 
-    def sample_sequence(self, history_item_idx: torch.Tensor) -> torch.Tensor:
-        indices = torch.arange(len(history_item_idx) - 1)
+    def __len__(self) -> int:
+        return len(self.users_dataset)
+
+    def map_id2idx(
+        self, item_ids: np.ndarray, labels: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        mask = [item_id in self.id2idx.index for item_id in item_ids]
+        item_idx = self.id2idx[item_ids[mask]].to_numpy()
+        return item_idx, labels[mask]
+
+    def sample_sequence(self, history_item_idx: np.ndarray) -> np.ndarray:
+        indices = np.arange(len(history_item_idx) - 1)
         max_seq_length = self.config.max_seq_length
         if len(indices) <= max_seq_length:
             return indices
 
-        return torch.as_tensor(
-            np.sort(self.rng.choice(indices, size=max_seq_length, replace=False))
-        )
+        return np.sort(self.rng.choice(indices, size=max_seq_length, replace=False))
 
     def sample_positive(
         self,
-        history_item_idx: torch.Tensor,
-        history_label: torch.Tensor,
-        sampled_indices: torch.Tensor,
-    ) -> torch.Tensor:
-        positives = torch.zeros_like(sampled_indices)
+        history_item_idx: np.ndarray,
+        history_label: np.ndarray,
+        sampled_indices: np.ndarray,
+    ) -> np.ndarray:
+        positives = np.zeros_like(sampled_indices)
         pos_lookahead = self.config.pos_lookahead
 
         for i, idx in enumerate(sampled_indices):
@@ -148,27 +143,23 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
 
     def sample_negative(
         self,
-        history_item_idx: torch.Tensor,
-        sampled_indices: torch.Tensor,
-    ) -> torch.Tensor:
+        history_item_idx: np.ndarray,
+        sampled_indices: np.ndarray,
+    ) -> np.ndarray:
         seq_len = len(sampled_indices)
         neg_candidates = list(self.all_idx - set(history_item_idx.tolist()))
         if len(neg_candidates) == 0:
             neg_candidates = list(self.all_idx)
 
-        sampled_negatives = self.rng.choice(
+        return self.rng.choice(
             neg_candidates, seq_len, replace=len(neg_candidates) < seq_len
         )
-        return torch.as_tensor(sampled_negatives)
-
-    def __len__(self) -> int:
-        return len(self.users_dataset)
 
     def __getitem__(self, idx: int) -> SeqExample:
-        row = self.users_dataset[idx]
-        history_item_idx = row["history_item_idx"]
-        history_label = row["history_label"]
+        item_ids = self.users_dataset["history.item_id"][idx]
+        labels = self.users_dataset["history.label"][idx]
 
+        history_item_idx, history_label = self.map_id2idx(item_ids, labels)
         sampled_indices = self.sample_sequence(history_item_idx)
         pos_item_idx = self.sample_positive(
             history_item_idx=history_item_idx,
@@ -180,9 +171,9 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
             sampled_indices=sampled_indices,
         )
         return {
-            "history_item_idx": history_item_idx[sampled_indices],
-            "pos_item_idx": pos_item_idx,
-            "neg_item_idx": neg_item_idx,
+            "history_item_idx": torch.as_tensor(history_item_idx[sampled_indices]),
+            "pos_item_idx": torch.as_tensor(pos_item_idx),
+            "neg_item_idx": torch.as_tensor(neg_item_idx),
         }
 
     def collate(self, batch: list[SeqExample]) -> SeqBatch:
@@ -233,7 +224,7 @@ class SeqDataModule(lp.LightningDataModule):
                 self.config.users_parquet, filters=pc.field("is_train")
             )
             self.train_dataset = SeqDataset(
-                config=self.config,
+                self.config,
                 items_dataset=self.items_dataset,
                 users_dataset=train_dataset,
             )
@@ -241,17 +232,17 @@ class SeqDataModule(lp.LightningDataModule):
         if self.val_dataset is None and stage in {"fit", "validate", None}:
             self.val_dataset = datasets.Dataset.from_parquet(
                 self.config.users_parquet, filters=pc.field("is_val")
-            )
+            ).with_format("numpy")
 
         if self.test_dataset is None and stage in {"test", None}:
             self.test_dataset = datasets.Dataset.from_parquet(
                 self.config.users_parquet, filters=pc.field("is_test")
-            )
+            ).with_format("numpy")
 
         if self.predict_dataset is None:
             self.predict_dataset = datasets.Dataset.from_parquet(
                 self.config.users_parquet, filters=pc.field("is_predict")
-            )
+            ).with_format("numpy")
 
     def get_dataloader(
         self,

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Literal
 
 import pydantic
 from sentence_transformers import SentenceTransformer, models
-from transformers import AutoTokenizer
+from transformers import AutoModel, AutoTokenizer
 from transformers.models.bert import BertConfig, BertModel
 
 from xfmr_rec.params import PRETRAINED_MODEL_NAME
@@ -25,19 +25,33 @@ class ModelConfig(pydantic.BaseModel):
     max_seq_length: int | None = None
     is_decoder: bool = False
 
-    tokenizer_name: str = PRETRAINED_MODEL_NAME
+    pretrained_model_name: str = PRETRAINED_MODEL_NAME
     pooling_mode: Literal["mean", "max", "cls", "lasttoken"] = "mean"
     is_normalized: bool = True
 
 
 def init_bert(config: ModelConfig) -> BertModel:
-    tokenizer = AutoTokenizer.from_pretrained(config.tokenizer_name)  # nosec
+    model = None
+    tokenizer = None
+    if config.vocab_size is None or config.max_seq_length is None:
+        tokenizer = AutoTokenizer.from_pretrained(  # nosec
+            config.pretrained_model_name
+        )
 
     if config.vocab_size is None:
         config.vocab_size = tokenizer.vocab_size
 
     if config.max_seq_length is None:
         config.max_seq_length = tokenizer.model_max_length
+
+    if config.hidden_size is None:
+        model = AutoModel.from_pretrained(  # nosec
+            config.pretrained_model_name
+        )
+        config.hidden_size = model.config.hidden_size
+
+    if config.intermediate_size is None:
+        config.intermediate_size = config.hidden_size
 
     bert_config = BertConfig(
         vocab_size=config.vocab_size,
@@ -61,7 +75,9 @@ def to_sent_transformer(
     with tempfile.TemporaryDirectory() as tmpdir:
         model.save_pretrained(tmpdir)
         modules = [
-            models.Transformer(tmpdir, tokenizer_name_or_path=config.tokenizer_name)
+            models.Transformer(
+                tmpdir, tokenizer_name_or_path=config.pretrained_model_name
+            )
         ]
 
     modules.append(
