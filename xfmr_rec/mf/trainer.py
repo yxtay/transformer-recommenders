@@ -116,12 +116,12 @@ class MFRecLightningModule(lp.LightningModule):
     @torch.inference_mode()
     def recommend(
         self,
-        anchor_text: str,
+        query_text: str,
         *,
         top_k: int = 0,
         exclude_item_ids: list[str] | None = None,
     ) -> datasets.Dataset:
-        embedding = self.model.encode(anchor_text)
+        embedding = self.model.encode(query_text)
         return self.items_index.search(
             embedding,
             exclude_item_ids=exclude_item_ids,
@@ -129,23 +129,18 @@ class MFRecLightningModule(lp.LightningModule):
         )
 
     def compute_losses(self, batch: dict[str, list[str]]) -> dict[str, torch.Tensor]:
-        anchor_embed = self(batch["anchor_text"])
-        pos_embed = self(batch["pos_item_text"])
-        neg_embed = self(batch["neg_item_text"])
+        query_embed = self(batch["query_text"])
+        candidate_embed = self(batch["pos_text"] + batch["neg_text"])
 
-        batch_size = anchor_embed.size(0)
+        batch_size = query_embed.size(0)
         metrics = {"batch/size": batch_size}
         metrics |= loss_classes.LogitsStatistics(self.config)(
-            anchor_embed=anchor_embed, pos_embed=pos_embed, neg_embed=neg_embed
+            query_embed=query_embed, candidate_embed=candidate_embed
         )
 
         losses = {}
         for loss_fn in self.loss_fns:
-            loss = loss_fn(
-                anchor_embed=anchor_embed,
-                pos_embed=pos_embed,
-                neg_embed=neg_embed,
-            )
+            loss = loss_fn(query_embed=query_embed, candidate_embed=candidate_embed)
             key = f"loss/{loss_fn.__class__.__name__}"
             losses[key] = loss
             losses[f"{key}Mean"] = loss / (batch_size + 1e-9)

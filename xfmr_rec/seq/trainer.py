@@ -129,7 +129,7 @@ class SeqRecLightningModule(lp.LightningModule):
         attention_mask = embeds["attention_mask"]
         batch_size, seq_len = attention_mask.size()
         numel = attention_mask.numel()
-        non_zero = embeds["anchor_embed"].size(0)
+        non_zero = embeds["query_embed"].size(0)
         metrics = {
             "batch/size": batch_size,
             "batch/seq_len": seq_len,
@@ -138,17 +138,15 @@ class SeqRecLightningModule(lp.LightningModule):
             "batch/density": non_zero / (numel + 1e-9),
         }
         metrics |= loss_classes.LogitsStatistics(self.config)(
-            anchor_embed=embeds["anchor_embed"],
-            pos_embed=embeds["pos_embed"],
-            neg_embed=embeds["neg_embed"],
+            query_embed=embeds["query_embed"],
+            candidate_embed=embeds["candidate_embed"],
         )
 
         losses = {}
         for loss_fn in self.loss_fns:
             loss = loss_fn(
-                anchor_embed=embeds["anchor_embed"],
-                pos_embed=embeds["pos_embed"],
-                neg_embed=embeds["neg_embed"],
+                query_embed=embeds["query_embed"],
+                candidate_embed=embeds["candidate_embed"],
             )
             key = f"loss/{loss_fn.__class__.__name__}"
             losses[key] = loss

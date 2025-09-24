@@ -16,7 +16,7 @@ from xfmr_rec.params import DATA_DIR, ITEMS_PARQUET, MOVIELENS_1M_URL, USERS_PAR
 
 
 class MFDatasetConfig(pydantic.BaseModel):
-    anchor_sampling_prob: float = 0.5
+    query_sampling_prob: float = 0.5
 
 
 class MFDataModuleConfig(MFDatasetConfig):
@@ -80,39 +80,37 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
             neg_candidates = list(self.all_idx)
         return self.rng.choice(neg_candidates).item()
 
-    def sample_anchor_text(
+    def sample_query_text(
         self,
         user_text: str,
         pos_idx: int,
         history_item_idx: list[int],
     ) -> str:
-        anchor_candidates = history_item_idx[:pos_idx]
+        query_candidates = history_item_idx[:pos_idx]
         if (
-            self.rng.random() > self.config.anchor_sampling_prob
-            or len(anchor_candidates) == 0
+            self.rng.random() > self.config.query_sampling_prob
+            or len(query_candidates) == 0
         ):
             return user_text
 
-        anchor_idx = self.rng.choice(anchor_candidates)
-        return self.item_text[anchor_idx]
+        query_idx = self.rng.choice(query_candidates)
+        return self.item_text[query_idx]
 
     def __getitem__(self, idx: int) -> dict[str, str]:
-        user_text = self.users_dataset["user_text"][idx]
-        item_ids = self.users_dataset["history.item_id"][idx]
-        labels = self.users_dataset["history.label"][idx]
+        row = self.users_dataset[idx]
+        history_item_idx = self.map_id2idx(row["history.item_id"], row["history.label"])
 
-        history_item_idx = self.map_id2idx(item_ids, labels)
         pos_idx = self.sample_positive_idx(history_item_idx=history_item_idx)
         neg_item_idx = self.sample_negative(history_item_idx=history_item_idx)
-        anchor_text = self.sample_anchor_text(
-            user_text=user_text,
+        query_text = self.sample_query_text(
+            user_text=row["user_text"],
             pos_idx=pos_idx,
             history_item_idx=history_item_idx,
         )
         return {
-            "pos_item_text": self.item_text[history_item_idx[pos_idx]],
-            "neg_item_text": self.item_text[neg_item_idx],
-            "anchor_text": anchor_text,
+            "pos_text": self.item_text[history_item_idx[pos_idx]],
+            "neg_text": self.item_text[neg_item_idx],
+            "query_text": query_text,
         }
 
 
