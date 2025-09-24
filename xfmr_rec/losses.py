@@ -197,7 +197,7 @@ class AlignmentContrastiveLoss(EmbedLoss):
         self, query_embed: torch.Tensor, candidate_embed: torch.Tensor
     ) -> torch.Tensor:
         return self.cosine_similarity_logits(query_embed, candidate_embed)
-        # shape: (batch_size, 2 * batch_size)
+        # shape: (batch_size, num_candidates)
 
     def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:
         return self.alignment_loss(logits) + self.contrastive_loss(
