@@ -94,18 +94,18 @@ class SeqEmbeddedModel(torch.nn.Module):
 
     def forward(
         self,
-        input_ids: torch.Tensor | None = None,
+        item_idx: torch.Tensor | None = None,
         *,
-        input_embeds: torch.Tensor | None = None,
+        item_embeds: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
-        if input_embeds is not None:
-            input_embeds = input_embeds[:, -self.max_seq_length :, :].to(self.device)
-        elif input_ids is not None:
+        if item_embeds is not None:
+            input_embeds = item_embeds[:, -self.max_seq_length :, :].to(self.device)
+        elif item_idx is not None:
             input_embeds = self.embeddings(
-                input_ids[:, -self.max_seq_length :].to(self.device)
+                item_idx[:, -self.max_seq_length :].to(self.device)
             )
         else:
-            msg = "either `input_ids` or `input_embeds` must be provided"
+            msg = "either `item_idx` or `item_embeds` must be provided"
             raise ValueError(msg)
 
         attention_mask = (input_embeds != 0).any(-1).long()
