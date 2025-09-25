@@ -129,7 +129,7 @@ class SeqEmbeddedModel(torch.nn.Module):
         query_embed = output["token_embeddings"]
         # shape: (batch_size, seq_len, hidden_size)
         query_embed = query_embed[attention_mask]
-        # shape: (batch_size * seq_len, 1, hidden_size)
+        # shape: (batch_size * seq_len, hidden_size)
 
         pos_item_idx = pos_item_idx[attention_mask]
         # shape: (batch_size * seq_len)
