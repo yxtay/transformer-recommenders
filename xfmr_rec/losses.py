@@ -157,17 +157,16 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
         logits: torch.Tensor,
         target: torch.Tensor,
     ) -> torch.Tensor:
-        negative_masks = torch.ones_like(logits, dtype=torch.bool).scatter(
-            dim=1, index=target, value=False
-        )
-        # shape: (batch_size, num_candidates)
         if not self.config.mask_hard_negatives:
-            return negative_masks
+            return torch.ones_like(logits, dtype=torch.bool).scatter(
+                dim=1, index=target, value=False
+            )
+            # shape: (batch_size, num_candidates)
 
         target_logits = logits.gather(dim=1, index=target)
         # items with logits >= target logits are false negatives
-        # this also masks the diagonal positive logits
-        return negative_masks & (logits < target_logits)
+        # this also masks the target logits
+        return logits < target_logits
         # shape: (batch_size, num_candidates)
 
     def mine_hard_negatives(
