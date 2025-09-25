@@ -46,27 +46,25 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
         self.all_idx = set(self.id2idx)
         self.item_text: datasets.Column = items_dataset["item_text"]
 
-        self.users_dataset = self.process_events(users_dataset)
+        self.events_dataset = self.process_events(users_dataset)
 
         logger.info(f"num_rows: {len(self)}, num_items: {len(self.id2idx)}")
 
-    def process_events(self, users_dataset: datasets.Dataset) -> datasets.Dataset:
-        def duplicate_rows(
-            batch: dict[str, list[np.ndarray]],
-        ) -> dict[str, list[np.ndarray]]:
-            history_item_idx = batch["history.item_id"]
-            num_copies = [len(seq) for seq in history_item_idx]
-            return {key: np.repeat(batch[key], num_copies) for key in batch}
+    def duplicate_rows(self, batch: dict[str, pd.Series]) -> dict[str, pd.Series]:
+        history_item_idx = batch["history.item_id"]
+        num_copies = [len(seq) for seq in history_item_idx]
+        return {key: batch[key].repeat(num_copies) for key in batch}
 
+    def process_events(self, users_dataset: datasets.Dataset) -> datasets.Dataset:
         return (
             users_dataset.flatten()
             .select_columns(["user_text", "history.item_id", "history.label"])
-            .with_format("numpy")
-            .map(duplicate_rows, batched=True)
+            .with_format("pandas")
+            .map(self.duplicate_rows, batched=True)
         )
 
     def __len__(self) -> int:
-        return len(self.users_dataset)
+        return len(self.events_dataset)
 
     def map_id2idx(self, item_ids: np.ndarray, labels: np.ndarray) -> list[int]:
         mask = [item_id in self.id2idx.index for item_id in item_ids]
@@ -100,7 +98,7 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
         return self.item_text[query_idx]
 
     def __getitem__(self, idx: int) -> dict[str, str]:
-        row = self.users_dataset[idx]
+        row = self.events_dataset[idx]
         history_item_idx = self.map_id2idx(row["history.item_id"], row["history.label"])
 
         pos_idx = self.sample_positive_idx(history_item_idx=history_item_idx)
