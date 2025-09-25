@@ -217,7 +217,8 @@ class FaissIndex:
             raise RuntimeError(msg)
 
         self.id2idx = pd.Series(
-            {k: i for i, k in enumerate(self.index[self.config.id_col])}
+            pd.RangeIndex(len(self.index)),
+            index=self.index.with_format("pandas")[self.config.id_col].array,
         )
         return self
 

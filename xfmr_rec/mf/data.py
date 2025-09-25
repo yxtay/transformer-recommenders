@@ -16,7 +16,7 @@ from xfmr_rec.params import DATA_DIR, ITEMS_PARQUET, MOVIELENS_1M_URL, USERS_PAR
 
 
 class MFDatasetConfig(pydantic.BaseModel):
-    anchor_sampling_prob: float = 0.5
+    query_sampling_prob: float = 0.5
 
 
 class MFDataModuleConfig(MFDatasetConfig):
@@ -39,31 +39,32 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
         self.config = MFDatasetConfig.model_validate(config)
         self.rng = np.random.default_rng()
 
-        self.id2idx = pd.Series({k: i for i, k in enumerate(items_dataset["item_id"])})
+        self.id2idx = pd.Series(
+            pd.RangeIndex(len(items_dataset)),
+            index=items_dataset.with_format("pandas")["item_id"].array,
+        )
         self.all_idx = set(self.id2idx)
         self.item_text: datasets.Column = items_dataset["item_text"]
 
-        self.users_dataset = self.process_events(users_dataset)
+        self.events_dataset = self.process_events(users_dataset)
 
         logger.info(f"num_rows: {len(self)}, num_items: {len(self.id2idx)}")
 
-    def process_events(self, users_dataset: datasets.Dataset) -> datasets.Dataset:
-        def duplicate_rows(
-            batch: dict[str, list[np.ndarray]],
-        ) -> dict[str, list[np.ndarray]]:
-            history_item_idx = batch["history.item_id"]
-            num_copies = [len(seq) for seq in history_item_idx]
-            return {key: np.repeat(batch[key], num_copies) for key in batch}
+    def duplicate_rows(self, batch: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+        history_item_idx = batch["history.item_id"]
+        num_copies = [len(seq) for seq in history_item_idx]
+        return {key: batch[key].repeat(num_copies) for key in batch}
 
+    def process_events(self, users_dataset: datasets.Dataset) -> datasets.Dataset:
         return (
             users_dataset.flatten()
             .select_columns(["user_text", "history.item_id", "history.label"])
             .with_format("numpy")
-            .map(duplicate_rows, batched=True)
+            .map(self.duplicate_rows, batched=True)
         )
 
     def __len__(self) -> int:
-        return len(self.users_dataset)
+        return len(self.events_dataset)
 
     def map_id2idx(self, item_ids: np.ndarray, labels: np.ndarray) -> list[int]:
         mask = [item_id in self.id2idx.index for item_id in item_ids]
@@ -80,39 +81,37 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
             neg_candidates = list(self.all_idx)
         return self.rng.choice(neg_candidates).item()
 
-    def sample_anchor_text(
+    def sample_query_text(
         self,
         user_text: str,
         pos_idx: int,
         history_item_idx: list[int],
     ) -> str:
-        anchor_candidates = history_item_idx[:pos_idx]
+        query_candidates = history_item_idx[:pos_idx]
         if (
-            self.rng.random() > self.config.anchor_sampling_prob
-            or len(anchor_candidates) == 0
+            self.rng.random() > self.config.query_sampling_prob
+            or len(query_candidates) == 0
         ):
             return user_text
 
-        anchor_idx = self.rng.choice(anchor_candidates)
-        return self.item_text[anchor_idx]
+        query_idx = self.rng.choice(query_candidates)
+        return self.item_text[query_idx]
 
     def __getitem__(self, idx: int) -> dict[str, str]:
-        user_text = self.users_dataset["user_text"][idx]
-        item_ids = self.users_dataset["history.item_id"][idx]
-        labels = self.users_dataset["history.label"][idx]
+        row = self.events_dataset[idx]
+        history_item_idx = self.map_id2idx(row["history.item_id"], row["history.label"])
 
-        history_item_idx = self.map_id2idx(item_ids, labels)
         pos_idx = self.sample_positive_idx(history_item_idx=history_item_idx)
         neg_item_idx = self.sample_negative(history_item_idx=history_item_idx)
-        anchor_text = self.sample_anchor_text(
-            user_text=user_text,
+        query_text = self.sample_query_text(
+            user_text=row["user_text"],
             pos_idx=pos_idx,
             history_item_idx=history_item_idx,
         )
         return {
-            "pos_item_text": self.item_text[history_item_idx[pos_idx]],
-            "neg_item_text": self.item_text[neg_item_idx],
-            "anchor_text": anchor_text,
+            "pos_text": self.item_text[history_item_idx[pos_idx]],
+            "neg_text": self.item_text[neg_item_idx],
+            "query_text": query_text,
         }
 
 

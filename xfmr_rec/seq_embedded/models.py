@@ -63,7 +63,8 @@ class SeqEmbeddedModel(torch.nn.Module):
 
         if self.id2idx is None:
             self.id2idx = pd.Series(
-                {k: i + 1 for i, k in enumerate(items_dataset["item_id"])}
+                pd.RangeIndex(len(items_dataset)) + 1,
+                index=items_dataset.with_format("pandas")["item_id"].array,
             )
 
     def save(self, path: str) -> None:
@@ -125,22 +126,21 @@ class SeqEmbeddedModel(torch.nn.Module):
         output = self(history_item_idx)
         attention_mask = output["attention_mask"].bool()
         # shape: (batch_size, seq_len)
-        anchor_embed = output["token_embeddings"]
+        query_embed = output["token_embeddings"]
         # shape: (batch_size, seq_len, hidden_size)
-        anchor_embed = anchor_embed[attention_mask]
+        query_embed = query_embed[attention_mask]
         # shape: (batch_size * seq_len, hidden_size)
 
         pos_item_idx = pos_item_idx[attention_mask]
         # shape: (batch_size * seq_len)
         neg_item_idx = neg_item_idx[attention_mask]
         # shape: (batch_size * seq_len)
-        pos_embed = self.embeddings(pos_item_idx)
-        # shape: (batch_size * seq_len, hidden_size)
-        neg_embed = self.embeddings(neg_item_idx)
-        # shape: (batch_size * seq_len, hidden_size)
+        candidate_item_idx = torch.cat([pos_item_idx, neg_item_idx])
+        # shape: (2 * batch_size * seq_len)
+        candidate_embed = self.embeddings(candidate_item_idx)
+        # shape: (2 * batch_size * seq_len, hidden_size)
         return {
-            "anchor_embed": anchor_embed,
-            "pos_embed": pos_embed,
-            "neg_embed": neg_embed,
+            "query_embed": query_embed,
+            "candidate_embed": candidate_embed,
             "attention_mask": attention_mask,
         }

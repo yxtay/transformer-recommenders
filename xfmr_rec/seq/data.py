@@ -70,43 +70,42 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
 
         # idx 0 for padding
         self.id2idx = pd.Series(
-            {k: i + 1 for i, k in enumerate(items_dataset["item_id"])}
+            pd.RangeIndex(len(items_dataset)) + 1,
+            index=items_dataset.with_format("pandas")["item_id"].array,
         )
         self.all_idx = set(self.id2idx)
-        self.item_text: datasets.Column = items_dataset["item_text"]
+        self.item_texts: datasets.Column = items_dataset["item_text"]
 
-        self.users_dataset = self.process_events(users_dataset)
+        self.events_dataset = self.process_events(users_dataset)
 
         logger.info(repr(self.config))
         logger.info(f"num_rows: {len(self)}, num_items: {len(self.id2idx)}")
 
-    def process_events(self, users_dataset: datasets.Dataset) -> datasets.Dataset:
-        def duplicate_rows(
-            batch: dict[str, list[np.ndarray]],
-        ) -> dict[str, list[np.ndarray]]:
-            history_item_idx = batch["history.item_id"]
-            num_copies = [
-                ((len(seq) - 1) // self.config.max_seq_length + 1)
-                for seq in history_item_idx
+    def duplicate_rows(self, batch: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+        history_item_idx = batch["history.item_id"]
+        num_copies = [
+            ((len(seq) - 1) // self.config.max_seq_length + 1)
+            for seq in history_item_idx
+        ]
+        return {
+            key: [
+                el
+                for n, el in zip(num_copies, batch[key], strict=True)
+                for _ in range(n)
             ]
-            return {
-                key: [
-                    el
-                    for n, el in zip(num_copies, batch[key], strict=True)
-                    for _ in range(n)
-                ]
-                for key in batch
-            }
+            for key in batch
+        }
 
+    def process_events(self, users_dataset: datasets.Dataset) -> datasets.Dataset:
         return (
             users_dataset.flatten()
             .select_columns(["history.item_id", "history.label"])
             .with_format("numpy")
-            .map(duplicate_rows, batched=True)
+            .map(self.duplicate_rows, batched=True)
         )
 
     def __len__(self) -> int:
-        return len(self.users_dataset)
+        return len(self.events_dataset)
 
     def map_id2idx(
         self, item_ids: np.ndarray, labels: np.ndarray
@@ -157,10 +156,11 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         )
 
     def __getitem__(self, idx: int) -> SeqExample:
-        item_ids = self.users_dataset["history.item_id"][idx]
-        labels = self.users_dataset["history.label"][idx]
+        row = self.events_dataset[idx]
+        history_item_idx, history_label = self.map_id2idx(
+            row["history.item_id"], row["history.label"]
+        )
 
-        history_item_idx, history_label = self.map_id2idx(item_ids, labels)
         sampled_indices = self.sample_sequence(history_item_idx)
         pos_item_idx = self.sample_positive(
             history_item_idx=history_item_idx,
@@ -173,11 +173,11 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         )
         return {
             "history_item_idx": torch.as_tensor(history_item_idx[sampled_indices]),
-            "history_item_text": self.item_text[history_item_idx[sampled_indices] - 1],
+            "history_item_text": self.item_texts[history_item_idx[sampled_indices] - 1],
             "pos_item_idx": torch.as_tensor(pos_item_idx),
-            "pos_item_text": self.item_text[pos_item_idx - 1],
+            "pos_item_text": self.item_texts[pos_item_idx - 1],
             "neg_item_idx": torch.as_tensor(neg_item_idx),
-            "neg_item_text": self.item_text[neg_item_idx - 1],
+            "neg_item_text": self.item_texts[neg_item_idx - 1],
         }
 
     def collate(self, batch: list[SeqExample]) -> SeqBatch:
