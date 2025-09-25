@@ -50,7 +50,7 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
 
         logger.info(f"num_rows: {len(self)}, num_items: {len(self.id2idx)}")
 
-    def duplicate_rows(self, batch: dict[str, pd.Series]) -> dict[str, pd.Series]:
+    def duplicate_rows(self, batch: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
         history_item_idx = batch["history.item_id"]
         num_copies = [len(seq) for seq in history_item_idx]
         return {key: batch[key].repeat(num_copies) for key in batch}
@@ -59,7 +59,7 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
         return (
             users_dataset.flatten()
             .select_columns(["user_text", "history.item_id", "history.label"])
-            .with_format("pandas")
+            .with_format("numpy")
             .map(self.duplicate_rows, batched=True)
         )
 

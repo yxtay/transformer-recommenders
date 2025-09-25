@@ -81,18 +81,27 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         logger.info(repr(self.config))
         logger.info(f"num_rows: {len(self)}, num_items: {len(self.id2idx)}")
 
-    def duplicate_rows(self, batch: dict[str, pd.Series]) -> dict[str, pd.Series]:
+    def duplicate_rows(self, batch: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
         history_item_idx = batch["history.item_id"]
-        num_copies = [len(seq) for seq in history_item_idx]
-        return {key: batch[key].repeat(num_copies) for key in batch}
+        num_copies = [
+            ((len(seq) - 1) // self.config.max_seq_length + 1)
+            for seq in history_item_idx
+        ]
+        return {
+            key: [
+                el
+                for n, el in zip(num_copies, batch[key], strict=True)
+                for _ in range(n)
+            ]
+            for key in batch
+        }
 
     def process_events(self, users_dataset: datasets.Dataset) -> datasets.Dataset:
         return (
             users_dataset.flatten()
             .select_columns(["history.item_id", "history.label"])
-            .with_format("pandas")
-            .map(self.duplicate_rows, batched=True)
             .with_format("numpy")
+            .map(self.duplicate_rows, batched=True)
         )
 
     def __len__(self) -> int:
