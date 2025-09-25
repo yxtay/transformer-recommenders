@@ -68,13 +68,12 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
     def check_embeds(
         self, query_embed: torch.Tensor, candidate_embed: torch.Tensor
     ) -> None:
-        n_dim = 3
-        if query_embed.dim() != n_dim or candidate_embed.dim() != n_dim:
-            msg = (
-                f"inputs should have {n_dim} dimensions: "
-                f"{query_embed.dim() = }, "
-                f"{candidate_embed.dim() = }"
-            )
+        if query_embed.dim() != 2:
+            msg = f"inputs should have 2 dimensions: {query_embed.dim() = }"
+            raise ValueError(msg)
+
+        if candidate_embed.dim() != 3:
+            msg = f"inputs should have 3 dimensions: {candidate_embed.dim() = }"
             raise ValueError(msg)
 
         if (
@@ -86,10 +85,6 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
                 f"{query_embed.size(0) = }, "
                 f"{candidate_embed.size(0) = }"
             )
-            raise ValueError(msg)
-
-        if query_embed.size(1) != 1:
-            msg = f"query_embed should have a single column: {query_embed.size(1) = }"
             raise ValueError(msg)
 
         embedding_dim = query_embed.size(-1)
@@ -104,13 +99,15 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
     def compute_logits(
         self, query_embed: torch.Tensor, candidate_embed: torch.Tensor
     ) -> torch.Tensor:
-        return (query_embed * candidate_embed).sum(dim=-1)
+        return (query_embed[:, None, :] * candidate_embed).sum(dim=-1)
         # shape: (batch_size, num_candidates)
 
     def cosine_similarity_logits(
         self, query_embed: torch.Tensor, candidate_embed: torch.Tensor
     ) -> torch.Tensor:
-        return torch_fn.cosine_similarity(query_embed, candidate_embed, dim=-1)
+        return torch_fn.cosine_similarity(
+            query_embed[:, None, :], candidate_embed, dim=-1
+        )
         # shape: (batch_size, num_candidates)
 
     def check_target(
@@ -139,7 +136,7 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
                     raise ValueError(msg)
 
         if target.dim() != 1:
-            msg = f"targets should be a 1 dimensional: {target.dim() = }"
+            msg = f"targets should have 1 dimension: {target.dim() = }"
             raise ValueError(msg)
 
         if target.size(0) != logits.size(0):
