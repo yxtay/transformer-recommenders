@@ -137,7 +137,7 @@ class SeqEmbeddedModel(torch.nn.Module):
         # shape: (batch_size * seq_len)
         candidate_item_idx = torch.cat([pos_item_idx, neg_item_idx])
         # shape: (2 * batch_size * seq_len)
-        candidate_embed = self.embeddings(candidate_item_idx)[None, :, :]
+        candidate_embed = self.embeddings(candidate_item_idx)
         # shape: (2 * batch_size * seq_len, hidden_size)
         return {
             "query_embed": query_embed,

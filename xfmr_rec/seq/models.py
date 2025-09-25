@@ -149,7 +149,7 @@ class SeqRecModel(torch.nn.Module):
         # shape: (batch_size * seq_len, hidden_size)
         neg_embed = self.embed_item_text_sequence(neg_item_text)[attention_mask]
         # shape: (batch_size * seq_len, hidden_size)
-        candidate_embed = torch.cat([pos_embed, neg_embed])[None, :, :]
+        candidate_embed = torch.cat([pos_embed, neg_embed])
         # shape: (1, 2 * batch_size * seq_len, hidden_size)
         return {
             "query_embed": query_embed,
