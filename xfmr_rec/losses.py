@@ -7,18 +7,10 @@ import pydantic
 import torch
 import torch.nn.functional as torch_fn
 
-LossType = Literal[
-    "AlignmentLoss",
-    "AlignmentContrastiveLoss",
-    "ContrastiveLoss",
-    "InfoNCELoss",
-    "NCELoss",
-    "PairwiseHingeLoss",
-    "PairwiseLogisticLoss",
-]
-
 
 class LossConfig(pydantic.BaseModel):
+    target_position: Literal["first", "diagonal"] | None = "diagonal"
+    mask_hard_negatives: bool = True
     num_negatives: int = 0
     scale: float = 1.0
     margin: float = 0.5
@@ -61,29 +53,35 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
         self.config = config
 
     def forward(
-        self, query_embed: torch.Tensor, candidate_embed: torch.Tensor
+        self,
+        query_embed: torch.Tensor,
+        candidate_embed: torch.Tensor,
+        target: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        self.check_inputs(query_embed, candidate_embed)
+        self.check_embeds(query_embed, candidate_embed)
         logits = self.compute_logits(query_embed, candidate_embed)
-        negative_masks = self.mask_false_negatives(logits)
+        target = self.check_target(logits, target)
+        negative_masks = self.mask_false_negatives(logits, target)
         negative_masks = self.mine_hard_negatives(logits, negative_masks)
-        return self.loss(logits, negative_masks)
+        return self.loss(logits, target, negative_masks)
 
-    def check_inputs(
+    def check_embeds(
         self, query_embed: torch.Tensor, candidate_embed: torch.Tensor
     ) -> None:
-        n_dim = 2
-        if query_embed.dim() != n_dim or candidate_embed.dim() != n_dim:
-            msg = (
-                "inputs should have 2 dimensions: "
-                f"{query_embed.dim() = }, "
-                f"{candidate_embed.dim() = }"
-            )
+        if query_embed.dim() != 2:
+            msg = f"inputs should have 2 dimensions: {query_embed.dim() = }"
             raise ValueError(msg)
 
-        if query_embed.size(0) > candidate_embed.size(0):
+        if candidate_embed.dim() != 3:
+            msg = f"inputs should have 3 dimensions: {candidate_embed.dim() = }"
+            raise ValueError(msg)
+
+        if (
+            candidate_embed.size(0) != query_embed.size(0)
+            and candidate_embed.size(0) != 1
+        ):
             msg = (
-                "query_embed should have fewer examples than candidate_embed: "
+                "query_embed and candidate_embed should have same number of rows: "
                 f"{query_embed.size(0) = }, "
                 f"{candidate_embed.size(0) = }"
             )
@@ -101,19 +99,71 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
     def compute_logits(
         self, query_embed: torch.Tensor, candidate_embed: torch.Tensor
     ) -> torch.Tensor:
-        return dot_product_matrix(query_embed, candidate_embed)
+        return (query_embed[:, None, :] * candidate_embed).sum(dim=-1)
         # shape: (batch_size, num_candidates)
 
     def cosine_similarity_logits(
         self, query_embed: torch.Tensor, candidate_embed: torch.Tensor
     ) -> torch.Tensor:
-        return cosine_similarity_matrix(query_embed, candidate_embed)
+        return torch_fn.cosine_similarity(
+            query_embed[:, None, :], candidate_embed, dim=-1
+        )
         # shape: (batch_size, num_candidates)
 
-    def mask_false_negatives(self, logits: torch.Tensor) -> torch.Tensor:
-        # items with logits >= positive logits are false negatives
-        # this also masks the diagonal positive logits
-        return logits < logits.diagonal()[:, None]
+    def check_target(
+        self, logits: torch.Tensor, target: torch.Tensor | None
+    ) -> torch.Tensor:
+        if target is None and self.config.target_position is None:
+            msg = "either `targets` or `config.target_position` must be provided"
+            raise ValueError(msg)
+
+        if target is not None and self.config.target_position is not None:
+            msg = "only one of `targets` or `config.target_position` should be provided"
+            raise ValueError(msg)
+
+        if target is None:
+            match self.config.target_position:
+                case "first":
+                    target = torch.zeros(
+                        logits.size(0), dtype=torch.long, device=logits.device
+                    )
+                case "diagonal":
+                    target = torch.arange(
+                        logits.size(0), dtype=torch.long, device=logits.device
+                    )
+                case _:
+                    msg = f"invalid {self.config.target_position = }"
+                    raise ValueError(msg)
+
+        if target.dim() != 1:
+            msg = f"targets should have 1 dimension: {target.dim() = }"
+            raise ValueError(msg)
+
+        if target.size(0) != logits.size(0):
+            msg = (
+                "targets and logits should have same number of rows: "
+                f"{target.size(0) = }, "
+                f"{logits.size(0) = }"
+            )
+            raise ValueError(msg)
+
+        return target[:, None]
+
+    def mask_false_negatives(
+        self,
+        logits: torch.Tensor,
+        target: torch.Tensor,
+    ) -> torch.Tensor:
+        if not self.config.mask_hard_negatives:
+            return torch.ones_like(logits, dtype=torch.bool).scatter(
+                dim=1, index=target, value=False
+            )
+            # shape: (batch_size, num_candidates)
+
+        target_logits = logits.gather(dim=1, index=target)
+        # items with logits >= target logits are false negatives
+        # this also masks the target logits
+        return logits < target_logits
         # shape: (batch_size, num_candidates)
 
     def mine_hard_negatives(
@@ -141,11 +191,16 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
         return negative_masks
 
     @abc.abstractmethod
-    def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:
+    def loss(
+        self, logits: torch.Tensor, target: torch.Tensor, negative_masks: torch.Tensor
+    ) -> torch.Tensor:
         raise NotImplementedError
 
-    def alignment_loss(self, logits: torch.Tensor) -> torch.Tensor:
-        return (1 - logits.diagonal()).sum()
+    def alignment_loss(
+        self, logits: torch.Tensor, target: torch.Tensor
+    ) -> torch.Tensor:
+        target_logits = logits.gather(dim=1, index=target)
+        return (1 - target_logits).sum()
 
     def contrastive_loss(
         self, logits: torch.Tensor, negative_masks: torch.Tensor
@@ -157,7 +212,7 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
 
 class LogitsStatistics(EmbedLoss):
     def loss(
-        self, logits: torch.Tensor, negative_masks: torch.Tensor
+        self, logits: torch.Tensor, target: torch.Tensor, negative_masks: torch.Tensor
     ) -> dict[str, torch.Tensor]:
         # num_negatives should exclude the diagonal positives
         num_negatives = negative_masks.size(1) - 1
@@ -168,7 +223,7 @@ class LogitsStatistics(EmbedLoss):
         stats = {"logits/neg/density": neg_density.item()}
 
         for key, value in {
-            "pos": logits.diagonal(),
+            "pos": logits.gather(dim=1, index=target),
             "neg": logits[negative_masks],
         }.items():
             if value.numel() > 0:
@@ -188,8 +243,13 @@ class AlignmentLoss(EmbedLoss):
         return self.cosine_similarity_logits(query_embed, candidate_embed)
         # shape: (batch_size, num_candidates)
 
-    def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:  # noqa: ARG002
-        return self.alignment_loss(logits)
+    def loss(
+        self,
+        logits: torch.Tensor,
+        target: torch.Tensor,
+        negative_masks: torch.Tensor,  # noqa: ARG002
+    ) -> torch.Tensor:
+        return self.alignment_loss(logits, target)
 
 
 class AlignmentContrastiveLoss(EmbedLoss):
@@ -199,8 +259,10 @@ class AlignmentContrastiveLoss(EmbedLoss):
         return self.cosine_similarity_logits(query_embed, candidate_embed)
         # shape: (batch_size, num_candidates)
 
-    def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:
-        return self.alignment_loss(logits) + self.contrastive_loss(
+    def loss(
+        self, logits: torch.Tensor, target: torch.Tensor, negative_masks: torch.Tensor
+    ) -> torch.Tensor:
+        return self.alignment_loss(logits, target) + self.contrastive_loss(
             logits, negative_masks
         )
 
@@ -212,33 +274,39 @@ class ContrastiveLoss(EmbedLoss):
         return self.cosine_similarity_logits(query_embed, candidate_embed)
         # shape: (batch_size, num_candidates)
 
-    def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:
+    def loss(
+        self,
+        logits: torch.Tensor,
+        target: torch.Tensor,  # noqa: ARG002
+        negative_masks: torch.Tensor,
+    ) -> torch.Tensor:
         return self.contrastive_loss(logits, negative_masks)
 
 
 class InfoNCELoss(EmbedLoss):
-    def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:
-        # include diagonal positive logits for cross entropy
-        negative_masks |= torch.eye(
-            *logits.size(), dtype=torch.bool, device=negative_masks.device
-        )
+    def loss(
+        self, logits: torch.Tensor, target: torch.Tensor, negative_masks: torch.Tensor
+    ) -> torch.Tensor:
+        # include target logits for cross entropy
+        logit_masks = negative_masks.scatter(dim=-1, index=target, value=True)
         # shape: (batch_size, num_candidates)
         # set false negative logits to -inf
-        logits = logits.where(negative_masks, -torch.inf) * self.config.scale
+        logits = logits.where(logit_masks, -torch.inf) * self.config.scale
         # shape: (batch_size, num_candidates)
-        # targets are indices of diagonal positive logits
-        targets = torch.arange(logits.size(0), dtype=torch.long, device=logits.device)
-        # shape: (batch_size,)
-        return torch_fn.cross_entropy(logits, targets, reduction="sum")
+        return torch_fn.cross_entropy(logits, target[:, 0], reduction="sum")
 
 
 class NCELoss(EmbedLoss):
-    def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:
+    def loss(
+        self, logits: torch.Tensor, target: torch.Tensor, negative_masks: torch.Tensor
+    ) -> torch.Tensor:
         # positive logits are in the diagonal
-        targets = torch.eye(*logits.size(), device=logits.device)
+        binary_targets = torch.zeros_like(logits).scatter(
+            dim=1, index=target, value=1.0
+        )
         # shape: (batch_size, num_candidates)
         nce_losses = torch_fn.binary_cross_entropy_with_logits(
-            logits, targets, reduction="none"
+            logits, binary_targets, reduction="none"
         )
         # shape: (batch_size, num_candidates)
         pos_loss = nce_losses.diagonal()
@@ -247,20 +315,28 @@ class NCELoss(EmbedLoss):
 
 
 class PairwiseHingeLoss(EmbedLoss):
-    def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:
-        scores = logits - logits.diagonal()[:, None] * (1 - self.config.margin)
+    def loss(
+        self, logits: torch.Tensor, target: torch.Tensor, negative_masks: torch.Tensor
+    ) -> torch.Tensor:
+        target_logits = logits.gather(dim=1, index=target)
+        # shape: (batch_size, 1)
+        scores = logits - target_logits * (1 - self.config.margin)
         # shape: (batch_size, num_candidates)
         return weighted_mean(scores.relu(), negative_masks, dim=-1).sum()
 
 
 class PairwiseLogisticLoss(EmbedLoss):
-    def loss(self, logits: torch.Tensor, negative_masks: torch.Tensor) -> torch.Tensor:
-        scores = logits - logits.diagonal()[:, None] * (1 - self.config.margin)
+    def loss(
+        self, logits: torch.Tensor, target: torch.Tensor, negative_masks: torch.Tensor
+    ) -> torch.Tensor:
+        target_logits = logits.gather(dim=1, index=target)
+        # shape: (batch_size, 1)
+        scores = logits - target_logits * (1 - self.config.margin)
         # shape: (batch_size, num_candidates)
         return weighted_mean(torch_fn.softplus(scores), negative_masks, dim=-1).sum()
 
 
-LOSS_CLASSES = [
+LOSS_CLASSES: list[type[EmbedLoss]] = [
     AlignmentLoss,
     AlignmentContrastiveLoss,
     ContrastiveLoss,
@@ -268,4 +344,14 @@ LOSS_CLASSES = [
     NCELoss,
     PairwiseHingeLoss,
     PairwiseLogisticLoss,
+]
+
+LossType = Literal[
+    AlignmentLoss.__name__,
+    AlignmentContrastiveLoss.__name__,
+    ContrastiveLoss.__name__,
+    InfoNCELoss.__name__,
+    NCELoss.__name__,
+    PairwiseHingeLoss.__name__,
+    PairwiseLogisticLoss.__name__,
 ]
