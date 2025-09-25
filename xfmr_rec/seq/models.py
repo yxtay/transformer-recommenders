@@ -142,15 +142,15 @@ class SeqRecModel(torch.nn.Module):
         # shape: (batch_size, seq_len)
         query_embed = output["token_embeddings"]
         # shape: (batch_size, seq_len, hidden_size)
-        query_embed = query_embed[attention_mask]
-        # shape: (batch_size * seq_len, hidden_size)
+        query_embed = query_embed[attention_mask][:, None, :]
+        # shape: (batch_size * seq_len, 1, hidden_size)
 
         pos_embed = self.embed_item_text_sequence(pos_item_text)[attention_mask]
         # shape: (batch_size * seq_len, hidden_size)
         neg_embed = self.embed_item_text_sequence(neg_item_text)[attention_mask]
         # shape: (batch_size * seq_len, hidden_size)
-        candidate_embed = torch.cat([pos_embed, neg_embed])
-        # shape: (2 * batch_size * seq_len, hidden_size)
+        candidate_embed = torch.cat([pos_embed, neg_embed])[None, :, :]
+        # shape: (1, 2 * batch_size * seq_len, hidden_size)
         return {
             "query_embed": query_embed,
             "candidate_embed": candidate_embed,

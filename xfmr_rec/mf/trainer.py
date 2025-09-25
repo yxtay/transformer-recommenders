@@ -130,8 +130,8 @@ class MFRecLightningModule(lp.LightningModule):
         )
 
     def compute_losses(self, batch: dict[str, list[str]]) -> dict[str, torch.Tensor]:
-        query_embed = self(batch["query_text"])
-        candidate_embed = self(batch["pos_text"] + batch["neg_text"])
+        query_embed = self(batch["query_text"])[:, None, :]
+        candidate_embed = self(batch["pos_text"] + batch["neg_text"])[None, :, :]
 
         batch_size = query_embed.size(0)
         metrics = {"batch/size": batch_size}
@@ -169,7 +169,7 @@ class MFRecLightningModule(lp.LightningModule):
         except StopIteration:
             return metrics
 
-        item_text = self.id2text[item_id].item()
+        item_text = self.id2text[item_id]
         item_recs = self.recommend(
             item_text,
             top_k=self.config.top_k,
