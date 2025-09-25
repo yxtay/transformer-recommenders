@@ -119,9 +119,9 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
     def compute_logits(
         self, query_embed: torch.Tensor, candidate_embed: torch.Tensor
     ) -> torch.Tensor:
-        # expand query_embed for bmm
+        # unsqueeze query_embed
         # shape: (batch_size, 1, embedding_dim)
-        # transpose candidate_embed for bmm
+        # transpose candidate_embed
         # shape: (batch_size, embedding_dim, num_candidates)
         # bmm shape: (batch_size, 1, num_candidates)
         return query_embed[:, None, :].bmm(candidate_embed.mT)[:, 0, :]
