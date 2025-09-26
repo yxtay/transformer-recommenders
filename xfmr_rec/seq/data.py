@@ -108,13 +108,17 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         return len(self.events_dataset)
 
     def map_id2idx(
-        self, item_ids: np.ndarray, labels: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray]:
+        self,
+        item_ids: np.typing.NDArray[np.str_],
+        labels: np.typing.NDArray[np.bool],
+    ) -> tuple[np.typing.NDArray[np.int32], np.typing.NDArray[np.bool]]:
         mask = [item_id in self.id2idx.index for item_id in item_ids]
         item_idx = self.id2idx[item_ids[mask]].to_numpy()
         return item_idx, labels[mask]
 
-    def sample_sequence(self, history_item_idx: np.ndarray) -> np.ndarray:
+    def sample_sequence(
+        self, history_item_idx: np.typing.NDArray[np.int32]
+    ) -> np.typing.NDArray[np.int32]:
         indices = np.arange(len(history_item_idx) - 1)
         max_seq_length = self.config.max_seq_length
         if len(indices) <= max_seq_length:
@@ -124,10 +128,10 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
 
     def sample_positive(
         self,
-        history_item_idx: np.ndarray,
-        history_label: np.ndarray,
-        sampled_indices: np.ndarray,
-    ) -> np.ndarray:
+        history_item_idx: np.typing.NDArray[np.int32],
+        history_label: np.typing.NDArray[np.bool_],
+        sampled_indices: np.typing.NDArray[np.int32],
+    ) -> np.typing.NDArray[np.int32]:
         positives = np.zeros_like(sampled_indices)
         pos_lookahead = self.config.pos_lookahead
 
@@ -143,9 +147,9 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
 
     def sample_negative(
         self,
-        history_item_idx: np.ndarray,
-        sampled_indices: np.ndarray,
-    ) -> np.ndarray:
+        history_item_idx: np.typing.NDArray[np.int32],
+        sampled_indices: np.typing.NDArray[np.int32],
+    ) -> np.typing.NDArray[np.int32]:
         seq_len = len(sampled_indices)
         neg_candidates = list(self.all_idx - set(history_item_idx.tolist()))
         if len(neg_candidates) == 0:
