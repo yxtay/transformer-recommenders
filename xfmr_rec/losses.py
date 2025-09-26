@@ -25,8 +25,7 @@ def squared_distance_matrix(
 def dot_product_matrix(
     query_embed: torch.Tensor, candidate_embed: torch.Tensor
 ) -> torch.Tensor:
-    candidate_embed = candidate_embed.expand(query_embed.size(0), -1, -1)
-    return query_embed[:, None, :].bmm(candidate_embed.mT)[:, 0, :]
+    return query_embed.mm(candidate_embed.mT)
 
 
 def cosine_similarity_matrix(
