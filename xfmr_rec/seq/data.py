@@ -49,7 +49,6 @@ class SeqBatch(TypedDict):
 class SeqDataConfig(pydantic.BaseModel):
     max_seq_length: int = 32
     pos_lookahead: int = 0
-    num_negatives: int = 3
 
 
 class SeqDataModuleConfig(SeqDataConfig):
