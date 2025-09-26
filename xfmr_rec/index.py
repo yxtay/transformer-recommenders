@@ -133,7 +133,7 @@ class LanceIndex:
 
     def search(
         self,
-        embedding: np.ndarray,
+        embedding: np.typing.NDArray[np.float32],
         exclude_item_ids: list[str] | None = None,
         top_k: int = 20,
     ) -> datasets.Dataset:
@@ -259,7 +259,7 @@ class FaissIndex:
 
     def search(
         self,
-        embedding: np.ndarray,
+        embedding: np.typing.NDArray[np.float32],
         exclude_item_ids: list[str] | None = None,
         top_k: int = 20,
     ) -> datasets.Dataset:

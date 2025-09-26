@@ -66,7 +66,11 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
     def __len__(self) -> int:
         return len(self.events_dataset)
 
-    def map_id2idx(self, item_ids: np.ndarray, labels: np.ndarray) -> list[int]:
+    def map_id2idx(
+        self,
+        item_ids: np.typing.NDArray[np.str_],
+        labels: np.typing.NDArray[np.bool],
+    ) -> list[int]:
         mask = [item_id in self.id2idx.index for item_id in item_ids]
         item_idx = self.id2idx[item_ids[mask]].to_numpy()
         return item_idx[labels[mask]].tolist()
