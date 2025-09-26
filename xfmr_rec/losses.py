@@ -80,7 +80,7 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
 
         if query_embed.size(0) != candidate_embed.size(0):
             msg = (
-                "query_embed and candidate_embed should have same number of rows: "
+                "batch_size should match: "
                 f"{query_embed.size(0) = }, "
                 f"{candidate_embed.size(0) = }"
             )
@@ -89,8 +89,8 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
         if query_embed.size(-1) != candidate_embed.size(-1):
             msg = (
                 "embedding_dim should match: "
-                f"{ query_embed.size(-1) = }, "
-                f"{ candidate_embed.size(-1) = }"
+                f"{query_embed.size(-1) = }, "
+                f"{candidate_embed.size(-1) = }"
             )
             raise ValueError(msg)
 
@@ -143,11 +143,7 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
             raise ValueError(msg)
 
         if target.size(0) != logits.size(0):
-            msg = (
-                "targets and logits should have same number of rows: "
-                f"{target.size(0) = }, "
-                f"{logits.size(0) = }"
-            )
+            msg = f"batch_size should match: {target.size(0) = }, {logits.size(0) = }"
             raise ValueError(msg)
 
         return target[:, None]
