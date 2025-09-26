@@ -25,7 +25,8 @@ def squared_distance_matrix(
 def dot_product_matrix(
     query_embed: torch.Tensor, candidate_embed: torch.Tensor
 ) -> torch.Tensor:
-    return (query_embed[:, None, :] * candidate_embed[None, :, :]).sum(dim=-1)
+    candidate_embed = candidate_embed.expand(query_embed.size(0), -1, -1)
+    return query_embed[:, None, :].bmm(candidate_embed.mT)[:, 0, :]
 
 
 def cosine_similarity_matrix(
@@ -177,14 +178,14 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
         # take top-k logits from negatives only
         indices = (
             logits.where(negative_masks, -torch.inf)
-            .topk(k=self.config.num_negatives, dim=-1, sorted=False)
+            .topk(k=self.config.num_negatives, dim=1, sorted=False)
             .indices
         )
         # shape: (batch_size, num_negatives)
         # use scatter to set selected indices to True
         # bool_and with negative masks to ensure true negatives only
         negative_masks &= torch.zeros_like(negative_masks).scatter(
-            dim=-1, index=indices, value=True
+            dim=1, index=indices, value=True
         )
         # shape: (batch_size, num_candidates)
         return negative_masks
@@ -206,19 +207,19 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
     ) -> torch.Tensor:
         losses = (logits - 1 + self.config.margin).relu()
         # shape: (batch_size, num_candidates)
-        return weighted_mean(losses, negative_masks, dim=-1).sum()
+        return weighted_mean(losses, negative_masks, dim=1).sum()
 
 
 class LogitsStatistics(EmbedLoss):
     def loss(
         self, logits: torch.Tensor, target: torch.Tensor, negative_masks: torch.Tensor
     ) -> dict[str, torch.Tensor]:
-        # num_negatives should exclude the diagonal positives
+        # num_negatives should exclude 1 target per row
         num_negatives = negative_masks.size(1) - 1
         if self.config.num_negatives > 0:
             num_negatives = min(num_negatives, self.config.num_negatives)
 
-        neg_density = (negative_masks.sum(dim=-1) / (num_negatives + 1e-9)).mean()
+        neg_density = (negative_masks.sum(dim=1) / (num_negatives + 1e-9)).mean()
         stats = {"logits/neg/density": neg_density.item()}
 
         for key, value in {
@@ -287,7 +288,7 @@ class InfoNCELoss(EmbedLoss):
         self, logits: torch.Tensor, target: torch.Tensor, negative_masks: torch.Tensor
     ) -> torch.Tensor:
         # include target logits for cross entropy
-        logit_masks = negative_masks.scatter(dim=-1, index=target, value=True)
+        logit_masks = negative_masks.scatter(dim=1, index=target, value=True)
         # shape: (batch_size, num_candidates)
         # set false negative logits to -inf
         logits = logits.where(logit_masks, -torch.inf) * self.config.scale
@@ -299,7 +300,6 @@ class NCELoss(EmbedLoss):
     def loss(
         self, logits: torch.Tensor, target: torch.Tensor, negative_masks: torch.Tensor
     ) -> torch.Tensor:
-        # positive logits are in the diagonal
         binary_targets = torch.zeros_like(logits).scatter(
             dim=1, index=target, value=1.0
         )
@@ -308,9 +308,9 @@ class NCELoss(EmbedLoss):
             logits, binary_targets, reduction="none"
         )
         # shape: (batch_size, num_candidates)
-        pos_loss = nce_losses.diagonal()
+        pos_loss = nce_losses.gather(dim=1, index=target)[:, 0]
         # shape: (batch_size,)
-        return (pos_loss + weighted_mean(nce_losses, negative_masks, dim=-1)).sum()
+        return (pos_loss + weighted_mean(nce_losses, negative_masks, dim=1)).sum()
 
 
 class PairwiseHingeLoss(EmbedLoss):
@@ -321,7 +321,7 @@ class PairwiseHingeLoss(EmbedLoss):
         # shape: (batch_size, 1)
         scores = logits - target_logits * (1 - self.config.margin)
         # shape: (batch_size, num_candidates)
-        return weighted_mean(scores.relu(), negative_masks, dim=-1).sum()
+        return weighted_mean(scores.relu(), negative_masks, dim=1).sum()
 
 
 class PairwiseLogisticLoss(EmbedLoss):
@@ -332,7 +332,7 @@ class PairwiseLogisticLoss(EmbedLoss):
         # shape: (batch_size, 1)
         scores = logits - target_logits * (1 - self.config.margin)
         # shape: (batch_size, num_candidates)
-        return weighted_mean(torch_fn.softplus(scores), negative_masks, dim=-1).sum()
+        return weighted_mean(torch_fn.softplus(scores), negative_masks, dim=1).sum()
 
 
 LOSS_CLASSES: list[type[EmbedLoss]] = [
