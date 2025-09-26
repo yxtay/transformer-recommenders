@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pathlib
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import lightning as lp
 import lightning.pytorch.callbacks as lp_callbacks
@@ -31,7 +31,6 @@ if TYPE_CHECKING:
 
 
 class SeqRecLightningConfig(LossConfig, SeqRecModelConfig):
-    target_position: Literal["first", "diagonal"] | None = "first"
     train_loss: LossType = "InfoNCELoss"
     learning_rate: float = 0.001
     weight_decay: float = 0.01

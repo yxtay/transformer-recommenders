@@ -31,7 +31,6 @@ if TYPE_CHECKING:
 
 
 class SeqEmbeddedLightningConfig(LossConfig, SeqEmbeddedModelConfig):
-    target_position: str = "first"
     train_loss: LossType = "InfoNCELoss"
     learning_rate: float = 0.001
     weight_decay: float = 0.01
