@@ -151,6 +151,10 @@ class SeqRecModel(torch.nn.Module):
         # shape: (batch_size * seq_len, hidden_size)
         candidate_embed = torch.cat([pos_embed, neg_embed])
         # shape: (2 * batch_size * seq_len, hidden_size)
+        candidate_embed = candidate_embed[None, :, :].expand(
+            query_embed.size(0), -1, -1
+        )
+        # shape: (batch_size * seq_len, 2 * batch_size * seq_len, hidden_size)
         return {
             "query_embed": query_embed,
             "candidate_embed": candidate_embed,
