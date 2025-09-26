@@ -126,7 +126,7 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
 
         return np.sort(self.rng.choice(indices, size=max_seq_length, replace=False))
 
-    def sample_positive(
+    def sample_positives(
         self,
         history_item_idx: np.typing.NDArray[np.int32],
         history_label: np.typing.NDArray[np.bool_],
@@ -145,7 +145,7 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
                 positives[i] = self.rng.choice(pos_candidates)
         return positives
 
-    def sample_negative(
+    def sample_negatives(
         self,
         history_item_idx: np.typing.NDArray[np.int32],
         sampled_indices: np.typing.NDArray[np.int32],
@@ -166,12 +166,12 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         )
 
         sampled_indices = self.sample_sequence(history_item_idx)
-        pos_item_idx = self.sample_positive(
+        pos_item_idx = self.sample_positives(
             history_item_idx=history_item_idx,
             history_label=history_label,
             sampled_indices=sampled_indices,
         )
-        neg_item_idx = self.sample_negative(
+        neg_item_idx = self.sample_negatives(
             history_item_idx=history_item_idx,
             sampled_indices=sampled_indices,
         )
