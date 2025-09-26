@@ -120,7 +120,9 @@ class SeqRecModel(torch.nn.Module):
     ) -> torch.Tensor:
         item_text_sequence = [seq[-self.max_seq_length :] for seq in item_text_sequence]
         num_items = [len(seq) for seq in item_text_sequence]
-        embeddings = self.embed_item_text(list(itertools.chain(*item_text_sequence)))
+        embeddings = self.embed_item_text(
+            list(itertools.chain.from_iterable(item_text_sequence))
+        )
         return pad_sequence(torch.split(embeddings, num_items), batch_first=True)
 
     def forward(

@@ -345,11 +345,11 @@ LOSS_CLASSES: list[type[EmbedLoss]] = [
 ]
 
 LossType = Literal[
-    AlignmentLoss.__name__,
-    AlignmentContrastiveLoss.__name__,
-    ContrastiveLoss.__name__,
-    InfoNCELoss.__name__,
-    NCELoss.__name__,
-    PairwiseHingeLoss.__name__,
-    PairwiseLogisticLoss.__name__,
+    "AlignmentLoss",
+    "AlignmentContrastiveLoss",
+    "ContrastiveLoss",
+    "InfoNCELoss",
+    "NCELoss",
+    "PairwiseHingeLoss",
+    "PairwiseLogisticLoss",
 ]

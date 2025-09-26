@@ -23,6 +23,7 @@ jobs:
       contents: read
     strategy:
       matrix:
+        model: [mf, seq, seq_embedded]
         os: [ubuntu-latest, macos-latest]
       fail-fast: false
 
@@ -30,6 +31,7 @@ jobs:
     env:
       HF_HOME: /tmp/huggingface
       PROJECT_NAME: xfmr_rec
+      PYTORCH_MPS_HIGH_WATERMARK_RATIO: "0.0"
       UV_LOCKED: "1"
       UV_NO_SYNC: "1"
     steps:
@@ -53,23 +55,23 @@ jobs:
           uv pip list
 
       - if: ${{ success() || failure() }}
-        run: uv run seq_train fit --print_config
+        run: uv run ${{ matrix.model }}_train fit --print_config
 
       - if: ${{ success() || failure() }}
         run: |
-          uv run seq_train fit \
+          uv run ${{ matrix.model }}_train fit \
             --trainer.limit_train_batches 1 \
             --trainer.limit_val_batches 1 \
             --data.config.num_workers 0
 
       - if: ${{ success() || failure() }}
-        run: uv run seq_deploy
+        run: uv run ${{ matrix.model }}_deploy
 
       - if: ${{ failure() }}
-        run: uv run python -m "${PROJECT_NAME}.seq.trainer"
+        run: uv run python -m "${PROJECT_NAME}.${{ matrix.model }}.trainer"
 
       - if: ${{ failure() }}
-        run: uv run python -m "${PROJECT_NAME}.seq.data"
+        run: uv run python -m "${PROJECT_NAME}.${{ matrix.model }}.data"
 
       - if: ${{ failure() }}
         run: uv run data

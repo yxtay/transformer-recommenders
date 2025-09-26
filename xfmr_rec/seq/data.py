@@ -23,6 +23,10 @@ from xfmr_rec.params import (
     USERS_PARQUET,
 )
 
+NumpyStrArray = np.typing.NDArray[str]
+NumpyIntArray = np.typing.NDArray[int]
+NumpyBoolArray = np.typing.NDArray[bool]
+
 
 class SeqExample(TypedDict):
     history_item_idx: torch.Tensor
@@ -63,7 +67,7 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         config: SeqDataConfig,
         *,
         items_dataset: datasets.Dataset,
-        users_dataset: datasets.Dataset,
+        events_dataset: datasets.Dataset,
     ) -> None:
         self.config = config
         self.rng = np.random.default_rng()
@@ -76,16 +80,26 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         self.all_idx = set(self.id2idx)
         self.item_texts: datasets.Column = items_dataset["item_text"]
 
-        self.events_dataset = self.process_events(users_dataset)
+        self.events_dataset = self.process_events(events_dataset)
 
         logger.info(repr(self.config))
         logger.info(f"num_rows: {len(self)}, num_items: {len(self.id2idx)}")
 
+    def map_id2idx(
+        self,
+        example: dict[str, np.ndarray],
+    ) -> dict[str, np.ndarray]:
+        item_ids = example["history.item_id"]
+        labels = example["history.label"]
+        mask = [item_id in self.id2idx.index for item_id in item_ids]
+        item_idx = self.id2idx[item_ids[mask]].to_numpy()
+        return {"history_item_idx": item_idx, "history_label": labels[mask]}
+
     def duplicate_rows(self, batch: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
-        history_item_idx = batch["history.item_id"]
+        history_item_idx = batch["history_item_idx"]
         num_copies = [
-            ((len(seq) - 1) // self.config.max_seq_length + 1)
-            for seq in history_item_idx
+            ((len(history) - 1) // self.config.max_seq_length + 1)
+            for history in history_item_idx
         ]
         return {
             key: [
@@ -96,29 +110,19 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
             for key in batch
         }
 
-    def process_events(self, users_dataset: datasets.Dataset) -> datasets.Dataset:
+    def process_events(self, events_dataset: datasets.Dataset) -> datasets.Dataset:
         return (
-            users_dataset.flatten()
+            events_dataset.flatten()
             .select_columns(["history.item_id", "history.label"])
             .with_format("numpy")
+            .map(self.map_id2idx)
             .map(self.duplicate_rows, batched=True)
         )
 
     def __len__(self) -> int:
         return len(self.events_dataset)
 
-    def map_id2idx(
-        self,
-        item_ids: np.typing.NDArray[np.str_],
-        labels: np.typing.NDArray[np.bool],
-    ) -> tuple[np.typing.NDArray[np.int32], np.typing.NDArray[np.bool]]:
-        mask = [item_id in self.id2idx.index for item_id in item_ids]
-        item_idx = self.id2idx[item_ids[mask]].to_numpy()
-        return item_idx, labels[mask]
-
-    def sample_sequence(
-        self, history_item_idx: np.typing.NDArray[np.int32]
-    ) -> np.typing.NDArray[np.int32]:
+    def sample_sequence(self, history_item_idx: NumpyIntArray) -> NumpyIntArray:
         indices = np.arange(len(history_item_idx) - 1)
         max_seq_length = self.config.max_seq_length
         if len(indices) <= max_seq_length:
@@ -128,10 +132,10 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
 
     def sample_positives(
         self,
-        history_item_idx: np.typing.NDArray[np.int32],
-        history_label: np.typing.NDArray[np.bool_],
-        sampled_indices: np.typing.NDArray[np.int32],
-    ) -> np.typing.NDArray[np.int32]:
+        history_item_idx: NumpyIntArray,
+        history_label: NumpyBoolArray,
+        sampled_indices: NumpyIntArray,
+    ) -> NumpyIntArray:
         positives = np.zeros_like(sampled_indices)
         pos_lookahead = self.config.pos_lookahead
 
@@ -147,9 +151,9 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
 
     def sample_negatives(
         self,
-        history_item_idx: np.typing.NDArray[np.int32],
-        sampled_indices: np.typing.NDArray[np.int32],
-    ) -> np.typing.NDArray[np.int32]:
+        history_item_idx: NumpyIntArray,
+        sampled_indices: NumpyIntArray,
+    ) -> NumpyIntArray:
         seq_len = len(sampled_indices)
         neg_candidates = list(self.all_idx - set(history_item_idx.tolist()))
         if len(neg_candidates) == 0:
@@ -161,9 +165,8 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
 
     def __getitem__(self, idx: int) -> SeqExample:
         row = self.events_dataset[idx]
-        history_item_idx, history_label = self.map_id2idx(
-            row["history.item_id"], row["history.label"]
-        )
+        history_item_idx = row["history_item_idx"]
+        history_label = row["history_label"]
 
         sampled_indices = self.sample_sequence(history_item_idx)
         pos_item_idx = self.sample_positives(
@@ -237,7 +240,7 @@ class SeqDataModule(lp.LightningDataModule):
             self.train_dataset = SeqDataset(
                 self.config,
                 items_dataset=self.items_dataset,
-                users_dataset=train_dataset,
+                events_dataset=train_dataset,
             )
 
         if self.val_dataset is None and stage in {"fit", "validate", None}:
@@ -317,6 +320,6 @@ if __name__ == "__main__":
         shapes = {
             key: value.shape
             for key, value in batch.items()
-            if isinstance(value, torch.Tensor)
+            if isinstance(value, (torch.Tensor, np.ndarray))
         }
         rich.print(shapes)
