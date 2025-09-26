@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 
 import lightning as lp
 import lightning.pytorch.callbacks as lp_callbacks
-import lightning.pytorch.loggers as lp_loggers
 import torch
 from loguru import logger
 
@@ -32,6 +31,7 @@ if TYPE_CHECKING:
 
 
 class SeqEmbeddedLightningConfig(LossConfig, SeqEmbeddedModelConfig):
+    target_position: str = "first"
     train_loss: LossType = "InfoNCELoss"
     learning_rate: float = 0.001
     weight_decay: float = 0.01
@@ -173,21 +173,6 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
             top_k=self.config.top_k,
             exclude_item_ids=row["history"]["item_id"].tolist(),
         )
-
-    def on_train_start(self) -> None:
-        params = self.hparams | self.trainer.datamodule.hparams
-        metrics = {
-            key: value
-            for key, value in self.trainer.callback_metrics.items()
-            if key.startswith("val/")
-        }
-        for lp_logger in self.loggers:
-            if isinstance(lp_logger, lp_loggers.TensorBoardLogger):
-                lp_logger.log_hyperparams(params=params, metrics=metrics)
-
-            if isinstance(lp_logger, lp_loggers.MLFlowLogger):
-                # reset mlflow run status to "RUNNING"
-                lp_logger.experiment.update_run(lp_logger.run_id, status="RUNNING")
 
     def on_validation_start(self) -> None:
         self.items_index.index_data(self.trainer.datamodule.items_dataset)

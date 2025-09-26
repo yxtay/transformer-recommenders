@@ -34,7 +34,7 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
         config: MFDatasetConfig,
         *,
         items_dataset: datasets.Dataset,
-        users_dataset: datasets.Dataset,
+        events_dataset: datasets.Dataset,
     ) -> None:
         self.config = MFDatasetConfig.model_validate(config)
         self.rng = np.random.default_rng()
@@ -46,7 +46,7 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
         self.all_idx = set(self.id2idx)
         self.item_text: datasets.Column = items_dataset["item_text"]
 
-        self.events_dataset = self.process_events(users_dataset)
+        self.events_dataset = self.process_events(events_dataset)
 
         logger.info(f"num_rows: {len(self)}, num_items: {len(self.id2idx)}")
 
@@ -55,9 +55,9 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
         num_copies = [len(seq) for seq in history_item_idx]
         return {key: batch[key].repeat(num_copies) for key in batch}
 
-    def process_events(self, users_dataset: datasets.Dataset) -> datasets.Dataset:
+    def process_events(self, events_dataset: datasets.Dataset) -> datasets.Dataset:
         return (
-            users_dataset.flatten()
+            events_dataset.flatten()
             .select_columns(["user_text", "history.item_id", "history.label"])
             .with_format("numpy")
             .map(self.duplicate_rows, batched=True)
