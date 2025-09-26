@@ -58,7 +58,7 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
         candidate_embed: torch.Tensor,
         target: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        query_embed, candidate_embed = self.check_embeds(query_embed, candidate_embed)
+        self.check_embeds(query_embed, candidate_embed)
         logits = self.compute_logits(query_embed, candidate_embed)
         target = self.check_target(logits, target)
         negative_masks = self.mask_false_negatives(logits, target)
@@ -67,30 +67,10 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
 
     def check_embeds(
         self, query_embed: torch.Tensor, candidate_embed: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> None:
         if query_embed.dim() != 2:
             msg = f"query_embed should have 2 dimensions: {query_embed.dim() = }"
             raise ValueError(msg)
-
-        batch_size, embedding_dim = query_embed.size()
-        if candidate_embed.dim() == 2:
-            if self.config.target_position != "diagonal":
-                msg = (
-                    "candidate_embed with 2 dimensions requires "
-                    "`config.target_position` to be 'diagonal': "
-                    f"{self.config.target_position = }"
-                )
-                raise ValueError(msg)
-
-            if query_embed.size(0) > candidate_embed.size(0):
-                msg = (
-                    "requires query_embed.size(0) <= candidate_embed.size(0): "
-                    f"{query_embed.size(0) = }, "
-                    f"{candidate_embed.size(0) = }"
-                )
-                raise ValueError(msg)
-
-            candidate_embed = candidate_embed[None, :, :].expand(batch_size, -1, -1)
 
         if candidate_embed.dim() != 3:
             msg = (
@@ -98,7 +78,7 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
             )
             raise ValueError(msg)
 
-        if candidate_embed.size(0) != batch_size:
+        if query_embed.size(0) != candidate_embed.size(0):
             msg = (
                 "query_embed and candidate_embed should have same number of rows: "
                 f"{query_embed.size(0) = }, "
@@ -106,15 +86,13 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
             )
             raise ValueError(msg)
 
-        if candidate_embed.size(-1) != embedding_dim:
+        if query_embed.size(-1) != candidate_embed.size(-1):
             msg = (
                 "embedding_dim should match: "
                 f"{ query_embed.size(-1) = }, "
                 f"{ candidate_embed.size(-1) = }"
             )
             raise ValueError(msg)
-
-        return query_embed, candidate_embed
 
     def compute_logits(
         self, query_embed: torch.Tensor, candidate_embed: torch.Tensor
