@@ -31,6 +31,7 @@ jobs:
     env:
       HF_HOME: /tmp/huggingface
       PROJECT_NAME: xfmr_rec
+      PYTORCH_MPS_HIGH_WATERMARK_RATIO: "0.0"
       UV_LOCKED: "1"
       UV_NO_SYNC: "1"
     steps:
