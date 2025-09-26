@@ -50,9 +50,19 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
 
         logger.info(f"num_rows: {len(self)}, num_items: {len(self.id2idx)}")
 
+    def map_id2idx(
+        self,
+        example: dict[str, np.ndarray],
+    ) -> dict[str, np.ndarray]:
+        item_ids = example["history.item_id"]
+        labels = example["history.label"]
+        mask = [item_id in self.id2idx.index for item_id in item_ids]
+        item_idx = self.id2idx[item_ids[mask]].to_numpy()
+        return {"history_item_idx": item_idx, "history_label": labels[mask]}
+
     def duplicate_rows(self, batch: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
-        history_item_idx = batch["history.item_id"]
-        num_copies = [len(seq) for seq in history_item_idx]
+        history_item_idx = batch["history_item_idx"]
+        num_copies = [len(history) - 1 for history in history_item_idx]
         return {key: batch[key].repeat(num_copies) for key in batch}
 
     def process_events(self, events_dataset: datasets.Dataset) -> datasets.Dataset:
@@ -60,24 +70,23 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
             events_dataset.flatten()
             .select_columns(["user_text", "history.item_id", "history.label"])
             .with_format("numpy")
+            .map(self.map_id2idx)
             .map(self.duplicate_rows, batched=True)
         )
 
     def __len__(self) -> int:
         return len(self.events_dataset)
 
-    def map_id2idx(
-        self,
-        item_ids: np.typing.NDArray[np.str_],
-        labels: np.typing.NDArray[np.bool],
-    ) -> list[int]:
-        mask = [item_id in self.id2idx.index for item_id in item_ids]
-        item_idx = self.id2idx[item_ids[mask]].to_numpy()
-        return item_idx[labels[mask]].tolist()
-
-    def sample_positive_idx(self, history_item_idx: list[int]) -> int:
-        indices = range(len(history_item_idx))
+    def sample_query_idx(self, history_item_idx: np.ndarray) -> int:
+        indices = range(len(history_item_idx) - 1)
         return self.rng.choice(indices).item()
+
+    def sample_positive(
+        self, history_item_idx: np.ndarray, history_label: np.ndarray, query_idx: int
+    ) -> int:
+        pos_candidates = history_item_idx[query_idx + 1 :]
+        pos_candidates = pos_candidates[history_label[query_idx + 1 :]]
+        return self.rng.choice(pos_candidates)
 
     def sample_negative(self, history_item_idx: list[int]) -> int:
         neg_candidates = list(self.all_idx - set(history_item_idx))
@@ -85,37 +94,33 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
             neg_candidates = list(self.all_idx)
         return self.rng.choice(neg_candidates).item()
 
-    def sample_query_text(
-        self,
-        user_text: str,
-        pos_idx: int,
-        history_item_idx: list[int],
-    ) -> str:
-        query_candidates = history_item_idx[:pos_idx]
-        if (
-            self.rng.random() > self.config.query_sampling_prob
-            or len(query_candidates) == 0
-        ):
-            return user_text
-
-        query_idx = self.rng.choice(query_candidates)
-        return self.item_text[query_idx]
+    def sample_query_text(self, user_text: str, item_text: str) -> str:
+        return (
+            item_text
+            if self.rng.random() < self.config.query_sampling_prob
+            else user_text
+        )
 
     def __getitem__(self, idx: int) -> dict[str, str]:
         row = self.events_dataset[idx]
-        history_item_idx = self.map_id2idx(row["history.item_id"], row["history.label"])
+        history_item_idx = row["history_item_idx"]
+        history_label = row["history_label"]
 
-        pos_idx = self.sample_positive_idx(history_item_idx=history_item_idx)
+        query_idx = self.sample_query_idx(history_item_idx=history_item_idx)
+        pos_item_idx = self.sample_positive(
+            history_item_idx=history_item_idx,
+            history_label=history_label,
+            query_idx=query_idx,
+        )
         neg_item_idx = self.sample_negative(history_item_idx=history_item_idx)
         query_text = self.sample_query_text(
             user_text=row["user_text"],
-            pos_idx=pos_idx,
-            history_item_idx=history_item_idx,
+            item_text=self.item_text[history_item_idx[query_idx]],
         )
         return {
-            "pos_text": self.item_text[history_item_idx[pos_idx]],
-            "neg_text": self.item_text[neg_item_idx],
             "query_text": query_text,
+            "pos_text": self.item_text[pos_item_idx],
+            "neg_text": self.item_text[neg_item_idx],
         }
 
 
@@ -158,7 +163,7 @@ class MFDataModule(lp.LightningDataModule):
             self.train_dataset = MFDataset(
                 self.config,
                 items_dataset=self.items_dataset,
-                users_dataset=train_dataset,
+                events_dataset=train_dataset,
             )
 
         if self.val_dataset is None and stage in {"fit", "validate", None}:

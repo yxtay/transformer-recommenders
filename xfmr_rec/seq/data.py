@@ -86,11 +86,21 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         logger.info(repr(self.config))
         logger.info(f"num_rows: {len(self)}, num_items: {len(self.id2idx)}")
 
+    def map_id2idx(
+        self,
+        example: dict[str, np.ndarray],
+    ) -> dict[str, np.ndarray]:
+        item_ids = example["history.item_id"]
+        labels = example["history.label"]
+        mask = [item_id in self.id2idx.index for item_id in item_ids]
+        item_idx = self.id2idx[item_ids[mask]].to_numpy()
+        return {"history_item_idx": item_idx, "history_label": labels[mask]}
+
     def duplicate_rows(self, batch: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
-        history_item_idx = batch["history.item_id"]
+        history_item_idx = batch["history_item_idx"]
         num_copies = [
-            ((len(seq) - 1) // self.config.max_seq_length + 1)
-            for seq in history_item_idx
+            ((len(history) - 1) // self.config.max_seq_length + 1)
+            for history in history_item_idx
         ]
         return {
             key: [
@@ -106,20 +116,12 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
             events_dataset.flatten()
             .select_columns(["history.item_id", "history.label"])
             .with_format("numpy")
+            .map(self.map_id2idx)
             .map(self.duplicate_rows, batched=True)
         )
 
     def __len__(self) -> int:
         return len(self.events_dataset)
-
-    def map_id2idx(
-        self,
-        item_ids: NumpyStrArray,
-        labels: NumpyBoolArray,
-    ) -> tuple[NumpyIntArray, NumpyBoolArray]:
-        mask = [item_id in self.id2idx.index for item_id in item_ids]
-        item_idx = self.id2idx[item_ids[mask]].to_numpy()
-        return item_idx, labels[mask]
 
     def sample_sequence(self, history_item_idx: NumpyIntArray) -> NumpyIntArray:
         indices = np.arange(len(history_item_idx) - 1)
@@ -164,9 +166,8 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
 
     def __getitem__(self, idx: int) -> SeqExample:
         row = self.events_dataset[idx]
-        history_item_idx, history_label = self.map_id2idx(
-            row["history.item_id"], row["history.label"]
-        )
+        history_item_idx = row["history_item_idx"]
+        history_label = row["history_label"]
 
         sampled_indices = self.sample_sequence(history_item_idx)
         pos_item_idx = self.sample_positives(
@@ -240,7 +241,7 @@ class SeqDataModule(lp.LightningDataModule):
             self.train_dataset = SeqDataset(
                 self.config,
                 items_dataset=self.items_dataset,
-                users_dataset=train_dataset,
+                events_dataset=train_dataset,
             )
 
         if self.val_dataset is None and stage in {"fit", "validate", None}:
