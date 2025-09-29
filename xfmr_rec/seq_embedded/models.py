@@ -126,23 +126,19 @@ class SeqEmbeddedModel(torch.nn.Module):
         output = self(history_item_idx)
         attention_mask = output["attention_mask"].bool()
         # shape: (batch_size, seq_len)
-        query_embed = output["token_embeddings"]
-        # shape: (batch_size, seq_len, hidden_size)
-        query_embed = query_embed[attention_mask]
+        query_embed = output["token_embeddings"][attention_mask]
         # shape: (batch_size * seq_len, hidden_size)
 
-        pos_item_idx = pos_item_idx[attention_mask]
-        # shape: (batch_size * seq_len)
-        neg_item_idx = neg_item_idx[attention_mask]
-        # shape: (batch_size * seq_len)
-        candidate_item_idx = torch.cat([pos_item_idx, neg_item_idx])
-        # shape: (2 * batch_size * seq_len)
-        candidate_embed = self.embeddings(candidate_item_idx)
-        # shape: (2 * batch_size * seq_len, hidden_size)
-        candidate_embed = candidate_embed[None, :, :].expand(
-            query_embed.size(0), -1, -1
-        )
-        # shape: (batch_size * seq_len, 2 * batch_size * seq_len, hidden_size)
+        pos_embed = self.embeddings(pos_item_idx)[attention_mask]
+        # shape: (batch_size * seq_len, hidden_size)
+        pos_embed = pos_embed[:, None, :]
+        # shape: (batch_size * seq_len, 1, hidden_size)
+        neg_embed = self.embeddings(neg_item_idx)[attention_mask]
+        # shape: (batch_size * seq_len, hidden_size)
+        neg_embed = neg_embed[None, :, :].expand(pos_embed.size(0), -1, -1)
+        # shape: (batch_size * seq_len, seq_len, hidden_size)
+        candidate_embed = torch.cat([pos_embed, neg_embed], dim=1)
+        # shape: (batch_size * seq_len, 1 + batch_size * seq_len, hidden_size)
         return {
             "query_embed": query_embed,
             "candidate_embed": candidate_embed,

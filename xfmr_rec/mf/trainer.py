@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pathlib
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import lightning as lp
 import lightning.pytorch.callbacks as lp_callbacks
@@ -37,6 +37,7 @@ class MFRecLightningConfig(LossConfig, ModelConfig):
     num_attention_heads: int | None = 4
     intermediate_size: int | None = 32
 
+    target_position: Literal["first", "diagonal"] | None = "diagonal"
     scale: float = 30
     train_loss: LossType = "InfoNCELoss"
     learning_rate: float = 0.001
