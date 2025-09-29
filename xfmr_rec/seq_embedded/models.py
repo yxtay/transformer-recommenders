@@ -136,7 +136,7 @@ class SeqEmbeddedModel(torch.nn.Module):
         neg_embed = self.embeddings(neg_item_idx)[attention_mask]
         # shape: (batch_size * seq_len, hidden_size)
         neg_embed = neg_embed[None, :, :].expand(pos_embed.size(0), -1, -1)
-        # shape: (batch_size * seq_len, seq_len, hidden_size)
+        # shape: (batch_size * seq_len, batch_size * seq_len, hidden_size)
         candidate_embed = torch.cat([pos_embed, neg_embed], dim=1)
         # shape: (batch_size * seq_len, 1 + batch_size * seq_len, hidden_size)
         return {
