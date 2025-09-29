@@ -14,10 +14,10 @@ from xfmr_rec.models import ModelConfig, init_sent_transformer
 
 class SeqRecModelConfig(ModelConfig):
     vocab_size: int | None = 1
-    hidden_size: int | None = 32
+    hidden_size: int | None = 64
     num_hidden_layers: int | None = 1
-    num_attention_heads: int | None = 4
-    intermediate_size: int | None = 32
+    num_attention_heads: int | None = 2
+    intermediate_size: int | None = 64
     max_seq_length: int | None = 32
     is_decoder: bool = True
 
@@ -142,21 +142,20 @@ class SeqRecModel(torch.nn.Module):
         output = self(history_item_text)
         attention_mask = output["attention_mask"].bool()
         # shape: (batch_size, seq_len)
-        query_embed = output["token_embeddings"]
-        # shape: (batch_size, seq_len, hidden_size)
-        query_embed = query_embed[attention_mask]
+        query_embed = output["token_embeddings"][attention_mask]
         # shape: (batch_size * seq_len, hidden_size)
 
         pos_embed = self.embed_item_text_sequence(pos_item_text)[attention_mask]
         # shape: (batch_size * seq_len, hidden_size)
+        pos_embed = pos_embed[:, None, :]
+        # shape: (batch_size * seq_len, 1, hidden_size)
         neg_embed = self.embed_item_text_sequence(neg_item_text)[attention_mask]
         # shape: (batch_size * seq_len, hidden_size)
-        candidate_embed = torch.cat([pos_embed, neg_embed])
-        # shape: (2 * batch_size * seq_len, hidden_size)
-        candidate_embed = candidate_embed[None, :, :].expand(
-            query_embed.size(0), -1, -1
-        )
-        # shape: (batch_size * seq_len, 2 * batch_size * seq_len, hidden_size)
+        neg_embed = neg_embed[None, :, :].expand(pos_embed.size(0), -1, -1)
+        # shape: (batch_size * seq_len, batch_size * seq_len, hidden_size)
+
+        candidate_embed = torch.cat([pos_embed, neg_embed], dim=1)
+        # shape: (batch_size * seq_len, 1 + batch_size * seq_len, hidden_size)
         return {
             "query_embed": query_embed,
             "candidate_embed": candidate_embed,

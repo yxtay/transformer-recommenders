@@ -9,7 +9,7 @@ import torch.nn.functional as torch_fn
 
 
 class LossConfig(pydantic.BaseModel):
-    target_position: Literal["first", "diagonal"] | None = "diagonal"
+    target_position: Literal["first", "diagonal"] | None = "first"
     mask_hard_negatives: bool = True
     num_negatives: int = 0
     scale: float = 1.0
