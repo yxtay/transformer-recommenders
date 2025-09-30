@@ -3,7 +3,6 @@ from __future__ import annotations
 import pathlib
 import shutil
 import tempfile
-from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
 import polars as pl
@@ -80,7 +79,6 @@ def load_items(src_dir: str = DATA_DIR) -> pl.LazyFrame:
         )
         .pipe(pl.from_pandas)
         .rename({"movie_id": "item_id"})
-        .with_row_index("item_rn", offset=1)
         .with_columns(genres=pl.col("genres").str.split("|"))
         .with_columns(item_text=pl.struct("title", "genres").struct.json_encode())
         .drop("title", "genres")
@@ -109,7 +107,6 @@ def load_users(src_dir: str = DATA_DIR) -> pl.LazyFrame:
             engine="python",
         )
         .pipe(pl.from_pandas)
-        .with_row_index("user_rn", offset=1)
         .with_columns(
             user_text=pl.struct(
                 "gender", "age", "occupation", "zipcode"
@@ -210,66 +207,12 @@ def process_events(
         events.lazy()
         .join(items.lazy(), on="item_id", how="left", validate="m:1")
         .join(users.lazy(), on="user_id", how="left", validate="m:1")
-        .sort(["user_id", "datetime"])
+        .collect()
     )
 
-    with ThreadPoolExecutor() as executor:
-        for _, df in events_processed.collect().group_by("user_id"):
-            executor.submit(gather_history, events=df.lazy(), path=events_parquet)
-
-    events_processed = pl.scan_parquet(events_parquet)
-    n_row = events_processed.select(pl.len()).collect().item()
-    n_col = events_processed.collect_schema().len()
-    logger.info("events saved: {}, shape: {}", events_parquet, (n_row, n_col))
-    return events_processed
-
-
-def gather_history(events: pl.LazyFrame, *, path: pathlib.Path) -> pl.LazyFrame:
-    activity_cols = [
-        "datetime",
-        "event_name",
-        "event_value",
-        "label",
-        "item_rn",
-        "item_id",
-        "item_text",
-    ]
-    events_history = (
-        events.rolling("datetime", period="4w", closed="none", group_by="user_id")
-        .agg(history=pl.struct(*activity_cols))
-        .with_columns(history=pl.col("history").list.sort())
-        .with_columns(
-            history=pl.struct(
-                pl.col("history")
-                .list.eval(  # devskim: ignore DS189424
-                    pl.element().struct.field(col)
-                )
-                .alias(col)
-                for col in activity_cols
-            )
-        )
-        .unique(["user_id", "datetime"])
-    )
-    events_target = (
-        events.group_by("user_id", "is_train")
-        .agg(target=pl.struct(*activity_cols))
-        .with_columns(target=pl.col("target").list.sort())
-        .with_columns(
-            target=pl.struct(
-                pl.col("target")
-                .list.eval(  # devskim: ignore DS189424
-                    pl.element().struct.field(col)
-                )
-                .alias(col)
-                for col in activity_cols
-            )
-        )
-    )
-    events_history = events.join(
-        events_history, on=["user_id", "datetime"], validate="m:1"
-    ).join(events_target, on=["user_id", "is_train"], validate="m:1")
-    events_history.collect().write_parquet(path, partition_by="user_id")
-    return events_history
+    events_processed.write_parquet(events_parquet)
+    logger.info("events saved: {}, shape: {}", events_parquet, events_processed.shape)
+    return pl.scan_parquet(events_parquet)
 
 
 def process_items(
@@ -316,7 +259,6 @@ def process_users(
         "event_name",
         "event_value",
         "label",
-        "item_rn",
         "item_id",
         "item_text",
     ]

@@ -10,8 +10,8 @@ import torch.nn.functional as torch_fn
 
 class LossConfig(pydantic.BaseModel):
     target_position: Literal["first", "diagonal"] | None = "first"
-    mask_hard_negatives: bool = True
-    num_negatives: int = 0
+    mask_false_negatives: bool = True
+    num_hard_negatives: int = 0
     scale: float = 1.0
     margin: float = 0.5
 
@@ -153,7 +153,7 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
         logits: torch.Tensor,
         target: torch.Tensor,
     ) -> torch.Tensor:
-        if not self.config.mask_hard_negatives:
+        if not self.config.mask_false_negatives:
             return torch.ones_like(logits, dtype=torch.bool).scatter(
                 dim=1, index=target, value=False
             )
@@ -168,16 +168,16 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
     def mine_hard_negatives(
         self, logits: torch.Tensor, negative_masks: torch.Tensor
     ) -> torch.Tensor:
-        if self.config.num_negatives <= 0:
+        if self.config.num_hard_negatives <= 0:
             return negative_masks
 
-        if self.config.num_negatives >= logits.size(1):
+        if self.config.num_hard_negatives >= logits.size(1):
             return negative_masks
 
         # take top-k logits from negatives only
         indices = (
             logits.where(negative_masks, -torch.inf)
-            .topk(k=self.config.num_negatives, dim=1, sorted=False)
+            .topk(k=self.config.num_hard_negatives, dim=1, sorted=False)
             .indices
         )
         # shape: (batch_size, num_negatives)
@@ -215,8 +215,8 @@ class LogitsStatistics(EmbedLoss):
     ) -> dict[str, torch.Tensor]:
         # num_negatives should exclude 1 target per row
         num_negatives = negative_masks.size(1) - 1
-        if self.config.num_negatives > 0:
-            num_negatives = min(num_negatives, self.config.num_negatives)
+        if self.config.num_hard_negatives > 0:
+            num_negatives = min(num_negatives, self.config.num_hard_negatives)
 
         neg_density = (negative_masks.sum(dim=1) / (num_negatives + 1e-9)).mean()
         stats = {"logits/neg/density": neg_density.item()}
