@@ -8,7 +8,7 @@ services:
     volumes:
       - ./data:/work/app/data
     healthcheck:
-      test: [CMD, uv, run, lightning, fit, --print_config]
+      test: [CMD, uv, run, seq_train, fit, --print_config]
     cap_drop:
       - all
     security_opt:
