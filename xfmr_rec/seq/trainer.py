@@ -152,7 +152,7 @@ class SeqRecLightningModule(lp.LightningModule):
         return losses | metrics
 
     def compute_metrics(
-        self, row: dict[str, np.ndarray], stage: str = "val"
+        self, row: dict[str, dict[str, np.ndarray]], stage: str = "val"
     ) -> dict[str, torch.Tensor]:
         recs = self.predict_step(row)
         metrics = compute_retrieval_metrics(
@@ -169,17 +169,21 @@ class SeqRecLightningModule(lp.LightningModule):
         self.log_dict(loss_dict)
         return loss_dict[f"loss/{self.config.train_loss}"]
 
-    def validation_step(self, row: dict[str, np.ndarray]) -> dict[str, float]:
+    def validation_step(
+        self, row: dict[str, dict[str, np.ndarray]]
+    ) -> dict[str, torch.Tensor]:
         metrics = self.compute_metrics(row, stage="val")
         self.log_dict(metrics, batch_size=1)
         return metrics
 
-    def test_step(self, row: dict[str, np.ndarray]) -> dict[str, float]:
+    def test_step(
+        self, row: dict[str, dict[str, np.ndarray]]
+    ) -> dict[str, torch.Tensor]:
         metrics = self.compute_metrics(row, stage="test")
         self.log_dict(metrics, batch_size=1)
         return metrics
 
-    def predict_step(self, row: dict[str, np.ndarray]) -> datasets.Dataset:
+    def predict_step(self, row: dict[str, dict[str, np.ndarray]]) -> datasets.Dataset:
         return self.recommend(
             row["history"]["item_id"].tolist(),
             top_k=self.config.top_k,
