@@ -114,7 +114,7 @@ class SeqEmbeddedModel(torch.nn.Module):
 
     def encode(self, item_ids: list[str]) -> torch.Tensor:
         item_ids = [item_id for item_id in item_ids if item_id in self.id2idx.index]
-        item_idx = torch.as_tensor(self.id2idx[item_ids].to_numpy())
+        item_idx = torch.as_tensor(self.id2idx[item_ids].to_numpy(), device=self.device)
         return self(item_idx[None, :])["sentence_embedding"][0]
 
     def compute_embeds(
