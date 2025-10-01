@@ -61,4 +61,4 @@ COPY xfmr_rec xfmr_rec
 RUN uv sync --no-default-groups
 
 USER ${USER}
-HEALTHCHECK CMD [ uv, run, lightning, fit, --print_config ]
+HEALTHCHECK CMD [ uv, run, seq_train, fit, --print_config ]
