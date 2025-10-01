@@ -54,7 +54,6 @@ EXAMPLE_USER = UserQuery(
 )
 
 packages = [
-    "--extra-index-url https://download.pytorch.org/whl/cpu",
     "datasets",
     "lancedb",
     "loguru",
