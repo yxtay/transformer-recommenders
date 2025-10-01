@@ -114,7 +114,7 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         attention_mask = embeds["attention_mask"]
         batch_size, seq_len = attention_mask.size()
         numel = attention_mask.numel()
-        non_zero = embeds["query_embed"].size(0)
+        non_zero = attention_mask.count_nonzero().item()
         metrics = {
             "batch/size": batch_size,
             "batch/seq_len": seq_len,
@@ -139,7 +139,7 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         return losses | metrics
 
     def compute_metrics(
-        self, row: dict[str, list[str]], stage: str = "val"
+        self, row: dict[str, np.ndarray], stage: str = "val"
     ) -> dict[str, torch.Tensor]:
         recs = self.predict_step(row)
         metrics = compute_retrieval_metrics(
@@ -195,7 +195,7 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
 
     @property
     def example_input_array(self) -> tuple[torch.Tensor]:
-        return (torch.as_tensor([[0], [1]]),)
+        return (torch.as_tensor([[0], [1]], device=self.device),)
 
     def state_dict(self, *args: object, **kwargs: object) -> dict[str, torch.Tensor]:
         state_dict = super().state_dict(*args, **kwargs)

@@ -23,9 +23,9 @@ from xfmr_rec.params import (
     USERS_PARQUET,
 )
 
-NumpyStrArray = np.typing.NDArray[str]
-NumpyIntArray = np.typing.NDArray[int]
-NumpyBoolArray = np.typing.NDArray[bool]
+NumpyStrArray = np.typing.NDArray[np.str_]
+NumpyIntArray = np.typing.NDArray[np.int_]
+NumpyBoolArray = np.typing.NDArray[np.bool_]
 
 
 class SeqExample(TypedDict):

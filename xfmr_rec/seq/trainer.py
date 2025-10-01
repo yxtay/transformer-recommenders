@@ -127,7 +127,7 @@ class SeqRecLightningModule(lp.LightningModule):
         attention_mask = embeds["attention_mask"]
         batch_size, seq_len = attention_mask.size()
         numel = attention_mask.numel()
-        non_zero = embeds["query_embed"].size(0)
+        non_zero = attention_mask.count_nonzero().item()
         metrics = {
             "batch/size": batch_size,
             "batch/seq_len": seq_len,
