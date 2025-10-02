@@ -16,6 +16,25 @@ if TYPE_CHECKING:
 
 
 class ModelConfig(pydantic.BaseModel):
+    """Simple pydantic container for model hyperparameters.
+
+    Fields correspond to common transformer configuration options. Any
+    unset fields may be inferred from a pretrained model when
+    ``init_bert`` is called.
+
+    Attributes:
+        vocab_size (int | None): Vocabulary size for the transformer.
+        hidden_size (int | None): Hidden dimension of the transformer.
+        num_hidden_layers (int | None): Number of transformer layers.
+        num_attention_heads (int | None): Number of attention heads.
+        intermediate_size (int | None): Intermediate (FFN) size.
+        max_seq_length (int | None): Maximum sequence length.
+        is_decoder (bool): Whether to build the model as a decoder.
+        pretrained_model_name (str): Name of the pretrained HF model.
+        pooling_mode (Literal): Pooling strategy for sentence embeddings.
+        is_normalized (bool): Whether to apply L2 normalization.
+    """
+
     vocab_size: int | None = None
     hidden_size: int | None = None
     num_hidden_layers: int | None = None
@@ -30,6 +49,23 @@ class ModelConfig(pydantic.BaseModel):
 
 
 def init_bert(config: ModelConfig) -> BertModel:
+    """Create a ``BertModel`` instance from a :class:`ModelConfig`.
+
+    The function inspects the provided ``config`` and will attempt to
+    fill missing fields by loading a pretrained tokenizer and/or model
+    from HuggingFace when ``pretrained_model_name`` is specified. The
+    assembled :class:`transformers.models.bert.BertConfig` is then used
+    to instantiate a new :class:`transformers.models.bert.BertModel`.
+
+    Args:
+        config (ModelConfig): Configuration describing the desired model
+            topology. Missing numeric fields (vocab_size, hidden_size,
+            etc.) will be inferred from a pretrained model when
+            ``pretrained_model_name`` is provided.
+
+    Returns:
+        BertModel: A freshly constructed ``BertModel`` instance.
+    """
     tokenizer = None
     if None in (config.vocab_size, config.max_seq_length):
         tokenizer = AutoTokenizer.from_pretrained(  # nosec
@@ -72,6 +108,30 @@ def to_sent_transformer(
     *,
     device: torch.device | str | None = "cpu",
 ) -> SentenceTransformer:
+    """Wrap a HuggingFace ``PreTrainedModel`` into a
+    :class:`sentence_transformers.SentenceTransformer` pipeline.
+
+    The provided HF ``model`` is saved to a temporary directory and then
+    loaded into a ``sentence_transformers.models.Transformer`` module.
+    A pooling layer is appended according to ``config.pooling_mode`` and
+    an optional normalization layer is added if ``config.is_normalized``
+    is True.
+
+    Args:
+        config (ModelConfig): Model configuration that controls pooling
+            and normalization behaviour.
+        model (PreTrainedModel): HuggingFace model instance to wrap.
+
+    Keyword Args:
+        device (torch.device | str | None): Device or device string to
+            place the returned SentenceTransformer on. Defaults to
+            ``"cpu"``.
+
+    Returns:
+        SentenceTransformer: Ready-to-use sentence transformer which
+            accepts text or tensor inputs and produces fixed-size
+            embeddings.
+    """
     with tempfile.TemporaryDirectory() as tmpdir:
         model.save_pretrained(tmpdir)
         modules = [
@@ -92,5 +152,22 @@ def to_sent_transformer(
 def init_sent_transformer(
     config: ModelConfig, device: torch.device | str | None = "cpu"
 ) -> SentenceTransformer:
+    """Initialise a :class:`SentenceTransformer` instance from a
+    :class:`ModelConfig`.
+
+    This is a convenience wrapper that first creates a ``BertModel`` via
+    :func:`init_bert` and then wraps it using
+    :func:`to_sent_transformer` to produce a SentenceTransformer with
+    pooling and optional normalization.
+
+    Args:
+        config (ModelConfig): Model configuration used to build the
+            underlying BERT model and pooling behaviour.
+        device (torch.device | str | None): Device or device string for
+            the returned SentenceTransformer. Defaults to ``"cpu"``.
+
+    Returns:
+        SentenceTransformer: The initialised sentence-transformer model.
+    """
     bert_model = init_bert(config)
     return to_sent_transformer(config, bert_model, device=device)

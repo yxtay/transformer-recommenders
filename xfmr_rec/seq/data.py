@@ -69,6 +69,13 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         items_dataset: datasets.Dataset,
         events_dataset: datasets.Dataset,
     ) -> None:
+        """Initialize the sequential dataset.
+
+        Args:
+            config: Configuration controlling sequence length and lookahead.
+            items_dataset: Dataset of items providing ``item_id`` -> ``item_text`` mapping.
+            events_dataset: Per-user events dataset used to build history sequences.
+        """
         self.config = config
         self.rng = np.random.default_rng()
 
@@ -89,6 +96,19 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         self,
         example: dict[str, np.ndarray],
     ) -> dict[str, np.ndarray]:
+        """Map per-user history item ids to internal indices.
+
+        Designed to be used with :meth:`datasets.Dataset.map`; filters out any
+        item ids that are not present in the current item vocabulary and
+        returns numpy arrays for indices and labels.
+
+        Args:
+            example: A mapping containing ``history.item_id`` and ``history.label``.
+
+        Returns:
+            A dict with keys ``history_item_idx`` and ``history_label`` containing
+            numpy arrays.
+        """
         item_ids = example["history.item_id"]
         labels = example["history.label"]
         mask = [item_id in self.id2idx.index for item_id in item_ids]
@@ -96,6 +116,18 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         return {"history_item_idx": item_idx, "history_label": labels[mask]}
 
     def duplicate_rows(self, batch: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+        """Duplicate per-user rows so long histories can be chunked.
+
+        For users with histories longer than ``max_seq_length`` this function
+        creates multiple rows so each produced row can be sampled into a
+        fixed-size sequence during training.
+
+        Args:
+            batch: A batch mapping produced during dataset mapping.
+
+        Returns:
+            The expanded batch with duplicated rows.
+        """
         history_item_idx = batch["history_item_idx"]
         num_copies = [
             ((len(history) - 1) // self.config.max_seq_length + 1)
@@ -111,6 +143,18 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         }
 
     def process_events(self, events_dataset: datasets.Dataset) -> datasets.Dataset:
+        """Preprocess and expand per-user event records for sequential sampling.
+
+        Flattens each user's history, maps item ids to indices and duplicates
+        rows for long histories so downstream sampling can produce fixed-size
+        sequences.
+
+        Args:
+            events_dataset: Dataset containing per-user interactions.
+
+        Returns:
+            Dataset expanded for sequential sampling.
+        """
         return (
             events_dataset.flatten()
             .select_columns(["history.item_id", "history.label"])
@@ -120,9 +164,27 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         )
 
     def __len__(self) -> int:
+        """Number of examples (rows) in the processed events dataset.
+
+        Returns:
+            The number of rows in the processed events dataset.
+        """
         return len(self.events_dataset)
 
     def sample_sequence(self, history_item_idx: NumpyIntArray) -> NumpyIntArray:
+        """Sample a set of positions from a user's history for training.
+
+        Returns a sorted array of indices (positions) selected from the
+        history excluding the final item which serves as a candidate positive.
+        If the history is shorter than ``max_seq_length`` all available
+        positions are returned.
+
+        Args:
+            history_item_idx: Array of item indices in the user's history.
+
+        Returns:
+            Sorted array of sampled history positions.
+        """
         indices = np.arange(len(history_item_idx) - 1)
         max_seq_length = self.config.max_seq_length
         if len(indices) <= max_seq_length:
@@ -136,6 +198,20 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         history_label: NumpyBoolArray,
         sampled_indices: NumpyIntArray,
     ) -> NumpyIntArray:
+        """For each sampled position pick a positive item from future interactions.
+
+        If ``pos_lookahead`` is zero the positive is sampled from any later
+        interaction; otherwise the choice is restricted to the next
+        ``pos_lookahead`` positions.
+
+        Args:
+            history_item_idx: Array of item indices in the user's history.
+            history_label: Boolean array indicating positive interactions.
+            sampled_indices: Indices sampled from the history to produce positives for.
+
+        Returns:
+            Array of positive item indices aligned with ``sampled_indices``.
+        """
         positives = np.zeros_like(sampled_indices)
         pos_lookahead = self.config.pos_lookahead
 
@@ -154,6 +230,18 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         history_item_idx: NumpyIntArray,
         sampled_indices: NumpyIntArray,
     ) -> NumpyIntArray:
+        """Sample negative item indices not present in the user's history.
+
+        Returns ``seq_len`` negative indices sampled uniformly without
+        replacement where possible.
+
+        Args:
+            history_item_idx: Array of item indices in the user's history.
+            sampled_indices: Sampled positions used to determine sequence length.
+
+        Returns:
+            Array of negative item indices.
+        """
         seq_len = len(sampled_indices)
         neg_candidates = list(self.all_idx - set(history_item_idx.tolist()))
         if len(neg_candidates) == 0:
@@ -164,6 +252,18 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         )
 
     def __getitem__(self, idx: int) -> SeqExample:
+        """Return a training example containing history, positives and negatives.
+
+        The returned :class:`SeqExample` contains tensors for indices and
+        lists of item texts for history/positive/negative items aligned by
+        position.
+
+        Args:
+            idx: Index of the example to retrieve.
+
+        Returns:
+            A :class:`SeqExample` mapping field names to tensors and lists.
+        """
         row = self.events_dataset[idx]
         history_item_idx = row["history_item_idx"]
         history_label = row["history_label"]
@@ -188,6 +288,17 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         }
 
     def collate(self, batch: list[SeqExample]) -> SeqBatch:
+        """Collate a list of examples into a batched SeqBatch.
+
+        Pads tensor sequences and leaves lists of texts as-is so they can be
+        encoded downstream.
+
+        Args:
+            batch: List of ``SeqExample`` items to collate.
+
+        Returns:
+            A ``SeqBatch`` with padded tensors and lists of texts.
+        """
         collated = {key: [example[key] for example in batch] for key in batch[0]}
         return {
             key: pad_sequence(value, batch_first=True)
@@ -210,15 +321,45 @@ class SeqDataModule(lp.LightningDataModule):
         self.test_dataset: datasets.Dataset | None = None
         self.predict_dataset: datasets.Dataset | None = None
 
+    def __repr__(self) -> str:
+        """Return a concise representation of the SeqDataModule.
+
+        Returns:
+            A string showing the active configuration for the data module.
+        """
+        return f"SeqDataModule(config={self.config!r})"
+
     def prepare_data(self, *, overwrite: bool = False) -> pl.LazyFrame:
         from filelock import FileLock
 
+        """Download and prepare MovieLens artifacts for the sequence data module.
+
+        This method acquires a file lock to avoid concurrent downloads and
+        calls :func:`xfmr_rec.data.prepare_movielens` to create the processed
+        parquet artifacts.
+
+        Args:
+            overwrite: If True, force re-download and re-processing of the dataset.
+
+        Returns:
+            The processed events LazyFrame returned by :func:`prepare_movielens`.
+        """
         data_dir = self.config.data_dir
         with FileLock(f"{data_dir}.lock"):
             download_unpack_data(MOVIELENS_1M_URL, data_dir, overwrite=overwrite)
             return prepare_movielens(data_dir, overwrite=overwrite)
 
     def setup(self, stage: str | None = None) -> None:
+        """Prepare datasets for the specified stage.
+
+        This method loads item and user parquet files, computes embeddings for
+        items if necessary, and constructs train/val/test datasets as
+        :class:`SeqDataset` or :class:`datasets.Dataset` depending on the split.
+
+        Args:
+            stage: Optional stage indicator such as 'fit', 'validate', 'test',
+                or 'predict'. If None, prepares all datasets.
+        """
         if self.items_dataset is None:
             model = SentenceTransformer(self.config.pretrained_model_name)
             self.items_dataset = datasets.Dataset.from_parquet(
@@ -267,6 +408,18 @@ class SeqDataModule(lp.LightningDataModule):
         collate_fn: Callable[[list[dict[str, torch.Tensor]]], dict[str, torch.Tensor]]
         | None = None,
     ) -> torch_data.DataLoader:
+        """Create a PyTorch DataLoader from a HuggingFace dataset.
+
+        Args:
+            dataset: The dataset to wrap.
+            shuffle: Whether to shuffle the dataset each epoch.
+            batch_size: Batch size to use for the DataLoader. If None, uses
+                the configured batch size.
+            collate_fn: Optional collate function applied to each batch.
+
+        Returns:
+            A configured :class:`torch.utils.data.DataLoader` instance.
+        """
         return torch_data.DataLoader(
             dataset,
             shuffle=shuffle,
@@ -279,6 +432,11 @@ class SeqDataModule(lp.LightningDataModule):
         )
 
     def train_dataloader(self) -> torch_data.DataLoader:
+        """Return the training DataLoader.
+
+        Returns:
+            DataLoader for the training dataset.
+        """
         return self.get_dataloader(
             self.train_dataset,
             shuffle=True,
@@ -287,12 +445,27 @@ class SeqDataModule(lp.LightningDataModule):
         )
 
     def val_dataloader(self) -> torch_data.DataLoader:
+        """Return the validation DataLoader.
+
+        Returns:
+            DataLoader for the validation dataset.
+        """
         return self.get_dataloader(self.val_dataset)
 
     def test_dataloader(self) -> torch_data.DataLoader:
+        """Return the test DataLoader.
+
+        Returns:
+            DataLoader for the test dataset.
+        """
         return self.get_dataloader(self.test_dataset)
 
     def predict_dataloader(self) -> torch_data.DataLoader:
+        """Return the prediction DataLoader.
+
+        Returns:
+            DataLoader for the prediction dataset.
+        """
         return self.get_dataloader(self.predict_dataset)
 
 

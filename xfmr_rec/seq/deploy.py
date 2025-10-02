@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import functools
 import tempfile
 from typing import TYPE_CHECKING
 
 import bentoml
 import pydantic
+from jsonargparse import auto_cli
 
 from xfmr_rec.deploy import test_bento
 from xfmr_rec.seq import MODEL_NAME
@@ -26,6 +28,19 @@ if TYPE_CHECKING:
 
 
 def load_args(ckpt_path: str) -> dict[str, Any]:
+    """Load configuration arguments from a Lightning checkpoint.
+
+    When no checkpoint is supplied, return a minimal default data config
+    suitable for fast local runs. If a checkpoint path is provided, load the
+    saved DataModule and LightningModule and return their serialized configs.
+
+    Args:
+        ckpt_path: Path to a Lightning checkpoint or empty string for defaults.
+
+    Returns:
+        A mapping containing `data` and `model` configuration dictionaries.
+    """
+
     if not ckpt_path:
         return {"data": {"config": {"num_workers": 0}}}
 
@@ -40,6 +55,22 @@ def load_args(ckpt_path: str) -> dict[str, Any]:
 def prepare_trainer(
     ckpt_path: str = "", stage: str = "validate", fast_dev_run: int = 0
 ) -> Trainer:
+    """Prepare a Lightning Trainer for running validation or tests.
+
+    If `ckpt_path` is empty, a minimal fast-dev-run trainer is returned for
+    quick iterations. If a checkpoint is provided, the trainer and model/data
+    configs are reconstructed from the checkpoint and a CPU-only trainer is
+    created for deterministic validation.
+
+    Args:
+        ckpt_path: Optional path to a Lightning checkpoint.
+        stage: CLI stage to execute (commonly 'validate').
+        fast_dev_run: Passed into the Trainer to control quick runs.
+
+    Returns:
+        A PyTorch Lightning `Trainer` instance.
+    """
+
     if not ckpt_path:
         args = {"trainer": {"fast_dev_run": True}}
         return cli_main({"fit": args}).trainer
@@ -57,12 +88,32 @@ def prepare_trainer(
 
 
 def save_model(trainer: Trainer) -> None:
+    """Persist the Seq model into the BentoML model store.
+
+    Creates a BentoML model entry named by `MODEL_NAME` and delegates to the
+    Lightning module's `save` method to write model artifacts into the
+    created path.
+
+    Args:
+        trainer: A PyTorch Lightning `Trainer` containing the trained model.
+
+    Raises:
+        Any exception raised by BentoML or the Lightning module's save call.
+    """
+
     with bentoml.models.create(MODEL_NAME) as model_ref:
         model: SeqRecLightningModule = trainer.model
         model.save(model_ref.path)
 
 
 def test_queries() -> None:
+    """Run example API queries on the Seq Bento service and validate outputs.
+
+    Uses `test_bento` to call several endpoints and validates returned
+    payloads against the project's canonical example objects. Raises
+    ValueError when any check fails.
+    """
+
     import rich
 
     example_item_data = test_bento(Service, "item_id", {"item_id": "1"})
@@ -105,13 +156,18 @@ def test_queries() -> None:
         raise ValueError(msg)
 
 
+@functools.partial(auto_cli, as_positional=False)
 def main(ckpt_path: str = "") -> None:
+    """CLI entrypoint: prepare a trainer, save the model, and run smoke tests.
+
+    Args:
+        ckpt_path: Optional checkpoint path to load model/data configuration.
+    """
+
     trainer = prepare_trainer(ckpt_path=ckpt_path)
     save_model(trainer=trainer)
     test_queries()
 
 
 if __name__ == "__main__":
-    from jsonargparse import CLI
-
-    CLI(main, as_positional=False)
+    main()
