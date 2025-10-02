@@ -2,11 +2,6 @@ from typing import Any
 
 import bentoml
 
-"""Helpers for testing and running BentoML services used by the project.
-
-Provides a small convenience to invoke BentoML service endpoints in tests.
-"""
-
 
 def test_bento(
     service: type[bentoml.Service], api_name: str, api_input: dict[str, Any]

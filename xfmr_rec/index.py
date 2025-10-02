@@ -20,14 +20,6 @@ if TYPE_CHECKING:
     import numpy as np
 
 
-"""Index adapters for LanceDB and Faiss used by the retrieval components.
-
-This module implements configuration containers and index classes that
-wrap LanceDB tables and Faiss indices to provide a unified API for
-building and querying vector indices.
-"""
-
-
 class IndexConfig(pydantic.BaseModel):
     """
     Configuration for index classes specifying ID and embedding columns.

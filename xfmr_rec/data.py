@@ -6,12 +6,6 @@ import tempfile
 
 import pandas as pd
 import polars as pl
-
-"""Data loading and preprocessing utilities for MovieLens datasets.
-
-Contains helpers to read raw MovieLens files and produce Parquet/LanceDB
-artifacts used by training and evaluation scripts.
-"""
 from loguru import logger
 
 from xfmr_rec.params import DATA_DIR, MOVIELENS_1M_URL

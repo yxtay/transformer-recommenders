@@ -1,17 +1,6 @@
 import torch
 import torchmetrics.functional.retrieval as tm_retrieval
 
-"""Evaluation helpers for retrieval-style recommendation metrics.
-
-This module provides lightweight wrappers around :mod:`torchmetrics`'
-retrieval functions to compute common metrics (AUC, precision@k,
-recall@k, NDCG, MRR, etc.) for a ranked list of recommended item IDs
-versus ground-truth target IDs.
-
-The helpers here are intentionally small and operate on Python lists of
-IDs, converting them to the tensors expected by :mod:`torchmetrics`.
-"""
-
 
 def compute_retrieval_metrics(
     rec_ids: list[str], target_ids: list[str], top_k: int

@@ -7,14 +7,6 @@ import pydantic
 import torch
 import torch.nn.functional as torch_fn
 
-"""Loss functions and utilities for embedding-based recommendation models.
-
-This module implements configurable loss classes and helper functions for
-computing pairwise and contrastive losses over batched query/candidate
-embeddings. Loss implementations subclass :class:`EmbedLoss` and are
-configured via :class:`LossConfig`.
-"""
-
 
 class LossConfig(pydantic.BaseModel):
     """Configuration for embedding losses.

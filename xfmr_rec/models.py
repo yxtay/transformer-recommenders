@@ -15,18 +15,6 @@ if TYPE_CHECKING:
     from transformers.modeling_utils import PreTrainedModel
 
 
-"""Model construction utilities for transformer-based embeddings.
-
-This module contains small helpers to initialise BERT-based encoder
-configurations and to adapt HuggingFace Transformer models into a
-``SentenceTransformer`` pipeline (providing pooling and optional
-normalization). These helpers are lightweight and intended for use by the
-training and deployment utilities in the package.
-
-The docstrings in this module follow the Google style (Args/Returns).
-"""
-
-
 class ModelConfig(pydantic.BaseModel):
     """Simple pydantic container for model hyperparameters.
 

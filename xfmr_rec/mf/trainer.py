@@ -6,11 +6,6 @@ from typing import TYPE_CHECKING, Literal
 import lightning as lp
 import lightning.pytorch.callbacks as lp_callbacks
 import pandas as pd
-
-"""Training loop and experiment orchestration for the MF model.
-
-Contains training entrypoints and CLI wiring for MF experiments.
-"""
 import torch
 from loguru import logger
 
