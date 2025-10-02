@@ -11,7 +11,11 @@ from xfmr_rec.trainer import LightningCLI
 
 
 def main(ckpt_path: str = "") -> None:
-    """CLI entrypoint: prepare a trainer, save the model, and run smoke tests.
+    """CLI helper: prepare a trainer, save the model, and run smoke tests.
+
+    When called this function prepares a Lightning Trainer (optionally
+    loading a checkpoint), saves the model into the BentoML store, and runs
+    a small suite of sanity checks against the exported Bento service.
 
     Args:
         ckpt_path: Optional checkpoint path to load model/data configuration.

@@ -177,10 +177,13 @@ class LightningCLI:
         )
 
     def load_args(self, ckpt_path: str) -> dict[str, Any]:
-        """Load config mappings from a Lightning checkpoint for seq_embedded.
+        """Load configuration mappings from a Lightning checkpoint.
 
-        Returns a minimal default when `ckpt_path` is empty; otherwise loads and
-        serializes the saved DataModule and LightningModule configurations.
+        When `ckpt_path` is empty a minimal default configuration mapping is
+        returned (useful for fast-dev runs). Otherwise the datamodule and
+        lightning module are reconstructed from the checkpoint and their
+        serialized configs are returned in a dict suitable for passing into
+        the JSONArgparse-based CLI.
 
         Args:
             ckpt_path: Path to a Lightning checkpoint or empty string.
@@ -237,10 +240,11 @@ class LightningCLI:
             return self.main({stage: args}).trainer
 
     def save_model(self, trainer: lp.Trainer) -> None:
-        """Save the seq_embedded Lightning model into the BentoML store.
+        """Save the Lightning module and its artifacts into the BentoML store.
 
-        Creates a BentoML model entry and instructs the Lightning module to write
-        its saved artifacts to the Bento model path.
+        Creates a BentoML model entry (using `self.model_name`) and instructs
+        the Lightning module attached to the trainer to persist its artifacts
+        into the Bento model path.
 
         Args:
             trainer: PyTorch Lightning Trainer holding the trained model.

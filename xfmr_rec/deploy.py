@@ -56,10 +56,11 @@ class TestService:
         self.service_cls = service_cls
 
     def test_queries(self) -> None:
-        """Execute sanity-check API calls against the seq_embedded Bento service.
+        """Execute sanity-check API calls against a BentoML service.
 
-        Calls the example endpoints and asserts returned payloads conform to the
-        expected canonical examples. Raises ValueError when checks fail.
+        Calls the example endpoints and asserts returned payloads conform to
+        the canonical example schemas defined in the project's service
+        datamodels. Raises ValueError when checks fail.
         """
 
         import rich
