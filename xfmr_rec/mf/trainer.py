@@ -415,7 +415,7 @@ class MFRecLightningModule(lp.LightningModule):
 cli_main = LightningCLI(
     lightning_module_cls=MFRecLightningModule,
     data_module_cls=MFDataModule,
-    experiment_name=MODEL_NAME,
+    model_name=MODEL_NAME,
 ).main
 
 
