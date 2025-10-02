@@ -18,6 +18,10 @@ from xfmr_rec.params import DATA_DIR, MOVIELENS_1M_URL
 def download_data(
     url: str = MOVIELENS_1M_URL, dest_dir: str = DATA_DIR, *, overwrite: bool = False
 ) -> pathlib.Path:
+    """
+    Download the MovieLens dataset from the specified URL to the destination directory.
+    Returns the path to the downloaded archive file.
+    """
     import httpx
 
     # prepare destination
@@ -41,6 +45,10 @@ def download_data(
 def unpack_data(
     archive_file: str | pathlib.Path, *, overwrite: bool = False
 ) -> list[str]:
+    """
+    Unpack the downloaded MovieLens archive file.
+    Returns a list of unpacked file names.
+    """
     archive_file = pathlib.Path(archive_file)
     dest_dir = archive_file.parent / archive_file.stem
 
@@ -55,6 +63,10 @@ def unpack_data(
 def download_unpack_data(
     url: str = MOVIELENS_1M_URL, dest_dir: str = DATA_DIR, *, overwrite: bool = False
 ) -> list[str]:
+    """
+    Download and unpack the MovieLens dataset in one step.
+    Returns a list of unpacked file names.
+    """
     archive_file = download_data(url=url, dest_dir=dest_dir, overwrite=overwrite)
     return unpack_data(archive_file, overwrite=overwrite)
 
@@ -65,6 +77,10 @@ def download_unpack_data(
 
 
 def load_items(src_dir: str = DATA_DIR) -> pl.LazyFrame:
+    """
+    Load MovieLens item (movie) data from the source directory.
+    Returns a Polars LazyFrame of items.
+    """
     items_dat = pathlib.Path(src_dir, "ml-1m", "movies.dat")
     dtype = {"movie_id": "str", "title": "str", "genres": "str"}
     items = (
@@ -88,6 +104,10 @@ def load_items(src_dir: str = DATA_DIR) -> pl.LazyFrame:
 
 
 def load_users(src_dir: str = DATA_DIR) -> pl.LazyFrame:
+    """
+    Load MovieLens user data from the source directory.
+    Returns a Polars LazyFrame of users.
+    """
     users_dat = pathlib.Path(src_dir, "ml-1m", "users.dat")
     dtype = {
         "user_id": "str",
@@ -119,6 +139,10 @@ def load_users(src_dir: str = DATA_DIR) -> pl.LazyFrame:
 
 
 def load_events(src_dir: str = DATA_DIR) -> pl.LazyFrame:
+    """
+    Load MovieLens event (rating) data from the source directory.
+    Returns a Polars LazyFrame of events.
+    """
     events_dat = pathlib.Path(src_dir, "ml-1m", "ratings.dat")
     dtype = {
         "user_id": "str",
@@ -160,6 +184,10 @@ def train_test_split(
     train_prop: float = 0.8,
     val_prop: float = 0.2,
 ) -> pl.LazyFrame:
+    """
+    Split events into train, validation, and test sets by user and timestamp.
+    Returns a Polars LazyFrame with split indicators.
+    """
     events = (
         events.lazy()
         .with_columns(
@@ -197,6 +225,10 @@ def process_events(
     src_dir: str = DATA_DIR,
     overwrite: bool = False,
 ) -> pl.LazyFrame:
+    """
+    Process and join events with items and users, then save as Parquet.
+    Returns a Polars LazyFrame of processed events.
+    """
     events_parquet = pathlib.Path(src_dir, "ml-1m", "events.parquet")
     if events_parquet.exists() and not overwrite:
         events_processed = pl.scan_parquet(events_parquet)
@@ -222,6 +254,10 @@ def process_items(
     src_dir: str = DATA_DIR,
     overwrite: bool = False,
 ) -> pl.LazyFrame:
+    """
+    Process items and join with training events, then save as Parquet.
+    Returns a Polars LazyFrame of processed items.
+    """
     items_parquet = pathlib.Path(src_dir, "ml-1m", "items.parquet")
     if items_parquet.exists() and not overwrite:
         items_processed = pl.scan_parquet(items_parquet)
@@ -248,6 +284,10 @@ def process_users(
     src_dir: str = DATA_DIR,
     overwrite: bool = False,
 ) -> pl.LazyFrame:
+    """
+    Process users and join with event interactions, then save as Parquet.
+    Returns a Polars LazyFrame of processed users.
+    """
     users_parquet = pathlib.Path(src_dir, "ml-1m", "users.parquet")
     if users_parquet.exists() and not overwrite:
         users_processed = pl.scan_parquet(users_parquet)
@@ -302,6 +342,10 @@ def process_users(
 def prepare_movielens(
     src_dir: str = DATA_DIR, *, overwrite: bool = False
 ) -> pl.LazyFrame:
+    """
+    Prepare the full MovieLens dataset: load, process, and join items, users, and events.
+    Returns processed events as a Polars LazyFrame.
+    """
     items = load_items(src_dir)
     users = load_users(src_dir)
     events = load_events(src_dir).pipe(train_test_split)
@@ -313,6 +357,10 @@ def prepare_movielens(
 
 
 def main(data_dir: str = DATA_DIR, *, overwrite: bool = True) -> None:
+    """
+    CLI entrypoint for preparing MovieLens data.
+    Downloads, unpacks, and processes the dataset, then prints a sample.
+    """
     download_unpack_data(overwrite=overwrite)
     with pl.StringCache():
         prepare_movielens(data_dir, overwrite=overwrite).head().collect().glimpse()
