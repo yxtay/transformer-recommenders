@@ -9,9 +9,10 @@ import torch.nn.functional as torch_fn
 
 """Loss functions and utilities for embedding-based recommendation models.
 
-This module implements a set of configurable loss classes and helper
-functions for computing pairwise and contrastive losses over batched
-query/candidate embeddings.
+This module implements configurable loss classes and helper functions for
+computing pairwise and contrastive losses over batched query/candidate
+embeddings. Loss implementations subclass :class:`EmbedLoss` and are
+configured via :class:`LossConfig`.
 """
 
 
@@ -19,13 +20,15 @@ class LossConfig(pydantic.BaseModel):
     """Configuration for embedding losses.
 
     Attributes:
-        target_position: If "first", the positive example is at index 0. If
-            "diagonal", the positive example is aligned on the diagonal.
-        mask_false_negatives: Whether to mask examples that appear to be
-            false negatives (have score >= positive score).
-        num_hard_negatives: Number of hard negatives to mine per example.
-        scale: Temperature / scaling factor applied for some losses.
-        margin: Margin used for margin-based losses.
+        target_position (Literal|None): If ``"first"``, the positive example
+            is at index 0. If ``"diagonal"``, the positive example is aligned
+            on the diagonal.
+        mask_false_negatives (bool): Whether to mask examples that appear to
+            be false negatives (have score >= positive score).
+        num_hard_negatives (int): Number of hard negatives to mine per
+            example.
+        scale (float): Temperature / scaling factor applied for some losses.
+        margin (float): Margin used for margin-based losses.
     """
 
     target_position: Literal["first", "diagonal"] | None = "first"
@@ -40,8 +43,15 @@ def squared_distance_matrix(
 ) -> torch.Tensor:
     """Return the pairwise squared Euclidean distance matrix.
 
-    The returned tensor has shape (batch_size, num_candidates) and contains
-    0.5 * ||q - c||^2 for each pair.
+    Args:
+        query_embed (torch.Tensor): Query embeddings of shape
+            ``(batch_size, embedding_dim)``.
+        candidate_embed (torch.Tensor): Candidate embeddings of shape
+            ``(batch_size, num_candidates, embedding_dim)``.
+
+    Returns:
+        torch.Tensor: Tensor of shape ``(batch_size, num_candidates)`` with
+        ``0.5 * ||q - c||^2`` for each pair.
     """
     return torch.cdist(query_embed, candidate_embed) ** 2 / 2
 
@@ -51,7 +61,16 @@ def dot_product_matrix(
 ) -> torch.Tensor:
     """Compute the pairwise dot-product matrix between queries and candidates.
 
-    Returns a (batch_size, num_candidates) tensor of q . c values.
+    Args:
+        query_embed (torch.Tensor): Query embeddings of shape
+            ``(batch_size, embedding_dim)``.
+        candidate_embed (torch.Tensor): Candidate embeddings of shape
+            ``(num_candidates, embedding_dim)`` or
+            ``(batch_size, num_candidates, embedding_dim)`` depending on use.
+
+    Returns:
+        torch.Tensor: ``(batch_size, num_candidates)`` tensor of dot-product
+        values.
     """
     return query_embed.mm(candidate_embed.mT)
 
@@ -61,7 +80,15 @@ def cosine_similarity_matrix(
 ) -> torch.Tensor:
     """Compute cosine similarity for every query-candidate pair.
 
-    Uses broadcasting to return a (batch_size, num_candidates) tensor.
+    Args:
+        query_embed (torch.Tensor): Query embeddings of shape
+            ``(batch_size, embedding_dim)``.
+        candidate_embed (torch.Tensor): Candidate embeddings of shape
+            ``(num_candidates, embedding_dim)``.
+
+    Returns:
+        torch.Tensor: Broadcasted cosine similarity of shape
+        ``(batch_size, num_candidates)``.
     """
     return torch_fn.cosine_similarity(
         query_embed[:, None, :], candidate_embed[None, :, :], dim=-1
@@ -75,9 +102,18 @@ def weighted_mean(
     dim: int | None = None,
     keepdim: bool = False,
 ) -> torch.Tensor:
-    """Compute a weighted mean along `dim` using `sample_weights`.
+    """Compute a weighted mean along ``dim`` using ``sample_weights``.
 
     A small epsilon is added to the denominator for numerical stability.
+
+    Args:
+        values (torch.Tensor): Values to average.
+        sample_weights (torch.Tensor): Weights broadcastable to ``values``.
+        dim (int | None): Dimension along which to compute the mean.
+        keepdim (bool): Whether to keep reduced dimension(s).
+
+    Returns:
+        torch.Tensor: Weighted mean reduced along ``dim``.
     """
     denominator = sample_weights.sum(dim=dim, keepdim=True) + 1e-9
     return (values * sample_weights / denominator).sum(dim=dim, keepdim=keepdim)
@@ -106,14 +142,18 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
         """Compute the loss for a batch of query and candidate embeddings.
 
         Args:
-            query_embed: Tensor of shape (batch_size, embedding_dim).
-            candidate_embed: Tensor of shape (batch_size, num_candidates,
-                embedding_dim).
-            target: Optional 1-D tensor of positive indices per row. If not
-                provided, `config.target_position` is used to infer targets.
+            query_embed (torch.Tensor): Tensor of shape
+                ``(batch_size, embedding_dim)``.
+            candidate_embed (torch.Tensor): Tensor of shape
+                ``(batch_size, num_candidates, embedding_dim)``.
+            target (torch.Tensor | None): Optional 1-D tensor of positive
+                indices per row. If not provided, ``config.target_position``
+                is used to infer targets.
 
         Returns:
-            A scalar tensor containing the summed loss over the batch.
+            torch.Tensor | dict[str, float]: A scalar tensor containing the
+            summed loss over the batch, or a dictionary of statistics for
+            monitoring when using non-loss modules.
         """
         self.check_embeds(query_embed, candidate_embed)
         logits = self.compute_logits(query_embed, candidate_embed)
@@ -127,7 +167,9 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
     ) -> None:
         """Validate shapes of query and candidate embedding tensors.
 
-        Raises a ValueError for mismatched shapes or embedding dimensions.
+        Raises:
+            ValueError: If the input tensors do not have the expected
+                dimensions or if batch/embedding sizes mismatch.
         """
         if query_embed.dim() != 2:
             msg = f"query_embed should have 2 dimensions: {query_embed.dim() = }"
@@ -160,14 +202,13 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
     ) -> torch.Tensor:
         """Compute raw dot-product logits between queries and candidates.
 
-        This method performs a batched matrix-multiply to produce a
-        (batch_size, num_candidates) tensor of logits where each entry is
-        the dot-product between a query embedding and a candidate embedding.
+        This performs a batched matrix multiplication producing a
+        ``(batch_size, num_candidates)`` tensor of logits where each entry
+        is the dot-product between a query embedding and a candidate
+        embedding.
 
-        Implementation note: we add a length-1 middle dimension to
-        ``query_embed`` so that a batched ``bmm`` with a transposed
-        ``candidate_embed`` yields shape (batch_size, 1, num_candidates),
-        which we then squeeze to (batch_size, num_candidates).
+        Returns:
+            torch.Tensor: ``(batch_size, num_candidates)`` logits.
         """
         # query_embed: (batch_size, embedding_dim) -> (batch_size, 1, embedding_dim)
         # candidate_embed: (batch_size, num_candidates, embedding_dim) -> transpose last two dims
@@ -179,7 +220,9 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
     ) -> torch.Tensor:
         """Compute cosine-similarity logits between queries and candidates.
 
-        Returns a (batch_size, num_candidates) tensor.
+        Returns:
+            torch.Tensor: ``(batch_size, num_candidates)`` tensor of cosine
+            similarity logits.
         """
         return torch_fn.cosine_similarity(
             query_embed[:, None, :], candidate_embed, dim=-1
@@ -189,11 +232,23 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
     def check_target(
         self, logits: torch.Tensor, target: torch.Tensor | None
     ) -> torch.Tensor:
-        """Validate or construct `target` indices for the batch.
+        """Validate or construct ``target`` indices for the batch.
 
-        If `target` is None, builds targets according to
-        `config.target_position` ("first" or "diagonal"). Returns a
-        column vector of shape (batch_size, 1).
+        If ``target`` is ``None`` builds targets according to
+        ``config.target_position`` (``"first"`` or ``"diagonal"``).
+
+        Args:
+            logits (torch.Tensor): Logits tensor used to infer batch size.
+            target (torch.Tensor | None): Optional 1-D tensor of target
+                indices.
+
+        Returns:
+            torch.Tensor: Column tensor of shape ``(batch_size, 1)``.
+
+        Raises:
+            ValueError: If neither ``target`` nor ``config.target_position``
+                is provided, or if both are provided, or if shapes are
+                mismatched.
         """
         if target is None and self.config.target_position is None:
             msg = "either `targets` or `config.target_position` must be provided"
@@ -234,8 +289,18 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
     ) -> torch.Tensor:
         """Return a boolean mask of negatives considered valid.
 
-        When `mask_false_negatives` is True, candidates with score >= the
-        target score are masked out as potential false negatives.
+        When ``config.mask_false_negatives`` is True, candidates with score
+        greater than or equal to the target score are masked out as
+        potential false negatives.
+
+        Args:
+            logits (torch.Tensor): ``(batch_size, num_candidates)`` logits.
+            target (torch.Tensor): ``(batch_size, 1)`` target indices.
+
+        Returns:
+            torch.Tensor: Boolean mask of shape ``(batch_size, num_candidates)``
+            where ``True`` indicates a valid negative and ``False`` marks
+            masked-out entries (including the positive index).
         """
         if not self.config.mask_false_negatives:
             return torch.ones_like(logits, dtype=torch.bool).scatter(
@@ -254,8 +319,16 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
     ) -> torch.Tensor:
         """Optional mining of a fixed number of hard negatives per example.
 
-        This keeps only the top-k negatives (by logit) per row as valid
-        negatives when `num_hard_negatives` > 0.
+        Keeps only the top-k negatives (by logit) per row as valid negatives
+        when ``config.num_hard_negatives > 0``.
+
+        Args:
+            logits (torch.Tensor): ``(batch_size, num_candidates)`` logits.
+            negative_masks (torch.Tensor): Initial boolean mask of negatives.
+
+        Returns:
+            torch.Tensor: Updated boolean negative mask of shape
+            ``(batch_size, num_candidates)``.
         """
         if self.config.num_hard_negatives <= 0:
             return negative_masks
@@ -289,7 +362,14 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
     ) -> torch.Tensor:
         """Simple alignment loss pushing positive logits toward 1.
 
-        Returns sum(1 - target_logit) over the batch.
+        Returns the sum over the batch of ``1 - target_logit``.
+
+        Args:
+            logits (torch.Tensor): ``(batch_size, num_candidates)`` logits.
+            target (torch.Tensor): ``(batch_size, 1)`` target indices.
+
+        Returns:
+            torch.Tensor: Scalar tensor with the summed alignment loss.
         """
         target_logits = logits.gather(dim=1, index=target)
         return (1 - target_logits).sum()
@@ -299,8 +379,15 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
     ) -> torch.Tensor:
         """Margin-based contrastive loss over negatives.
 
-        Computes ReLU(logit - 1 + margin) for all entries, averages using
-        `negative_masks`, then sums over the batch.
+        Computes ``ReLU(logit - 1 + margin)`` for all entries, averages
+        using ``negative_masks``, then sums over the batch.
+
+        Args:
+            logits (torch.Tensor): ``(batch_size, num_candidates)`` logits.
+            negative_masks (torch.Tensor): Boolean mask of valid negatives.
+
+        Returns:
+            torch.Tensor: Scalar tensor with the contrastive loss.
         """
         losses = (logits - 1 + self.config.margin).relu()
         # shape: (batch_size, num_candidates)

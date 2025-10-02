@@ -3,31 +3,38 @@ import torchmetrics.functional.retrieval as tm_retrieval
 
 """Evaluation helpers for retrieval-style recommendation metrics.
 
-This module provides lightweight wrappers around torchmetrics' retrieval
-functions to compute common metrics (AUC, precision@k, recall@k, NDCG,
-MRR, etc.) for a ranked list of recommended item IDs vs. ground-truth
-target IDs.
+This module provides lightweight wrappers around :mod:`torchmetrics`'
+retrieval functions to compute common metrics (AUC, precision@k,
+recall@k, NDCG, MRR, etc.) for a ranked list of recommended item IDs
+versus ground-truth target IDs.
+
+The helpers here are intentionally small and operate on Python lists of
+IDs, converting them to the tensors expected by :mod:`torchmetrics`.
 """
 
 
 def compute_retrieval_metrics(
     rec_ids: list[str], target_ids: list[str], top_k: int
 ) -> dict[str, torch.Tensor]:
-    """Compute several retrieval metrics for a single ranked recommendation list.
+    """Compute retrieval metrics for a single ranked recommendation list.
 
     Args:
-        rec_ids: Ranked list of recommended item IDs (most to least relevant).
-        target_ids: Ground-truth set/list of positive item IDs for the query.
-        top_k: Evaluate metrics at this cutoff (will be clipped to len(rec_ids)).
+        rec_ids (list[str]): Ranked list of recommended item IDs (most to
+            least relevant).
+        target_ids (list[str]): Ground-truth set or list of positive item IDs
+            for the query.
+        top_k (int): Evaluate metrics at this cutoff. The value will be
+            clipped to ``len(rec_ids)`` if necessary.
 
     Returns:
-        A mapping from metric name to a 0-dim torch.Tensor result. If
-        `rec_ids` is empty an empty dict is returned.
+        dict[str, torch.Tensor]: Mapping from metric function name to a
+        0-dim :class:`torch.Tensor` containing the metric value. If
+        ``rec_ids`` is empty an empty dictionary is returned.
 
     Notes:
-        This function builds a combined list of candidate IDs by appending any
-        missing ground-truth IDs after the ranked recommendations so that
-        metrics that consider the whole candidate set can be computed.
+        The function creates a combined candidate list by taking ``rec_ids``
+        first and then appending any missing ``target_ids``. This ensures
+        metrics that expect a complete candidate set can be computed.
     """
     if len(rec_ids) == 0:
         return {}
