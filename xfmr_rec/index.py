@@ -21,29 +21,50 @@ if TYPE_CHECKING:
 
 
 class IndexConfig(pydantic.BaseModel):
+    """
+    Configuration for index classes specifying ID and embedding columns.
+    """
+
     id_col: str = "item_id"
     embedding_col: str | None = None
 
 
 class LanceIndexConfig(IndexConfig):
+    """
+    Configuration for LanceDB index, including paths and text column.
+    """
+
     lancedb_path: str = LANCE_DB_PATH
     table_name: str = ITEMS_TABLE_NAME
     text_col: str = "item_text"
 
 
 class LanceIndex:
+    """
+    Index implementation using LanceDB for fast vector and text search.
+    """
+
     def __init__(
         self, config: LanceIndexConfig, table: lancedb.table.Table | None = None
     ) -> None:
+        """
+        Initialize LanceIndex with configuration and optional table.
+        """
         super().__init__()
         self.config = config
         self.table = table
 
     def save(self, path: str) -> None:
+        """
+        Save the LanceDB index to the specified path.
+        """
         shutil.copytree(self.config.lancedb_path, path)
 
     @classmethod
     def load(cls, config: LanceIndexConfig) -> LanceIndex:
+        """
+        Load a LanceDB index from disk and configure columns.
+        """
         self = cls(config)
         self.open_table()
 
@@ -58,6 +79,9 @@ class LanceIndex:
         return self
 
     def open_table(self) -> lancedb.table.Table:
+        """
+        Open the LanceDB table for this index configuration.
+        """
         import lancedb
 
         db = lancedb.connect(self.config.lancedb_path)
@@ -72,6 +96,9 @@ class LanceIndex:
     def index_data(
         self, dataset: datasets.Dataset, *, overwrite: bool = False
     ) -> lancedb.table.Table:
+        """
+        Create and index data in LanceDB, building scalar, FTS, and vector indices.
+        """
         if self.table is not None and not overwrite:
             return self.table
 
@@ -137,6 +164,10 @@ class LanceIndex:
         exclude_item_ids: list[str] | None = None,
         top_k: int = 20,
     ) -> datasets.Dataset:
+        """
+        Search for items in LanceDB using a query embedding, excluding specified IDs.
+        Returns a HuggingFace Dataset of results.
+        """
         exclude_item_ids = exclude_item_ids or [""]
         exclude_filter = ", ".join(
             f"'{str(item).replace("'", "''")}'" for item in exclude_item_ids
@@ -156,6 +187,10 @@ class LanceIndex:
         return datasets.Dataset(rec_table)
 
     def get_ids(self, ids: list[str]) -> datasets.Dataset:
+        """
+        Retrieve items from LanceDB by a list of IDs.
+        Returns a HuggingFace Dataset.
+        """
         ids_filter = ", ".join(f"'{str(id_val).replace("'", "''")}'" for id_val in ids)
         result = (
             self.table.search()
@@ -165,6 +200,10 @@ class LanceIndex:
         return datasets.Dataset(result)
 
     def get_id(self, id_val: str | None) -> dict[str, Any]:
+        """
+        Retrieve a single item from LanceDB by ID.
+        Returns a dictionary of item data.
+        """
         if id_val is None:
             return {}
 
@@ -175,21 +214,34 @@ class LanceIndex:
 
 
 class FaissIndex:
+    """
+    Index implementation using Faiss for fast vector search.
+    """
+
     def __init__(
         self, config: IndexConfig, index: datasets.Dataset | None = None
     ) -> None:
+        """
+        Initialize FaissIndex with configuration and optional index.
+        """
         super().__init__()
         self.config = config
         self.index = index
         self.id2idx: pd.Series | None = None
 
     def save(self, path: str) -> None:
+        """
+        Save the Faiss index and data to the specified path.
+        """
         index_name = self.index.list_indexes()[0]
         self.index.to_parquet(pathlib.Path(path, "data.parquet"))
         self.index.save_faiss_index(index_name, pathlib.Path(path, "index.faiss"))
 
     @classmethod
     def load(cls, config: IndexConfig, path: str) -> FaissIndex:
+        """
+        Load a Faiss index and data from disk, checking required columns.
+        """
         index: datasets.Dataset = datasets.Dataset.from_parquet(
             pathlib.Path(path, "data.parquet").as_posix()
         )
@@ -209,6 +261,9 @@ class FaissIndex:
         return cls(config, index).configure_id2idx(overwrite=True)
 
     def configure_id2idx(self, *, overwrite: bool = False) -> FaissIndex:
+        """
+        Build or update the mapping from item IDs to index positions.
+        """
         if self.id2idx is not None and not overwrite:
             return self
 
@@ -225,6 +280,9 @@ class FaissIndex:
     def index_data(
         self, dataset: datasets.Dataset, *, overwrite: bool = False
     ) -> datasets.Dataset:
+        """
+        Create and index data in Faiss, building vector indices.
+        """
         if self.index is not None and not overwrite:
             return self.index
 
@@ -263,6 +321,10 @@ class FaissIndex:
         exclude_item_ids: list[str] | None = None,
         top_k: int = 20,
     ) -> datasets.Dataset:
+        """
+        Search for items in Faiss using a query embedding, excluding specified IDs.
+        Returns a HuggingFace Dataset of results.
+        """
         exclude_set = set(exclude_item_ids or [""])
         # we take (2 * (top_k + len(exclude_set))) nearest items to ensure sufficient for post-filtering
         index_name = self.index.list_indexes()[0]
@@ -278,6 +340,10 @@ class FaissIndex:
         )
 
     def get_ids(self, ids: list[str]) -> datasets.Dataset:
+        """
+        Retrieve items from Faiss by a list of IDs.
+        Returns a HuggingFace Dataset.
+        """
         if self.id2idx is None:
             msg = "id2idx is not initialised"
             raise RuntimeError(msg)
@@ -286,6 +352,10 @@ class FaissIndex:
         return self.index.select(idx)
 
     def get_id(self, id_: str | None) -> dict[str, Any]:
+        """
+        Retrieve a single item from Faiss by ID.
+        Returns a dictionary of item data.
+        """
         if id_ is None:
             return {}
 
