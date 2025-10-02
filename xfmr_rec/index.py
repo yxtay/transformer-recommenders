@@ -33,8 +33,12 @@ class IndexConfig(pydantic.BaseModel):
 
 
 class LanceIndexConfig(IndexConfig):
-    """
-    Configuration for LanceDB index, including paths and text column.
+    """Configuration for LanceDB index, including paths and text column.
+
+    Attributes:
+        lancedb_path (str): Path to the LanceDB store.
+        table_name (str): Name of the table within the LanceDB store.
+        text_col (str): Name of the column containing text for full-text search.
     """
 
     lancedb_path: str = LANCE_DB_PATH
