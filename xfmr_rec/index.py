@@ -21,8 +21,11 @@ if TYPE_CHECKING:
 
 
 class IndexConfig(pydantic.BaseModel):
-    """
-    Configuration for index classes specifying ID and embedding columns.
+    """Configuration for index classes specifying ID and embedding columns.
+
+    Attributes:
+        id_col (str): Name of the ID column.
+        embedding_col (str | None): Name of the embedding column.
     """
 
     id_col: str = "item_id"
