@@ -1,8 +1,9 @@
 import datetime
 import pathlib
 import tempfile
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+import bentoml
 import lightning as lp
 import lightning.pytorch.callbacks as lp_callbacks
 import lightning.pytorch.cli as lp_cli
@@ -81,7 +82,7 @@ class LightningCLI:
         lightning_module_cls: type[lp.LightningModule],
         data_module_cls: type[lp.LightningDataModule],
         *,
-        experiment_name: str = "",
+        model_name: str = "",
     ) -> None:
         """Initialize the CLI helper for Lightning experiments.
 
@@ -91,7 +92,7 @@ class LightningCLI:
                 be compatible with ``lightning.pytorch.cli.LightningCLI``.
             data_module_cls (type[lp.LightningDataModule]): The data module
                 class providing data loaders and dataset preparation.
-            experiment_name (str, optional): Default name for experiment logs
+            model_name (str, optional): Default name for experiment logs
                 and TensorBoard/MLflow grouping. If an active MLflow run is
                 detected at runtime, its experiment name will override this
                 value.
@@ -99,7 +100,7 @@ class LightningCLI:
 
         self.lightning_module_cls = lightning_module_cls
         self.data_module_cls = data_module_cls
-        self.experiment_name = experiment_name
+        self.model_name = model_name
 
     def main(
         self, args: lp_cli.ArgsType = None, *, run: bool = True, log_model: bool = True
@@ -130,7 +131,7 @@ class LightningCLI:
         import mlflow
         from jsonargparse import lazy_instance
 
-        experiment_name = self.experiment_name
+        experiment_name = self.model_name
         run_name = time_now_isoformat()
         run_id = None
         if active_run := mlflow.active_run():
@@ -174,3 +175,76 @@ class LightningCLI:
             args=args,
             run=run,
         )
+
+    def load_args(self, ckpt_path: str) -> dict[str, Any]:
+        """Load config mappings from a Lightning checkpoint for seq_embedded.
+
+        Returns a minimal default when `ckpt_path` is empty; otherwise loads and
+        serializes the saved DataModule and LightningModule configurations.
+
+        Args:
+            ckpt_path: Path to a Lightning checkpoint or empty string.
+
+        Returns:
+            A dictionary with `data` and `model` config mappings.
+        """
+
+        if not ckpt_path:
+            return {"data": {"config": {"num_workers": 0}}}
+
+        datamodule = self.data_module_cls.load_from_checkpoint(ckpt_path)
+        model = self.lightning_module_cls.load_from_checkpoint(ckpt_path)
+        return {
+            "data": {"config": datamodule.config.model_dump()},
+            "model": {"config": model.config.model_dump()},
+        }
+
+    def prepare_trainer(
+        self, ckpt_path: str = "", stage: str = "validate", fast_dev_run: int = 0
+    ) -> lp.Trainer:
+        """Create and configure a Lightning Trainer optionally from a checkpoint.
+
+        The behavior mirrors other deploy helpers: return a fast-dev-run trainer
+        when no checkpoint is given, otherwise reconstruct configuration from the
+        checkpoint and create a CPU-only trainer suitable for validation.
+
+        Args:
+            ckpt_path: Optional checkpoint path.
+            stage: CLI stage to run (e.g., 'validate').
+            fast_dev_run: Passed to the Trainer to control a fast run.
+
+        Returns:
+            A configured `Trainer` instance.
+        """
+
+        if not ckpt_path:
+            args = {"trainer": {"fast_dev_run": True}}
+            return self.main({"fit": args}).trainer
+
+        with tempfile.TemporaryDirectory() as tmp:
+            trainer_args = {
+                "accelerator": "cpu",
+                "logger": False,
+                "fast_dev_run": fast_dev_run,
+                "enable_checkpointing": False,
+                "default_root_dir": tmp,
+            }
+            args = {
+                "trainer": trainer_args,
+                "ckpt_path": ckpt_path,
+                **self.load_args(ckpt_path),
+            }
+            return self.main({stage: args}).trainer
+
+    def save_model(self, trainer: lp.Trainer) -> None:
+        """Save the seq_embedded Lightning model into the BentoML store.
+
+        Creates a BentoML model entry and instructs the Lightning module to write
+        its saved artifacts to the Bento model path.
+
+        Args:
+            trainer: PyTorch Lightning Trainer holding the trained model.
+        """
+
+        with bentoml.models.create(self.model_name) as model_ref:
+            trainer.model.save(model_ref.path)

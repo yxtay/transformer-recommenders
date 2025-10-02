@@ -356,7 +356,7 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
 cli_main = LightningCLI(
     lightning_module_cls=SeqEmbeddedLightningModule,
     data_module_cls=SeqDataModule,
-    experiment_name=MODEL_NAME,
+    model_name=MODEL_NAME,
 ).main
 
 
