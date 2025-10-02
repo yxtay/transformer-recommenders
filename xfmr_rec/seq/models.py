@@ -45,14 +45,6 @@ class SeqRecModel(torch.nn.Module):
         logger.info(repr(self.config))
         logger.info(self)
 
-    def __repr__(self) -> str:  # pragma: no cover - trivial
-        """Return a concise representation of the model for logging.
-
-        Returns:
-            str: String containing the class name and config repr.
-        """
-        return f"{self.__class__.__name__}(config={self.config!r})"
-
     @property
     def device(self) -> torch.device:
         """Device property delegated to the encoder.

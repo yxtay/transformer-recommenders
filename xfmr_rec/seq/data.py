@@ -321,14 +321,6 @@ class SeqDataModule(lp.LightningDataModule):
         self.test_dataset: datasets.Dataset | None = None
         self.predict_dataset: datasets.Dataset | None = None
 
-    def __repr__(self) -> str:
-        """Return a concise representation of the SeqDataModule.
-
-        Returns:
-            A string showing the active configuration for the data module.
-        """
-        return f"SeqDataModule(config={self.config!r})"
-
     def prepare_data(self, *, overwrite: bool = False) -> pl.LazyFrame:
         from filelock import FileLock
 
