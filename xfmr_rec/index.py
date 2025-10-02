@@ -55,23 +55,47 @@ class LanceIndex:
     def __init__(
         self, config: LanceIndexConfig, table: lancedb.table.Table | None = None
     ) -> None:
-        """
-        Initialize LanceIndex with configuration and optional table.
+        """Initialize LanceIndex with configuration and optional table.
+
+        Args:
+            config (LanceIndexConfig): Configuration specifying paths and
+                column names used by the index.
+            table (lancedb.table.Table | None): Optional pre-opened
+                LanceDB table. If not provided the table will be opened
+                later via :meth:`open_table`.
         """
         super().__init__()
         self.config = config
         self.table = table
 
     def save(self, path: str) -> None:
-        """
-        Save the LanceDB index to the specified path.
+        """Copy the underlying LanceDB store to a new path.
+
+        This is a convenience that copies the directory backing the
+        LanceDB instance to ``path`` using ``shutil.copytree``. No
+        validation is performed on the target location.
+
+        Args:
+            path (str): Destination path where the LanceDB store will be
+                copied.
         """
         shutil.copytree(self.config.lancedb_path, path)
 
     @classmethod
     def load(cls, config: LanceIndexConfig) -> LanceIndex:
-        """
-        Load a LanceDB index from disk and configure columns.
+        """Load a LanceIndex from disk and infer column names from indices.
+
+        This classmethod opens the LanceDB table configured in ``config``
+        and inspects any indices created on the table to populate the
+        configuration fields ``embedding_col``, ``text_col`` and
+        ``id_col`` when possible.
+
+        Args:
+            config (LanceIndexConfig): Configuration pointing to the
+                LanceDB store to load.
+
+        Returns:
+            LanceIndex: Configured LanceIndex with an opened table.
         """
         self = cls(config)
         self.open_table()
@@ -87,8 +111,14 @@ class LanceIndex:
         return self
 
     def open_table(self) -> lancedb.table.Table:
-        """
-        Open the LanceDB table for this index configuration.
+        """Open and return the LanceDB table specified by the config.
+
+        This method connects to the LanceDB store at ``config.lancedb_path``
+        and opens the table ``config.table_name``. The opened table is
+        stored on the instance as ``self.table``.
+
+        Returns:
+            lancedb.table.Table: Opened LanceDB table object.
         """
         import lancedb
 
@@ -104,8 +134,22 @@ class LanceIndex:
     def index_data(
         self, dataset: datasets.Dataset, *, overwrite: bool = False
     ) -> lancedb.table.Table:
-        """
-        Create and index data in LanceDB, building scalar, FTS, and vector indices.
+        """Create and index data in LanceDB from a HuggingFace Dataset.
+
+        The provided dataset is used to create a LanceDB table; scalar
+        and full-text-search (FTS) indices are created for the configured
+        ID and text columns. If an embedding column is configured a
+        vector index (IVF_HNSW_PQ) will be created using heuristics for
+        partitioning and sub-vector size.
+
+        Args:
+            dataset (datasets.Dataset): HuggingFace Dataset containing
+                the data to index.
+            overwrite (bool): If ``True`` an existing table will be
+                replaced. Defaults to ``False``.
+
+        Returns:
+            lancedb.table.Table: The created or existing LanceDB table.
         """
         if self.table is not None and not overwrite:
             return self.table
@@ -172,9 +216,22 @@ class LanceIndex:
         exclude_item_ids: list[str] | None = None,
         top_k: int = 20,
     ) -> datasets.Dataset:
-        """
-        Search for items in LanceDB using a query embedding, excluding specified IDs.
-        Returns a HuggingFace Dataset of results.
+        """Search the LanceDB vector index for the nearest items.
+
+        The method performs a vector search with optional prefiltering to
+        exclude specific item IDs. Returned results are converted into a
+        HuggingFace ``datasets.Dataset`` and a cosine-like ``score`` is
+        appended (computed as 1 - distance).
+
+        Args:
+            embedding (np.typing.NDArray[np.float32]): Query vector.
+            exclude_item_ids (list[str] | None): Optional list of item
+                IDs to exclude from results.
+            top_k (int): Number of top results to return.
+
+        Returns:
+            datasets.Dataset: Dataset containing the search results with
+                an additional ``score`` column.
         """
         exclude_item_ids = exclude_item_ids or [""]
         exclude_filter = ", ".join(
@@ -195,9 +252,13 @@ class LanceIndex:
         return datasets.Dataset(rec_table)
 
     def get_ids(self, ids: list[str]) -> datasets.Dataset:
-        """
-        Retrieve items from LanceDB by a list of IDs.
-        Returns a HuggingFace Dataset.
+        """Fetch rows from the LanceDB table matching the provided IDs.
+
+        Args:
+            ids (list[str]): List of item identifiers to fetch.
+
+        Returns:
+            datasets.Dataset: Dataset containing the matching rows.
         """
         ids_filter = ", ".join(f"'{str(id_val).replace("'", "''")}'" for id_val in ids)
         result = (
@@ -208,9 +269,15 @@ class LanceIndex:
         return datasets.Dataset(result)
 
     def get_id(self, id_val: str | None) -> dict[str, Any]:
-        """
-        Retrieve a single item from LanceDB by ID.
-        Returns a dictionary of item data.
+        """Retrieve a single item from LanceDB by its ID.
+
+        Args:
+            id_val (str | None): Item ID to fetch. If ``None`` an empty
+                dictionary is returned.
+
+        Returns:
+            dict[str, Any]: The first matching row as a dictionary or an
+                empty dictionary if no match is found.
         """
         if id_val is None:
             return {}
@@ -229,8 +296,13 @@ class FaissIndex:
     def __init__(
         self, config: IndexConfig, index: datasets.Dataset | None = None
     ) -> None:
-        """
-        Initialize FaissIndex with configuration and optional index.
+        """Initialize FaissIndex with configuration and optional dataset.
+
+        Args:
+            config (IndexConfig): Configuration specifying id and
+                embedding column names.
+            index (datasets.Dataset | None): Optional dataset already
+                prepared for Faiss indexing.
         """
         super().__init__()
         self.config = config
@@ -238,8 +310,14 @@ class FaissIndex:
         self.id2idx: pd.Series | None = None
 
     def save(self, path: str) -> None:
-        """
-        Save the Faiss index and data to the specified path.
+        """Persist the dataset and Faiss index to disk.
+
+        The dataset is written to ``<path>/data.parquet`` and the Faiss
+        index is saved to ``<path>/index.faiss``.
+
+        Args:
+            path (str): Directory where data and index files will be
+                written.
         """
         index_name = self.index.list_indexes()[0]
         self.index.to_parquet(pathlib.Path(path, "data.parquet"))
@@ -247,8 +325,20 @@ class FaissIndex:
 
     @classmethod
     def load(cls, config: IndexConfig, path: str) -> FaissIndex:
-        """
-        Load a Faiss index and data from disk, checking required columns.
+        """Load a Faiss index and associated data from disk.
+
+        The parquet dataset and Faiss index file are loaded and the method
+        validates that required columns (ID and optionally embedding)
+        exist in the dataset.
+
+        Args:
+            config (IndexConfig): Expected index configuration.
+            path (str): Path containing ``data.parquet`` and
+                ``index.faiss``.
+
+        Returns:
+            FaissIndex: Initialised FaissIndex with loaded dataset and
+                configured id2idx mapping.
         """
         index: datasets.Dataset = datasets.Dataset.from_parquet(
             pathlib.Path(path, "data.parquet").as_posix()
@@ -269,8 +359,15 @@ class FaissIndex:
         return cls(config, index).configure_id2idx(overwrite=True)
 
     def configure_id2idx(self, *, overwrite: bool = False) -> FaissIndex:
-        """
-        Build or update the mapping from item IDs to index positions.
+        """Create or refresh a pandas Series mapping item IDs to row
+        indices in the dataset.
+
+        Args:
+            overwrite (bool): If ``True`` rebuild the mapping even if it
+                already exists.
+
+        Returns:
+            FaissIndex: Self for chaining.
         """
         if self.id2idx is not None and not overwrite:
             return self
@@ -288,8 +385,20 @@ class FaissIndex:
     def index_data(
         self, dataset: datasets.Dataset, *, overwrite: bool = False
     ) -> datasets.Dataset:
-        """
-        Create and index data in Faiss, building vector indices.
+        """Index a datasets.Dataset with Faiss for efficient nearest
+        neighbour search.
+
+        If an embedding column is present the method constructs a
+        composite index (OPQ + IVF + HNSW + PQ) and trains it using the
+        dataset vectors.
+
+        Args:
+            dataset (datasets.Dataset): Dataset containing at least the
+                embedding column if vector indexing is desired.
+            overwrite (bool): If ``True`` replace an existing index.
+
+        Returns:
+            datasets.Dataset: The dataset registered with Faiss indices.
         """
         if self.index is not None and not overwrite:
             return self.index
@@ -329,9 +438,20 @@ class FaissIndex:
         exclude_item_ids: list[str] | None = None,
         top_k: int = 20,
     ) -> datasets.Dataset:
-        """
-        Search for items in Faiss using a query embedding, excluding specified IDs.
-        Returns a HuggingFace Dataset of results.
+        """Search the Faiss index and return the top-k results.
+
+        The method queries the Faiss-backed index and post-filters any
+        excluded IDs. It ensures enough neighbors are retrieved to allow
+        for filtering and returns a HuggingFace Dataset with a ``score``
+        column added.
+
+        Args:
+            embedding (np.typing.NDArray[np.float32]): Query vector.
+            exclude_item_ids (list[str] | None): Item IDs to exclude.
+            top_k (int): Number of results to return after filtering.
+
+        Returns:
+            datasets.Dataset: Top-k search results as a Dataset.
         """
         exclude_set = set(exclude_item_ids or [""])
         # we take (2 * (top_k + len(exclude_set))) nearest items to ensure sufficient for post-filtering
@@ -348,9 +468,13 @@ class FaissIndex:
         )
 
     def get_ids(self, ids: list[str]) -> datasets.Dataset:
-        """
-        Retrieve items from Faiss by a list of IDs.
-        Returns a HuggingFace Dataset.
+        """Return rows from the dataset that match the provided IDs.
+
+        Args:
+            ids (list[str]): List of item IDs to retrieve.
+
+        Returns:
+            datasets.Dataset: Dataset containing the matching rows.
         """
         if self.id2idx is None:
             msg = "id2idx is not initialised"
@@ -360,9 +484,15 @@ class FaissIndex:
         return self.index.select(idx)
 
     def get_id(self, id_: str | None) -> dict[str, Any]:
-        """
-        Retrieve a single item from Faiss by ID.
-        Returns a dictionary of item data.
+        """Retrieve a single row from the dataset matching ``id_``.
+
+        Args:
+            id_ (str | None): Item ID to fetch. If ``None`` an empty
+                dictionary is returned.
+
+        Returns:
+            dict[str, Any]: The row as a dictionary or an empty dict if
+                not found.
         """
         if id_ is None:
             return {}

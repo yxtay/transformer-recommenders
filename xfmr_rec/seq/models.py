@@ -45,15 +45,45 @@ class SeqRecModel(torch.nn.Module):
         logger.info(repr(self.config))
         logger.info(self)
 
+    def __repr__(self) -> str:  # pragma: no cover - trivial
+        """Return a concise representation of the model for logging.
+
+        Returns:
+            str: String containing the class name and config repr.
+        """
+        return f"{self.__class__.__name__}(config={self.config!r})"
+
     @property
     def device(self) -> torch.device:
+        """Device property delegated to the encoder.
+
+        Returns:
+            torch.device: Device used by the encoder SentenceTransformer.
+        """
         return self.encoder.device
 
     @property
     def max_seq_length(self) -> int:
+        """Maximum sequence length supported by the encoder.
+
+        Returns:
+            int: Maximum sequence length (tokens) used by the encoder.
+        """
         return self.encoder.max_seq_length
 
     def configure_model(self, device: torch.device | str | None = None) -> None:
+        """Ensure encoder and embedder SentenceTransformer instances exist.
+
+        If an encoder or embedder is not provided at construction this
+        method initialises them using :func:`init_sent_transformer`. The
+        embedder uses a copy of the configuration adapted for item
+        embedding (non-decoder and mean pooling).
+
+        Args:
+            device (torch.device | str | None): Device to place newly
+                created SentenceTransformer instances on. If ``None`` the
+                existing device settings are preserved.
+        """
         if self.encoder is None:
             self.encoder = init_sent_transformer(self.config, device=device)
 
@@ -69,6 +99,15 @@ class SeqRecModel(torch.nn.Module):
             self.embedder = init_sent_transformer(embedding_conf, device=self.device)
 
     def save(self, path: str) -> None:
+        """Save the encoder and embedder SentenceTransformer models.
+
+        The encoder and embedder are saved into separate subdirectories
+        under the provided path. The encoder is saved to ``<path>/encoder``
+        and the embedder to ``<path>/embedder``.
+
+        Args:
+            path (str): Directory where the model components will be saved.
+        """
         path = pathlib.Path(path)
         encoder_path = (path / self.ENCODER_PATH).as_posix()
         self.encoder.save(encoder_path)
@@ -108,6 +147,19 @@ class SeqRecModel(torch.nn.Module):
         return cls(config, embedder=embedder, encoder=encoder)
 
     def embed_item_text(self, item_text: list[str]) -> torch.Tensor:
+        """Compute embeddings for a list of item text strings.
+
+        This method tokenizes the provided item texts using the embedder's
+        tokenizer, moves any tensors to the model device, and returns the
+        computed sentence embeddings.
+
+        Args:
+            item_text (list[str]): List of item textual descriptions.
+
+        Returns:
+            torch.Tensor: Tensor of shape (len(item_text), hidden_size)
+                containing the item embeddings.
+        """
         tokenized = self.embedder.tokenize(item_text)
         tokenized = {
             key: value.to(self.device) if isinstance(value, torch.Tensor) else value
@@ -118,6 +170,20 @@ class SeqRecModel(torch.nn.Module):
     def embed_item_text_sequence(
         self, item_text_sequence: list[list[str]]
     ) -> torch.Tensor:
+        """Embed a batch of sequences of item texts.
+
+        Each sequence is truncated to ``max_seq_length`` from the end. The
+        flattened item texts are embedded and then reshaped back into a
+        padded tensor of shape (batch_size, seq_len, hidden_size).
+
+        Args:
+            item_text_sequence (list[list[str]]): Batch of item text
+                sequences (one sequence per example).
+
+        Returns:
+            torch.Tensor: Padded tensor containing embeddings for each
+                sequence with shape (batch_size, seq_len, hidden_size).
+        """
         item_text_sequence = [seq[-self.max_seq_length :] for seq in item_text_sequence]
         num_items = [len(seq) for seq in item_text_sequence]
         embeddings = self.embed_item_text(
@@ -128,6 +194,24 @@ class SeqRecModel(torch.nn.Module):
     def forward(
         self, item_text_sequence: list[list[str]] | None = None
     ) -> dict[str, torch.Tensor]:
+        """Encode a batch of item text sequences using the encoder.
+
+        The method embeds the provided sequences, constructs an attention
+        mask (non-zero token embeddings), and forwards the features to the
+        encoder SentenceTransformer. The encoder output includes token
+        embeddings and pooled sentence embeddings.
+
+        Args:
+            item_text_sequence (list[list[str]] | None): Batch of item text
+                sequences. If ``None`` behaviour is undefined and likely
+                to raise later errors.
+
+        Returns:
+            dict[str, torch.Tensor]: Encoder output dictionary produced by
+                the SentenceTransformer model. Contains keys such as
+                ``token_embeddings``, ``sentence_embedding``, and
+                ``attention_mask``.
+        """
         inputs_embeds = self.embed_item_text_sequence(item_text_sequence)
         attention_mask = (inputs_embeds != 0).any(-1).long()
         features = {"attention_mask": attention_mask, "inputs_embeds": inputs_embeds}
@@ -139,6 +223,30 @@ class SeqRecModel(torch.nn.Module):
         pos_item_text: list[list[str]],
         neg_item_text: list[list[str]],
     ) -> dict[str, torch.Tensor]:
+        """Compute query and candidate embeddings used for training.
+
+        This method encodes the history sequences to produce token-level
+        query embeddings (only positions indicated by the attention mask
+        are kept). Positive and negative candidate embeddings are
+        computed for the same mask positions and shaped so that the first
+        candidate along dimension 1 is the positive example and the
+        remaining are negatives. The resulting tensors are suitable for
+        computing ranking or contrastive losses.
+
+        Args:
+            history_item_text (list[list[str]]): Batch of history item
+                text sequences.
+            pos_item_text (list[list[str]]): Batch of positive item text
+                sequences aligned to the history positions.
+            neg_item_text (list[list[str]]): Batch of negative item text
+                sequences aligned to the history positions.
+
+        Returns:
+            dict[str, torch.Tensor]: Dictionary with keys:
+                - ``query_embed``: tensor of shape (num_valid_positions, hidden_size)
+                - ``candidate_embed``: tensor of shape (num_valid_positions, 1 + num_candidates, hidden_size)
+                - ``attention_mask``: boolean mask of valid token positions
+        """
         output = self(history_item_text)
         attention_mask = output["attention_mask"].bool()
         # shape: (batch_size, seq_len)

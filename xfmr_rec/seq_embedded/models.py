@@ -40,19 +40,56 @@ class SeqEmbeddedModel(torch.nn.Module):
         logger.info(repr(self.config))
         logger.info(self)
 
+    def __repr__(self) -> str:  # pragma: no cover - trivial
+        """Return a concise representation of the model for logging.
+
+        Returns:
+            str: Human readable representation including the config.
+        """
+        return f"{self.__class__.__name__}(config={self.config!r})"
+
     @property
     def device(self) -> torch.device:
+        """Device property delegated to the underlying SentenceTransformer.
+
+        Returns:
+            torch.device: Device used by the SentenceTransformer model.
+        """
         return self.model.device
 
     @property
     def max_seq_length(self) -> int:
+        """Maximum sequence length supported by the model.
+
+        Returns:
+            int: Maximum sequence length (tokens) for the model.
+        """
         return self.model.max_seq_length
 
     def configure_model(self, device: torch.device | str | None = None) -> None:
+        """Initialise the SentenceTransformer model if not provided.
+
+        Args:
+            device (torch.device | str | None): Device where the model
+                should be allocated. If ``None`` the SentenceTransformer
+                default will be used.
+        """
         if self.model is None:
             self.model = init_sent_transformer(self.config, device=device)
 
     def configure_embeddings(self, items_dataset: datasets.Dataset) -> None:
+        """Configure pretrained item embeddings and id-to-index mapping.
+
+        This method extracts item embeddings from the provided dataset,
+        prepends a zero vector for padding (index 0) and builds a frozen
+        torch.nn.Embedding layer. It also constructs a pandas Series
+        mapping item IDs to embedding indices.
+
+        Args:
+            items_dataset (datasets.Dataset): Dataset containing at least
+                the columns ``"embedding"`` (tensor/array) and
+                ``"item_id"``.
+        """
         if self.embeddings is None:
             weights = items_dataset.with_format("torch")["embedding"][:]
             # add idx 0 for padding
@@ -68,6 +105,11 @@ class SeqEmbeddedModel(torch.nn.Module):
             )
 
     def save(self, path: str) -> None:
+        """Save the SentenceTransformer model to disk.
+
+        Args:
+            path (str): Path where the SentenceTransformer should be saved.
+        """
         self.model.save(path)
         logger.info(f"model saved: {path}")
 
@@ -75,6 +117,20 @@ class SeqEmbeddedModel(torch.nn.Module):
     def load(
         cls, path: str, device: torch.device | str | None = None
     ) -> SeqEmbeddedModel:
+        """Load a SeqEmbeddedModel from a saved SentenceTransformer.
+
+        The method inspects the saved model to reconstruct a
+        :class:`SeqEmbeddedModelConfig` and returns an initialised
+        :class:`SeqEmbeddedModel` instance.
+
+        Args:
+            path (str): Path to the saved SentenceTransformer directory.
+            device (torch.device | str | None): Device to load the model on.
+
+        Returns:
+            SeqEmbeddedModel: Initialised model instance with reconstructed
+                configuration.
+        """
         model = SentenceTransformer(path, device=device, local_files_only=True)
         logger.info(f"model loaded: {path}")
 
@@ -98,6 +154,24 @@ class SeqEmbeddedModel(torch.nn.Module):
         *,
         item_embeds: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
+        """Forward pass that accepts either item indices or item embeddings.
+
+        Exactly one of ``item_idx`` or ``item_embeds`` must be provided.
+        The input is truncated to ``max_seq_length`` and an attention mask
+        is created from non-zero embeddings before forwarding to the
+        SentenceTransformer model.
+
+        Args:
+            item_idx (torch.Tensor | None): Tensor of item indices with
+                shape (batch_size, seq_len).
+            item_embeds (torch.Tensor | None): Precomputed item embeddings
+                with shape (batch_size, seq_len, hidden_size).
+
+        Returns:
+            dict[str, torch.Tensor]: Dictionary output from the underlying
+                SentenceTransformer (contains keys like
+                ``sentence_embedding`` and ``token_embeddings``).
+        """
         if item_embeds is not None:
             input_embeds = item_embeds[:, -self.max_seq_length :, :].to(self.device)
         elif item_idx is not None:
@@ -113,6 +187,19 @@ class SeqEmbeddedModel(torch.nn.Module):
         return self.model(features)
 
     def encode(self, item_ids: list[str]) -> torch.Tensor:
+        """Encode a list of item IDs into their pretrained embeddings.
+
+        Item IDs not present in the configured ``id2idx`` mapping are
+        silently dropped. The returned vector corresponds to the pooled
+        sentence embedding for the sequence of provided item IDs.
+
+        Args:
+            item_ids (list[str]): List of item identifier strings.
+
+        Returns:
+            torch.Tensor: 1D tensor with the pooled embedding for the
+                provided item IDs.
+        """
         item_ids = [item_id for item_id in item_ids if item_id in self.id2idx.index]
         item_idx = torch.as_tensor(self.id2idx[item_ids].to_numpy(), device=self.device)
         return self(item_idx[None, :])["sentence_embedding"][0]
@@ -123,6 +210,26 @@ class SeqEmbeddedModel(torch.nn.Module):
         pos_item_idx: torch.Tensor,
         neg_item_idx: torch.Tensor,
     ) -> dict[str, torch.Tensor]:
+        """Compute query and candidate embeddings used for training.
+
+        Works similarly to :meth:`SeqRecModel.compute_embeds` but operates
+        on integer item indices and uses the configured pretrained
+        embedding matrix to obtain candidate vectors.
+
+        Args:
+            history_item_idx (torch.Tensor): Tensor of history item
+                indices with shape (batch_size, seq_len).
+            pos_item_idx (torch.Tensor): Tensor of positive item indices
+                aligned with the history positions.
+            neg_item_idx (torch.Tensor): Tensor of negative item indices
+                aligned with the history positions.
+
+        Returns:
+            dict[str, torch.Tensor]: Dictionary with keys:
+                - ``query_embed``: tensor of shape (num_valid_positions, hidden_size)
+                - ``candidate_embed``: tensor of shape (num_valid_positions, 1 + num_candidates, hidden_size)
+                - ``attention_mask``: boolean mask of valid token positions
+        """
         output = self(history_item_idx)
         attention_mask = output["attention_mask"].bool()
         # shape: (batch_size, seq_len)
