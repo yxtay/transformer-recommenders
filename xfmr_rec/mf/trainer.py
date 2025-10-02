@@ -66,6 +66,13 @@ class MFRecLightningConfig(LossConfig, ModelConfig):
 
 class MFRecLightningModule(lp.LightningModule):
     def __init__(self, config: MFRecLightningConfig) -> None:
+        """Initialize the matrix-factorization Lightning module.
+
+        Args:
+            config (MFRecLightningConfig): Configuration dataclass instance
+                controlling model and loss hyperparameters.
+        """
+
         super().__init__()
         self.config = MFRecLightningConfig.model_validate(config)
         self.save_hyperparameters(self.config.model_dump())
@@ -80,6 +87,13 @@ class MFRecLightningModule(lp.LightningModule):
         logger.info(repr(self.config))
 
     def configure_model(self) -> None:
+        """Lazily initialize model, datasets and loss functions.
+
+        This method ensures the sentence transformer model exists and is
+        attached to the module, loads the datamodule's items dataset if
+        available, constructs an id -> text mapping for items, and
+        instantiates configured loss functions.
+        """
         if self.model is None:
             self.model = init_sent_transformer(self.config, device=self.device)
             logger.info(self.model)
@@ -101,11 +115,27 @@ class MFRecLightningModule(lp.LightningModule):
             self.loss_fns = self.get_loss_fns()
 
     def get_loss_fns(self) -> torch.nn.ModuleList:
+        """Instantiate configured loss function classes.
+
+        Returns:
+            torch.nn.ModuleList: A module list containing one instantiated
+                loss module for each entry in ``LOSS_CLASSES``.
+        """
+
         loss_fns = [loss_class(self.config) for loss_class in LOSS_CLASSES]
         return torch.nn.ModuleList(loss_fns)
 
     @torch.inference_mode()
     def index_items(self, items_dataset: datasets.Dataset) -> None:
+        """Compute embeddings for items and index them in Lance.
+
+        Args:
+            items_dataset (datasets.Dataset): Dataset containing item_text
+                entries. The dataset will be mapped to produce an
+                ``embedding`` column using the model's encoder and then
+                written into the configured Lance index.
+        """
+
         item_embeddings = items_dataset.map(
             lambda batch: {"embedding": self.model.encode(batch["item_text"])},
             batched=True,
@@ -113,6 +143,20 @@ class MFRecLightningModule(lp.LightningModule):
         self.items_index.index_data(item_embeddings, overwrite=True)
 
     def forward(self, text: list[str]) -> dict[str, torch.Tensor]:
+        """Encode a list of texts into sentence embeddings.
+
+        This wrapper tokenizes the input texts, moves tensors to the
+        Lightning module device, and returns the model's
+        ``sentence_embedding`` tensor.
+
+        Args:
+            text (list[str]): List of input texts to encode.
+
+        Returns:
+            dict[str, torch.Tensor]: The model output dictionary's
+                ``sentence_embedding`` tensor.
+        """
+
         tokenized = self.model.tokenize(text)
         tokenized = {
             key: value.to(self.device) if isinstance(value, torch.Tensor) else value
@@ -128,6 +172,20 @@ class MFRecLightningModule(lp.LightningModule):
         top_k: int = 0,
         exclude_item_ids: list[str] | None = None,
     ) -> datasets.Dataset:
+        """Generate top-k recommendations for a query string.
+
+        Args:
+            query_text (str): Text query to encode and use for retrieval.
+            top_k (int, optional): Number of items to return. If 0 or falsy,
+                the module's configured ``top_k`` is used.
+            exclude_item_ids (list[str] | None, optional): Optional list of
+                item ids to exclude from the returned results.
+
+        Returns:
+            datasets.Dataset: A dataset-like object containing the search
+                results (e.g., item ids, scores, and any indexed columns).
+        """
+
         embedding = self.model.encode(query_text)
         return self.items_index.search(
             embedding,
@@ -136,6 +194,23 @@ class MFRecLightningModule(lp.LightningModule):
         )
 
     def compute_losses(self, batch: dict[str, list[str]]) -> dict[str, torch.Tensor]:
+        """Compute configured training losses for one batch.
+
+        The method encodes queries, positive and negative candidate texts,
+        constructs the candidate embedding tensor in the expected shape,
+        computes logits statistics, and evaluates each configured loss
+        function. Returned dict contains per-loss tensors and some batch
+        metrics.
+
+        Args:
+            batch (dict[str, list[str]]): A batch containing at least
+                ``query_text``, ``pos_text`` and ``neg_text`` lists.
+
+        Returns:
+            dict[str, torch.Tensor]: Mapping of loss/metric names to tensors
+                that can be logged.
+        """
+
         query_embed = self(batch["query_text"])
         # shape: (batch_size, hidden_size)
         candidate_embed = self(batch["pos_text"] + batch["neg_text"])
@@ -162,6 +237,26 @@ class MFRecLightningModule(lp.LightningModule):
     def compute_metrics(
         self, row: dict[str, str | dict[str, np.ndarray]], stage: str = "val"
     ) -> dict[str, torch.Tensor]:
+        """Compute retrieval and item-based metrics for a row.
+
+        This method runs prediction for the provided row to obtain
+        recommendations, computes standard retrieval metrics (recall,
+        precision, etc.) against the supplied target labels, and also
+        evaluates an item-item retrieval metric where the last item in the
+        user's history is used as a query.
+
+        Args:
+            row (dict): A dictionary containing history, target and other
+                fields. Expected to match the datamodule's validation row
+                format.
+            stage (str, optional): Prefix for metric keys (e.g., "val",
+                "test"). Defaults to "val".
+
+        Returns:
+            dict[str, torch.Tensor]: Mapping of metric names to scalar
+                tensors for logging.
+        """
+
         recs = self.predict_step(row)
         metrics = compute_retrieval_metrics(
             rec_ids=recs["item_id"][:],
@@ -200,6 +295,15 @@ class MFRecLightningModule(lp.LightningModule):
         return metrics | item_metrics
 
     def training_step(self, batch: dict[str, list[str]]) -> torch.Tensor:
+        """Lightning training step: compute and return the primary loss.
+
+        Args:
+            batch (dict): Training batch provided by the datamodule.
+
+        Returns:
+            torch.Tensor: The scalar loss used for backpropagation.
+        """
+
         loss_dict = self.compute_losses(batch)
         self.log_dict(loss_dict)
         return loss_dict[f"loss/{self.config.train_loss}"]
@@ -207,6 +311,16 @@ class MFRecLightningModule(lp.LightningModule):
     def validation_step(
         self, row: dict[str, str | dict[str, np.ndarray]]
     ) -> dict[str, torch.Tensor]:
+        """Validation step: compute and log retrieval metrics for a row.
+
+        Args:
+            row (dict): Single validation row containing user_text, history
+                and target fields.
+
+        Returns:
+            dict[str, torch.Tensor]: Computed metrics to aggregate.
+        """
+
         metrics = self.compute_metrics(row, stage="val")
         self.log_dict(metrics, batch_size=1)
         return metrics
@@ -214,6 +328,12 @@ class MFRecLightningModule(lp.LightningModule):
     def test_step(
         self, row: dict[str, str | dict[str, np.ndarray]]
     ) -> dict[str, torch.Tensor]:
+        """Test step: compute and log retrieval metrics for a test row.
+
+        Mirrors :meth:`validation_step` but tags metrics with the
+        "test" stage.
+        """
+
         metrics = self.compute_metrics(row, stage="test")
         self.log_dict(metrics, batch_size=1)
         return metrics
@@ -221,6 +341,12 @@ class MFRecLightningModule(lp.LightningModule):
     def predict_step(
         self, row: dict[str, str | dict[str, np.ndarray]]
     ) -> datasets.Dataset:
+        """Prediction step used by Lightning's predict loop.
+
+        Returns recommendations for the provided user's text while
+        excluding items already present in the user's history.
+        """
+
         return self.recommend(
             row["user_text"],
             top_k=self.config.top_k,
@@ -228,10 +354,23 @@ class MFRecLightningModule(lp.LightningModule):
         )
 
     def on_validation_start(self) -> None:
+        """Hook executed at the start of validation.
+
+        Indexes items and users into their respective Lance indexes so that
+        validation-time retrieval/prediction can use the latest embeddings.
+        """
+
         self.index_items(self.trainer.datamodule.items_dataset)
         self.users_index.index_data(self.trainer.datamodule.users_dataset)
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
+        """Configure and return the optimizer used for training.
+
+        Returns:
+            torch.optim.Optimizer: An AdamW optimizer configured from the
+                lightning config's learning rate and weight decay.
+        """
+
         return torch.optim.AdamW(
             self.parameters(),
             lr=self.config.learning_rate,
@@ -239,6 +378,14 @@ class MFRecLightningModule(lp.LightningModule):
         )
 
     def configure_callbacks(self) -> list[lp.Callback]:
+        """Create standard callbacks for checkpointing and early stopping.
+
+        Returns:
+            list[lp.Callback]: A list containing a ModelCheckpoint and an
+                EarlyStopping callback configured to monitor the project
+                metric.
+        """
+
         checkpoint = lp_callbacks.ModelCheckpoint(
             monitor=METRIC["name"], mode=METRIC["mode"]
         )
@@ -249,9 +396,22 @@ class MFRecLightningModule(lp.LightningModule):
 
     @property
     def example_input_array(self) -> tuple[list[str]]:
+        """Example input used by Lightning for shape inference.
+
+        Returns a tuple compatible with the model's forward signature.
+        """
+
         return (["", ""],)
 
     def save(self, path: str) -> None:
+        """Persist the model artifacts and indexed data to disk.
+
+        Args:
+            path (str): Directory path where the model and index files will
+                be stored. The function creates the transformer and Lance
+                DB artifacts under this path.
+        """
+
         path = pathlib.Path(path)
         self.model.save(path / TRANSFORMER_PATH)
         self.items_index.save(path / LANCE_DB_PATH)
@@ -265,6 +425,13 @@ cli_main = LightningCLI(
 
 
 def main() -> None:
+    """Entry point used when running the MF trainer as a script.
+
+    This function simply delegates to the configured LightningCLI
+    instance to start a fit/validate/test/predict run according to
+    command-line or programmatic arguments.
+    """
+
     cli_main()
 
 
