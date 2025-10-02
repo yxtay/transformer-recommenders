@@ -44,6 +44,26 @@ data loading, model definitions, training logic, and deployment scripts.
 - **Naming**:
   Model variants and experiments are named by approach (e.g., `xfmr_mf_rec`, `xfmr_seq_rec`).
 
+## Docstring style
+
+Prefer Google style docstrings for all Python functions, classes and methods.
+When adding or updating docstrings follow the Google convention, including
+sections for Args, Returns, and Raises where appropriate. Keep docstrings
+concise and focused on behavior, inputs, outputs and error modes.
+
+Minimal example:
+
+  def compute_sum(a: int, b: int) -> int:
+    """Compute the sum of two integers.
+
+    Args:
+      a (int): First addend.
+      b (int): Second addend.
+
+    Returns:
+      int: The sum of ``a`` and ``b``.
+    """
+
 ## Integration Points
 
 - **External Libraries**: PyTorch, PyTorch Lightning, LanceDB, MLflow
