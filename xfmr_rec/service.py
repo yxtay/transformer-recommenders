@@ -68,6 +68,12 @@ ENVS = [{"name": "UV_NO_CACHE", "value": "1"}]
 class BaseItemIndex:
     @logger.catch(reraise=True)
     def __init__(self) -> None:
+        """Initialize the item index dependency.
+
+        Loads a `LanceIndex` configured to point at the items table inside the
+        BentoModel's LANCE_DB_PATH artifact. This is used by the item index
+        service to perform vector search and lookups.
+        """
         lance_db_path = self.model_ref.path_of(LANCE_DB_PATH)
         config = LanceIndexConfig(
             lancedb_path=lance_db_path, table_name=ITEMS_TABLE_NAME
@@ -79,6 +85,19 @@ class BaseItemIndex:
     def search(
         self, query: BaseQuery, exclude_item_ids: list[str], top_k: int = TOP_K
     ) -> list[ItemCandidate]:
+        """Search for item candidates by embedding.
+
+        Args:
+            query (BaseQuery): Object containing an `embedding` array to search
+                with.
+            exclude_item_ids (list[str]): List of item ids to exclude from the
+                results (e.g. items already seen by the user).
+            top_k (int): Number of top candidates to return.
+
+        Returns:
+            list[ItemCandidate]: A list of item candidate objects sorted by
+                descending score.
+        """
         results = self.index.search(
             query.embedding,
             exclude_item_ids=exclude_item_ids,
@@ -91,6 +110,18 @@ class BaseItemIndex:
     @bentoml.api()
     @logger.catch(reraise=True)
     def get_id(self, item_id: str) -> ItemQuery:
+        """Retrieve a single item by id from the index.
+
+        Args:
+            item_id (str): The string identifier of the item to fetch.
+
+        Returns:
+            ItemQuery: A pydantic model representing the item.
+
+        Raises:
+            bentoml.exceptions.NotFound: If the item does not exist in the
+                index.
+        """
         result = self.index.get_id(item_id)
         if len(result) == 0:
             msg = f"item not found: {item_id = }"
@@ -100,6 +131,15 @@ class BaseItemIndex:
     @bentoml.api()
     @logger.catch(reraise=True)
     def get_ids(self, item_ids: list[str]) -> dict[str, ItemQuery]:
+        """Retrieve multiple items by id from the index.
+
+        Args:
+            item_ids (list[str]): List of item ids to fetch.
+
+        Returns:
+            dict[str, ItemQuery]: Mapping from item id to `ItemQuery` models for
+                all found items. Missing ids are omitted from the result.
+        """
         results = self.index.get_ids(item_ids)
         results = pydantic.TypeAdapter(list[ItemQuery]).validate_python(
             results.to_list()
@@ -110,6 +150,11 @@ class BaseItemIndex:
 class BaseUserIndex:
     @logger.catch(reraise=True)
     def __init__(self) -> None:
+        """Initialize the user index dependency.
+
+        Loads a `LanceIndex` configured to point at the users table inside the
+        BentoModel's LANCE_DB_PATH artifact. This provides user lookups by id.
+        """
         lance_db_path = self.model_ref.path_of(LANCE_DB_PATH)
         config = LanceIndexConfig(
             lancedb_path=lance_db_path, table_name=USERS_TABLE_NAME
@@ -119,6 +164,18 @@ class BaseUserIndex:
     @bentoml.api()
     @logger.catch(reraise=True)
     def get_id(self, user_id: str) -> UserQuery:
+        """Retrieve a single user by id from the index.
+
+        Args:
+            user_id (str): The string identifier of the user to fetch.
+
+        Returns:
+            UserQuery: A pydantic model representing the user.
+
+        Raises:
+            bentoml.exceptions.NotFound: If the user does not exist in the
+                index.
+        """
         result = self.index.get_id(user_id)
         if len(result) == 0:
             msg = f"user not found: {user_id = }"
@@ -139,6 +196,22 @@ class BaseService:
         exclude_item_ids: list[str] | None = None,
         top_k: int = TOP_K,
     ) -> list[ItemCandidate]:
+        """Asynchronously search for items using the item index dependency.
+
+        This method delegates to the item index service's async `search`
+        implementation. It ensures `exclude_item_ids` is a list before
+        forwarding the call.
+
+        Args:
+            query (BaseQuery): Query object containing an `embedding` to search
+                with.
+            exclude_item_ids (list[str] | None): Optional list of item ids to
+                exclude from the results.
+            top_k (int): Number of candidates to return.
+
+        Returns:
+            list[ItemCandidate]: The search results returned by the index.
+        """
         exclude_item_ids = exclude_item_ids or []
         return await self.item_index.to_async.search(
             query, exclude_item_ids=exclude_item_ids, top_k=top_k
@@ -147,19 +220,45 @@ class BaseService:
     @bentoml.api()
     @logger.catch(reraise=True)
     async def item_id(self, item_id: str) -> ItemQuery:
+        """Asynchronously retrieve an item by id using the item index.
+
+        Args:
+            item_id (str): The id of the item to fetch.
+
+        Returns:
+            ItemQuery: The item model returned by the index.
+        """
         return await self.item_index.to_async.get_id(item_id)
 
     @bentoml.api()
     @logger.catch(reraise=True)
     async def user_id(self, user_id: str) -> UserQuery:
+        """Asynchronously retrieve a user by id using the user index.
+
+        Args:
+            user_id (str): The id of the user to fetch.
+
+        Returns:
+            UserQuery: The user model returned by the index.
+        """
         return await self.user_index.to_async.get_id(user_id)
 
     @bentoml.api()
     @logger.catch(reraise=True)
     async def model_version(self) -> str:
+        """Return the BentoModel's version tag as a string.
+
+        Returns:
+            str: The model version from the BentoModel tag.
+        """
         return self.model_ref.tag.version
 
     @bentoml.api()
     @logger.catch(reraise=True)
     async def model_name(self) -> str:
+        """Return the BentoModel's name tag as a string.
+
+        Returns:
+            str: The model name from the BentoModel tag.
+        """
         return self.model_ref.tag.name
