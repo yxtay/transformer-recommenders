@@ -20,17 +20,20 @@ def download_data(
 ) -> pathlib.Path:
     """Download the MovieLens dataset to a local directory.
 
-    Downloads the file at ``url`` into ``dest_dir`` and returns the full path
-    to the downloaded archive. The download is skipped if the destination
-    file already exists unless ``overwrite`` is True.
+    Downloads the file at ``url`` into ``dest_dir`` and returns the full
+    path to the downloaded archive. If the destination file already exists
+    the download is skipped unless ``overwrite`` is True.
 
     Args:
-        url: The URL of the MovieLens archive to download.
-        dest_dir: Directory to save the downloaded archive into.
+        url: URL of the MovieLens archive to download.
+        dest_dir: Directory where the archive will be saved.
         overwrite: If True, overwrite any existing file at the destination.
 
     Returns:
-        Path to the downloaded archive file.
+        pathlib.Path: Path to the downloaded archive file.
+
+    Raises:
+        httpx.HTTPError: If the HTTP request fails while downloading.
     """
     import httpx
 
@@ -58,7 +61,7 @@ def unpack_data(
     """Unpack a downloaded MovieLens archive.
 
     Extracts the archive into a directory next to the archive file. If the
-    target directory already exists the extraction is skipped unless
+    destination directory already exists the extraction is skipped unless
     ``overwrite`` is True.
 
     Args:
@@ -66,7 +69,10 @@ def unpack_data(
         overwrite: If True, re-extract even if the destination directory exists.
 
     Returns:
-        Names of files contained in the unpacked directory.
+        list[str]: Filenames contained in the unpacked directory.
+
+    Raises:
+        shutil.ReadError: If the archive cannot be unpacked.
     """
     archive_file = pathlib.Path(archive_file)
     dest_dir = archive_file.parent / archive_file.stem
@@ -84,8 +90,8 @@ def download_unpack_data(
 ) -> list[str]:
     """Download and unpack MovieLens in a single step.
 
-    Combines :func:`download_data` and :func:`unpack_data` to fetch and
-    extract the archive, returning the list of unpacked files.
+    Combine :func:`download_data` and :func:`unpack_data` to fetch and
+    extract the archive, returning the list of unpacked filenames.
 
     Args:
         url: URL of the archive to download.
@@ -93,7 +99,7 @@ def download_unpack_data(
         overwrite: If True, re-download and/or re-unpack even if files exist.
 
     Returns:
-        Filenames that were unpacked.
+        list[str]: Filenames that were unpacked.
     """
     archive_file = download_data(url=url, dest_dir=dest_dir, overwrite=overwrite)
     return unpack_data(archive_file, overwrite=overwrite)
@@ -107,15 +113,17 @@ def download_unpack_data(
 def load_items(src_dir: str = DATA_DIR) -> pl.LazyFrame:
     """Read raw MovieLens movie records and return a Polars LazyFrame.
 
-    The function reads the ``movies.dat`` file from ``src_dir`` and returns a
-    :class:`polars.LazyFrame` where movie metadata has been transformed into
-    an ``item_text`` JSON string containing title and genres.
+    Read the ``movies.dat`` file from ``src_dir`` and return a
+    :class:`polars.LazyFrame` where movie metadata is transformed into an
+    ``item_text`` JSON string containing the title and genres.
 
     Args:
-        src_dir: Root directory containing the unzipped MovieLens data (``ml-1m``).
+        src_dir: Root directory containing the unzipped MovieLens data
+            (expects a ``ml-1m`` subdirectory).
 
     Returns:
-        LazyFrame of items with columns ``item_id`` and ``item_text``.
+        pl.LazyFrame: LazyFrame of items with columns ``item_id`` and
+        ``item_text``.
     """
     items_dat = pathlib.Path(src_dir, "ml-1m", "movies.dat")
     dtype = {"movie_id": "str", "title": "str", "genres": "str"}
@@ -142,14 +150,16 @@ def load_items(src_dir: str = DATA_DIR) -> pl.LazyFrame:
 def load_users(src_dir: str = DATA_DIR) -> pl.LazyFrame:
     """Read raw MovieLens user records and return a Polars LazyFrame.
 
-    Reads ``users.dat`` and constructs a JSON ``user_text`` field containing
+    Read ``users.dat`` and construct a JSON ``user_text`` field containing
     demographic information suitable for text-based models.
 
     Args:
-        src_dir: Root directory containing the unzipped MovieLens data (``ml-1m``).
+        src_dir: Root directory containing the unzipped MovieLens data
+            (expects a ``ml-1m`` subdirectory).
 
     Returns:
-        LazyFrame of users with a ``user_text`` column.
+        pl.LazyFrame: LazyFrame of users containing ``user_id`` and
+        ``user_text`` columns.
     """
     users_dat = pathlib.Path(src_dir, "ml-1m", "users.dat")
     dtype = {
@@ -184,15 +194,17 @@ def load_users(src_dir: str = DATA_DIR) -> pl.LazyFrame:
 def load_events(src_dir: str = DATA_DIR) -> pl.LazyFrame:
     """Read MovieLens rating events and return a Polars LazyFrame.
 
-    The function reads ``ratings.dat`` and converts it to a LazyFrame with
-    columns ``user_id``, ``item_id``, ``event_value``, ``datetime``, and a
-    boolean ``label`` column indicating a positive interaction.
+    Read ``ratings.dat`` and convert it to a :class:`polars.LazyFrame` with
+    columns ``user_id``, ``item_id``, ``event_value``, ``datetime``,
+    ``event_name`` and a boolean ``label`` column indicating a positive
+    interaction.
 
     Args:
-        src_dir: Root directory containing the unzipped MovieLens data (``ml-1m``).
+        src_dir: Root directory containing the unzipped MovieLens data
+            (expects a ``ml-1m`` subdirectory).
 
     Returns:
-        LazyFrame of event records.
+        pl.LazyFrame: LazyFrame of event records.
     """
     events_dat = pathlib.Path(src_dir, "ml-1m", "ratings.dat")
     dtype = {
@@ -237,23 +249,29 @@ def train_test_split(
 ) -> pl.LazyFrame:
     """Split events into train / validation / test per user by time.
 
-    This function marks each interaction as part of the training set based
-    on its relative position in a user's timeline. The remaining interactions
-    are split across validation and test such that users with more leftover
-    interactions are more likely to have validation examples.
+    Mark interactions as train/validation/test per user based on chronological
+    ordering. For each user the earliest ``train_prop`` fraction of events is
+    marked as training; the remaining events are split between validation and
+    test according to ``val_prop`` (users with more leftover events are more
+    likely to contribute validation examples).
 
     Args:
-        events: LazyFrame of event records containing the grouping and ordering
-            columns specified by ``group_col`` and ``order_col``.
+        events: LazyFrame of event records containing the grouping and
+            ordering columns specified by ``group_col`` and ``order_col``.
         group_col: Column used to group events (typically ``user_id``).
         order_col: Column used to order events within each group
             (typically ``datetime``).
-        train_prop: Fraction of each user's earliest interactions reserved for training.
-        val_prop: Fraction of the non-training interactions to mark as validation.
+        train_prop: Fraction of each user's earliest interactions reserved
+            for training (0 < train_prop < 1).
+        val_prop: Fraction of the non-training interactions to mark as
+            validation (0 <= val_prop <= 1).
 
     Returns:
-        The same events LazyFrame augmented with boolean columns ``is_train``,
-        ``is_val``, ``is_test``, and ``is_predict``.
+        pl.LazyFrame: The input LazyFrame augmented with boolean columns
+        ``is_train``, ``is_val``, ``is_test``, and ``is_predict``.
+
+    Raises:
+        ValueError: If proportions are out of bounds.
     """
     events = (
         events.lazy()
@@ -292,23 +310,26 @@ def process_events(
     src_dir: str = DATA_DIR,
     overwrite: bool = False,
 ) -> pl.LazyFrame:
-    """Join events with item and user metadata and persist as Parquet.
+    """Join events with item and user metadata and persist the result as Parquet.
 
     If a processed Parquet file already exists at ``src_dir/ml-1m/events.parquet``
-    the function will return a scanned LazyFrame pointing at it (unless
-    ``overwrite`` is True). Otherwise it computes the joins, writes the
-    Parquet file, and returns a LazyFrame that scans the saved file.
+    and ``overwrite`` is False the function will return a LazyFrame that
+    scans the existing file. Otherwise the joins are computed, written to
+    disk, and a scanning LazyFrame is returned.
 
     Args:
         events: LazyFrame of raw events to be joined.
         items: LazyFrame of item metadata to join on ``item_id``.
         users: LazyFrame of user metadata to join on ``user_id``.
-        src_dir: Directory containing the MovieLens dataset and where processed
-            Parquet files will be written.
+        src_dir: Directory containing the MovieLens dataset and where
+            processed Parquet files will be written.
         overwrite: If True, recompute and overwrite any existing parquet files.
 
     Returns:
-        LazyFrame pointing at the processed events parquet file.
+        pl.LazyFrame: LazyFrame that scans the processed events parquet file.
+
+    Raises:
+        IOError: If writing the parquet file fails.
     """
     events_parquet = pathlib.Path(src_dir, "ml-1m", "events.parquet")
     if events_parquet.exists() and not overwrite:
@@ -347,7 +368,10 @@ def process_items(
         overwrite: If True, recompute and overwrite the parquet file.
 
     Returns:
-        LazyFrame pointing to the processed items parquet file.
+        pl.LazyFrame: LazyFrame that scans the processed items parquet file.
+
+    Raises:
+        IOError: If writing the parquet file fails.
     """
     items_parquet = pathlib.Path(src_dir, "ml-1m", "items.parquet")
     if items_parquet.exists() and not overwrite:
@@ -377,8 +401,8 @@ def process_users(
 ) -> pl.LazyFrame:
     """Aggregate user interactions and persist user-level Parquet.
 
-    Builds per-user history and target lists from the events LazyFrame and
-    joins this information with the user metadata. The output is written to
+    Build per-user history and target lists from the events LazyFrame and
+    join this information with the user metadata. The output is written to
     ``users.parquet`` unless it already exists and ``overwrite`` is False.
 
     Args:
@@ -388,7 +412,10 @@ def process_users(
         overwrite: If True, recompute and overwrite the parquet file.
 
     Returns:
-        LazyFrame pointing to the processed users parquet file.
+        pl.LazyFrame: LazyFrame that scans the processed users parquet file.
+
+    Raises:
+        IOError: If writing the parquet file fails.
     """
     users_parquet = pathlib.Path(src_dir, "ml-1m", "users.parquet")
     if users_parquet.exists() and not overwrite:
@@ -455,7 +482,7 @@ def prepare_movielens(
         overwrite: If True, force recomputation and overwrite any existing outputs.
 
     Returns:
-        The processed events LazyFrame (scanning the saved Parquet file).
+        pl.LazyFrame: The processed events LazyFrame (scanning the saved Parquet file).
     """
     items = load_items(src_dir)
     users = load_users(src_dir)

@@ -70,6 +70,9 @@ class LanceIndex:
         Args:
             path (str): Destination path where the LanceDB store will be
                 copied.
+
+        Returns:
+            None: The function copies files on disk and does not return a value.
         """
         shutil.copytree(self.config.lancedb_path, path)
 
@@ -222,8 +225,9 @@ class LanceIndex:
             top_k (int): Number of top results to return.
 
         Returns:
-            datasets.Dataset: Dataset containing the search results with
-                an additional ``score`` column.
+            datasets.Dataset: Dataset containing the search results with an
+            additional ``score`` column. The ``score`` is computed as
+            ``1 - _distance`` to resemble cosine similarity.
         """
         exclude_item_ids = exclude_item_ids or [""]
         exclude_filter = ", ".join(
@@ -269,7 +273,7 @@ class LanceIndex:
 
         Returns:
             dict[str, Any]: The first matching row as a dictionary or an
-                empty dictionary if no match is found.
+            empty dictionary if no match is found.
         """
         if id_val is None:
             return {}
@@ -310,6 +314,9 @@ class FaissIndex:
         Args:
             path (str): Directory where data and index files will be
                 written.
+
+        Returns:
+            None: The function writes files to disk and does not return a value.
         """
         index_name = self.index.list_indexes()[0]
         self.index.to_parquet(pathlib.Path(path, "data.parquet"))
@@ -329,8 +336,8 @@ class FaissIndex:
                 ``index.faiss``.
 
         Returns:
-            FaissIndex: Initialised FaissIndex with loaded dataset and
-                configured id2idx mapping.
+            FaissIndex: Initialised FaissIndex with loaded dataset and a
+            configured ``id2idx`` mapping.
         """
         index: datasets.Dataset = datasets.Dataset.from_parquet(
             pathlib.Path(path, "data.parquet").as_posix()
@@ -443,7 +450,8 @@ class FaissIndex:
             top_k (int): Number of results to return after filtering.
 
         Returns:
-            datasets.Dataset: Top-k search results as a Dataset.
+            datasets.Dataset: Top-k search results as a Dataset. Scores are
+            returned in the same order as the rows.
         """
         exclude_set = set(exclude_item_ids or [""])
         # we take (2 * (top_k + len(exclude_set))) nearest items to ensure sufficient for post-filtering
