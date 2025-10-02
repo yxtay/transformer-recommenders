@@ -15,7 +15,24 @@ if TYPE_CHECKING:
     from transformers.modeling_utils import PreTrainedModel
 
 
+"""Model construction utilities for transformer-based embeddings.
+
+This module contains small helpers to initialise BERT-based encoder
+configurations and to adapt HuggingFace Transformer models into a
+``SentenceTransformer`` pipeline (providing pooling and optional
+normalization). These helpers are lightweight and intended for use by the
+training and deployment utilities in the package.
+"""
+
+
 class ModelConfig(pydantic.BaseModel):
+    """Simple pydantic container for model hyperparameters.
+
+    Fields correspond to common transformer configuration options. Any
+    unset fields may be inferred from a pretrained model when
+    ``init_bert`` is called.
+    """
+
     vocab_size: int | None = None
     hidden_size: int | None = None
     num_hidden_layers: int | None = None
@@ -30,6 +47,14 @@ class ModelConfig(pydantic.BaseModel):
 
 
 def init_bert(config: ModelConfig) -> BertModel:
+    """Create a BertModel from a ModelConfig.
+
+    This function will attempt to fill missing fields by inspecting a
+    pretrained model/tokenizer (via HuggingFace AutoModel/AutoTokenizer)
+    when a ``pretrained_model_name`` is provided. If the necessary
+    parameters are available it will return a ``BertModel`` built from
+    the assembled ``BertConfig``.
+    """
     tokenizer = None
     if None in (config.vocab_size, config.max_seq_length):
         tokenizer = AutoTokenizer.from_pretrained(  # nosec
@@ -72,6 +97,14 @@ def to_sent_transformer(
     *,
     device: torch.device | str | None = "cpu",
 ) -> SentenceTransformer:
+    """Wrap a pretrained HF model into a SentenceTransformer pipeline.
+
+    The provided `model` is saved to a temporary directory and loaded
+    into a ``sentence_transformers.models.Transformer`` module. A pooling
+    layer (and optional normalization) is appended according to
+    ``config``. The returned ``SentenceTransformer`` can be called with
+    text inputs or tensors to produce fixed-size embeddings.
+    """
     with tempfile.TemporaryDirectory() as tmpdir:
         model.save_pretrained(tmpdir)
         modules = [
@@ -92,5 +125,11 @@ def to_sent_transformer(
 def init_sent_transformer(
     config: ModelConfig, device: torch.device | str | None = "cpu"
 ) -> SentenceTransformer:
+    """Convenience helper to initialise a SentenceTransformer from config.
+
+    This calls :func:`init_bert` to create a BertModel and then wraps it
+    with :func:`to_sent_transformer` to obtain a ready-to-use
+    ``SentenceTransformer`` instance.
+    """
     bert_model = init_bert(config)
     return to_sent_transformer(config, bert_model, device=device)
