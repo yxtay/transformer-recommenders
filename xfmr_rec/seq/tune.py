@@ -17,6 +17,21 @@ def get_lightning_args(
     data_args: ArgsType | None = None,
     model_args: ArgsType | None = None,
 ) -> dict[str, dict[str, ArgsType]]:
+    """Convert a FLAML configuration into Lightning `data` and `model`
+    argument dictionaries for the sequential model.
+
+    Decodes log-scale parameters and assembles the structures expected by the
+    project's trainer CLI.
+
+    Args:
+        config (ArgsType): Sampled FLAML configuration.
+        data_args (ArgsType | None): Optional base data args to merge.
+        model_args (ArgsType | None): Optional base model args to merge.
+
+    Returns:
+        dict[str, dict[str, ArgsType]]: Mapping with `data` and `model`
+            sub-dictionaries containing a `config` key.
+    """
     max_seq_length = 2 ** config["log_max_seq_length"]
     hidden_size = 2 ** config["log_hidden_size"]
     num_attention_heads = 2 ** config["log_num_attention_heads"]
@@ -44,6 +59,20 @@ def get_lightning_args(
 
 
 def evaluation_function(config: ArgsType) -> dict[str, float]:
+    """Run a single training job for a sampled configuration and return
+    validation metrics.
+
+    This function is used by FLAML as the objective to optimize. It
+    normalizes numpy types, constructs trainer arguments, runs the training
+    via `cli_main`, and returns the validation metrics from the best
+    checkpoint.
+
+    Args:
+        config (ArgsType): The configuration sampled by the tuner.
+
+    Returns:
+        dict[str, float]: Validation metrics keyed by metric name.
+    """
     config = {
         key: value.item() if isinstance(value, np.generic) else value
         for key, value in config.items()
@@ -60,6 +89,16 @@ def evaluation_function(config: ArgsType) -> dict[str, float]:
 
 
 def flaml_tune() -> flaml.tune.tune.ExperimentAnalysis:
+    """Run a FLAML tuning experiment for the sequential model.
+
+    Builds a search space and low-cost partial config, registers an MLflow
+    experiment, and launches `flaml.tune.run`. Returns FLAML's
+    ExperimentAnalysis.
+
+    Returns:
+        flaml.tune.tune.ExperimentAnalysis: The analysis object returned by
+            FLAML after the tuning run.
+    """
     point_to_evaluate = {
         "log_hidden_size": 5,
         "num_hidden_layers": 1,
@@ -121,6 +160,7 @@ def flaml_tune() -> flaml.tune.tune.ExperimentAnalysis:
 
 
 def main() -> None:
+    """Entrypoint for running the FLAML tuning process for seq model."""
     flaml_tune()
 
 
