@@ -131,11 +131,11 @@ class LightningCLI:
         import mlflow
         from jsonargparse import lazy_instance
 
-        experiment_name = self.model_name
+        model_name = self.model_name
         run_name = time_now_isoformat()
         run_id = None
         if active_run := mlflow.active_run():
-            experiment_name = mlflow.get_experiment(active_run.info.experiment_id).name
+            model_name = mlflow.get_experiment(active_run.info.experiment_id).name
             run_name = active_run.info.run_name
             run_id = active_run.info.run_id
 
@@ -143,7 +143,7 @@ class LightningCLI:
             "class_path": "TensorBoardLogger",
             "init_args": {
                 "save_dir": "lightning_logs",
-                "name": experiment_name,
+                "name": model_name,
                 "version": run_name,
                 "default_hp_metric": False,
             },
@@ -151,7 +151,7 @@ class LightningCLI:
         mlflow_logger = {
             "class_path": "MLFlowLogger",
             "init_args": {
-                "experiment_name": experiment_name,
+                "experiment_name": model_name,
                 "run_name": run_name,
                 "run_id": run_id,
                 "log_model": log_model,
