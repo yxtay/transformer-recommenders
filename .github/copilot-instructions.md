@@ -88,8 +88,8 @@ PR checklist for contributors and automated agents:
 
 ## Tooling suggestions (optional)
 
-- commitizen to help format Conventional Commits
-- git-cliff or conventional-changelog for changelog generation
-- husky + commitlint to enforce commit message format locally
+- [commitizen](https://commitizen-tools.github.io/website/) to help format Conventional Commits
+- [git-cliff](https://github.com/orhun/git-cliff) or [conventional-changelog](https://github.com/conventional-changelog/conventional-changelog) for changelog generation
+- [husky](https://typicode.github.io/husky/) + [commitlint](https://commitlint.js.org/) to enforce commit message format locally
 
 For more details, see the README and referenced papers.
