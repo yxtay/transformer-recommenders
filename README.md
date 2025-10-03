@@ -27,53 +27,107 @@ with scalable data access and experiment tracking.
 
 ## Installation
 
-Requires Python 3.12+. Install dependencies with [uv](https://github.com/astral-sh/uv):
+Requirements
+
+- Python 3.12+ (the project is developed and tested on 3.12)
+- The repository uses `uv` to manage virtual environments and tasks.
+  See `pyproject.toml` for pinned dependencies.
+
+Install dependencies with uv (recommended):
 
 ```bash
+# set up the environment and install pinned deps
 uv sync
 ```
 
 ## Usage
 
-### Data Preparation
+### Data preparation
 
-Download and process MovieLens 1m (`ml-1m`) data in `data/` and save in parquet format.
+This repo ships helper scripts to download and convert MovieLens
+datasets into Parquet and LanceDB formats.
+
+Example: prepare MovieLens 1M (ml-1m) and write parquet files into
+`data/`:
 
 ```bash
+# fetch, extract and convert to parquet
 uv run data
 ```
 
+If you already have the original files (for example `ml-1m.zip`), place
+them under `data/` and `uv run data` will pick them up. Otherwise the
+script will download and extract the dataset.
+
 ### Training
 
-Train a model using provided scripts:
+Training is implemented with PyTorch Lightning. The repository exposes
+several task entrypoints.
+
+Common training commands:
 
 ```bash
+# Train a sequential transformer model for 16 epochs
 uv run seq_train fit --trainer.max_epochs 16
+
+# Train a matrix factorization model
+uv run mf_train fit --trainer.max_epochs 10
 ```
 
-### Deployment
+Check `pyproject.toml` entrypoints for available tasks and the
+`xfmr_rec/` modules for model and trainer configuration.
 
-Serve a trained model:
+### Deployment and serving
+
+The repository contains light-weight deployment utilities to run a retrieval
+service from a Lightning checkpoint.
 
 ```bash
-uv run python -m xfmr_rec.seq.deploy --ckpt_path <path>
+# Serve a sequential model checkpoint on localhost
+uv run python -m xfmr_rec.seq.deploy --ckpt_path <path/to/checkpoint.ckpt>
 ```
 
-## Project Conventions
+See `xfmr_rec/service.py` and `xfmr_rec/deploy.py` for convenience
+functions that load a checkpoint and expose a simple predict/retrieve
+API. The code uses LanceDB or parquet data for fast lookups when
+available.
 
-- Models are organized by type in subfolders for extensibility
-- Custom loss functions are in `losses.py` and referenced in training code
-- Experiment tracking via PyTorch Lightning and MLflow
-- Data access optimized with Parquet and LanceDB
+## Project conventions
+
+- Models are organized by type in subfolders (`mf/`, `seq/`,
+  `seq_embedded/`) for extensibility.
+- Custom loss functions live in `xfmr_rec/losses.py` and are referenced
+  by trainer hooks.
+- Experiment tracking is handled by PyTorch Lightning and MLflow;
+  checkpoints and logs are stored in `lightning_logs/` and `mlruns/`.
+- Data access is optimized using Parquet and (optionally) LanceDB for
+  retrieval workloads.
 
 ## Entrypoints
 
-Project scripts (see `pyproject.toml`):
+Task entrypoints are defined in `pyproject.toml` and wired to `uv` tasks.
+Typical entrypoints include:
 
-- `data`: Data utilities
-- `mf_train`, `mf_deploy`, `mf_tune`: Matrix factorization workflows
-- `seq_train`, `seq_deploy`, `seq_tune`: Sequential model workflows
-- `seq_embedded_train`, `seq_embedded_deploy`: Transformer-based sequential workflows
+- `data`: datasets download and conversion utilities
+- `mf_train`, `mf_deploy`, `mf_tune`:
+  matrix factorization training / deploy / tuning workflows
+- `seq_train`, `seq_deploy`, `seq_tune`:
+  sequential / transformer training / deploy / tuning workflows
+- `seq_embedded_train`, `seq_embedded_deploy`:
+  transformer (embedded) sequential workflows
+
+Run `uv run` (without args) to list available tasks, or inspect
+`pyproject.toml` for concrete command mappings.
+
+## Development notes & troubleshooting
+
+- If you see dependency or Python version errors, confirm you are using
+  Python 3.12 and run `uv sync` to recreate the virtual environment.
+- If training fails with out-of-memory errors, reduce
+  `trainer.batch_size` or enable gradient accumulation via
+  `trainer.accumulate_grad_batches`.
+- Use the Lightning logs folder (`lightning_logs/`) to inspect
+  checkpoints and tensorboard summaries.
 
 ## References
 
