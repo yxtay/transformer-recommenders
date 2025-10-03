@@ -212,7 +212,7 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
         Returns:
             A dict with keys ``query_text``, ``pos_text``, and ``neg_text``.
         """
-        row = self.events_dataset[idx]
+        row: dict[str, np.ndarray] = self.events_dataset[idx]
         history_item_idx = row["history_item_idx"]
         history_label = row["history_label"]
 
