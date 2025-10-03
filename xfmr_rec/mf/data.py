@@ -1,5 +1,3 @@
-from collections.abc import Callable
-
 import datasets
 import lightning as lp
 import numpy as np
@@ -322,8 +320,6 @@ class MFDataModule(lp.LightningDataModule):
         *,
         shuffle: bool = False,
         batch_size: int | None = None,
-        collate_fn: Callable[[list[dict[str, torch.Tensor]]], dict[str, torch.Tensor]]
-        | None = None,
     ) -> torch_data.DataLoader[dict[str, torch.Tensor]]:
         """Create a PyTorch DataLoader from a HuggingFace dataset.
 
@@ -341,7 +337,6 @@ class MFDataModule(lp.LightningDataModule):
             dataset,
             shuffle=shuffle,
             batch_size=batch_size,
-            collate_fn=collate_fn,
             num_workers=self.config.num_workers,
             multiprocessing_context="spawn" if self.config.num_workers > 0 else None,
             persistent_workers=self.config.num_workers > 0,
