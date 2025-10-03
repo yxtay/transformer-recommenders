@@ -63,11 +63,7 @@ class Model:
             Query: The same query with `embedding` populated as a numpy array
                 of shape (1, embedding_dim).
         """
-        if query.input_embeds is None or query.input_embeds.size == 0:
-            embedding_dim = self.model.get_sentence_embedding_dimension()
-            query.embedding = np.zeros((1, embedding_dim), dtype=np.float32)
-            return query
-
+        assert query.input_embeds is not None
         inputs_embeds = torch.as_tensor(query.input_embeds, device=self.model.device)
         query.embedding = self.model(
             {"inputs_embeds": inputs_embeds[None, -self.model.max_seq_length :, :]}
