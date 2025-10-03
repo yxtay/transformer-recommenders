@@ -64,7 +64,7 @@ Common types: feat, fix, docs, style, refactor, perf, test, ci, chore.
 
 Examples:
 
-- `feat(data): add lance db ingestion script`
+- `feat(data): add LanceDB ingestion script`
 - `fix(trainer): handle empty validation set`
 - `docs: update README with usage examples`
 
