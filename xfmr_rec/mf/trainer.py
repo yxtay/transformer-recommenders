@@ -246,6 +246,8 @@ class MFRecLightningModule(lp.LightningModule):
             dict[str, torch.Tensor]: Mapping of metric names to scalar
                 tensors for logging.
         """
+        assert self.id2text is not None
+
         recs = self.predict_step(row)
         metrics = compute_retrieval_metrics(
             rec_ids=recs["item_id"][:],
@@ -257,7 +259,7 @@ class MFRecLightningModule(lp.LightningModule):
         metrics = {f"{stage}/{key}": value for key, value in metrics.items()}
 
         try:
-            item_id = next(
+            item_id: str = next(
                 item_id
                 for item_id in reversed(row["history"]["item_id"].tolist())
                 if item_id in self.id2text.index
@@ -265,8 +267,7 @@ class MFRecLightningModule(lp.LightningModule):
         except StopIteration:
             return metrics
 
-        assert self.id2text is not None
-        item_text: str = self.id2text[item_id]
+        item_text = self.id2text[item_id]
         item_recs = self.recommend(
             item_text,
             top_k=self.config.top_k,
