@@ -393,8 +393,7 @@ class SeqDataModule(lp.LightningDataModule):
         *,
         shuffle: bool = False,
         batch_size: int | None = None,
-        collate_fn: Callable[[list[dict[str, torch.Tensor]]], dict[str, torch.Tensor]]
-        | None = None,
+        collate_fn: Callable[[list[SeqExample]], SeqBatch] | None = None,
     ) -> torch_data.DataLoader[dict[str, torch.Tensor]]:
         """Create a PyTorch DataLoader from a HuggingFace dataset.
 
@@ -419,7 +418,7 @@ class SeqDataModule(lp.LightningDataModule):
             pin_memory=torch.cuda.is_available(),
         )
 
-    def train_dataloader(self) -> torch_data.DataLoader[SeqBatch]:
+    def train_dataloader(self) -> torch_data.DataLoader[dict[str, torch.Tensor]]:
         """Return the training DataLoader.
 
         Returns:
