@@ -35,6 +35,7 @@ jobs:
         # More info at https://megalinter.io/latest/flavors/
         uses: oxsecurity/megalinter/flavors/python@0dcbedd66ea456ba2d54fd350affaa15df8a0da3 # v9
         env:
+          DISABLE_ERRORS: ${{ github.event_name == 'push' }}
           GITHUB_TOKEN: ${{ github.token }}
 
       - if: ${{ success() || failure() }}
