@@ -362,9 +362,9 @@ class FaissIndex:
             required_cols.add(config.embedding_col)
 
         missing_cols = required_cols - set(index.column_names)
-        if len(missing_cols) > 0:
-            msg = f"index is missing required columns: {missing_cols}"
-            raise ValueError(msg)
+        assert len(missing_cols) == 0, (
+            f"index is missing required columns: {missing_cols}"
+        )
 
         logger.info(f"{cls.__name__}: {index}")
         logger.info(f"num_items: {len(index)}, columns: {index.column_names}")

@@ -158,36 +158,23 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
         self, query_embed: torch.Tensor, candidate_embed: torch.Tensor
     ) -> None:
         """Validate shapes of query and candidate embedding tensors.
-
         Raises:
-            ValueError: If the input tensors do not have the expected
-                dimensions or if batch/embedding sizes mismatch.
+            AssertionError: If the input tensors do not have the expected
+                dimensions or if batch/embedding sizes mismatch. The method
+                now uses assertions for concise runtime checks.
         """
-        if query_embed.dim() != 2:
-            msg = f"query_embed should have 2 dimensions: {query_embed.dim() = }"
-            raise ValueError(msg)
-
-        if candidate_embed.dim() != 3:
-            msg = (
-                f"candidate_embed should have 3 dimensions: {candidate_embed.dim() = }"
-            )
-            raise ValueError(msg)
-
-        if query_embed.size(0) != candidate_embed.size(0):
-            msg = (
-                "batch_size should match: "
-                f"{query_embed.size(0) = }, "
-                f"{candidate_embed.size(0) = }"
-            )
-            raise ValueError(msg)
-
-        if query_embed.size(-1) != candidate_embed.size(-1):
-            msg = (
-                "embedding_dim should match: "
-                f"{query_embed.size(-1) = }, "
-                f"{candidate_embed.size(-1) = }"
-            )
-            raise ValueError(msg)
+        assert query_embed.dim() == 2, (
+            f"{query_embed.dim() = }, {query_embed.size() = }"
+        )
+        assert candidate_embed.dim() == 3, (
+            f"{candidate_embed.dim() = }, {candidate_embed.size() = }"
+        )
+        assert query_embed.size(0) == candidate_embed.size(0), (
+            f"{query_embed.size(0) = } != {candidate_embed.size(0) = }"
+        )
+        assert query_embed.size(-1) == candidate_embed.size(-1), (
+            f"{query_embed.size(-1) = } != {candidate_embed.size(-1) = }"
+        )
 
     def compute_logits(
         self, query_embed: torch.Tensor, candidate_embed: torch.Tensor
@@ -238,39 +225,38 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
             torch.Tensor: Column tensor of shape ``(batch_size, 1)``.
 
         Raises:
-            ValueError: If neither ``target`` nor ``config.target_position``
+            AssertionError: If neither ``target`` nor ``config.target_position``
                 is provided, or if both are provided, or if shapes are
-                mismatched.
+                mismatched. The method performs these validations using
+                assertion statements.
         """
-        if target is None and self.config.target_position is None:
-            msg = "either `targets` or `config.target_position` must be provided"
-            raise ValueError(msg)
+        assert target is not None or self.config.target_position is not None, (
+            "either `targets` or `config.target_position` must be provided"
+        )
+        assert target is None or self.config.target_position is None, (
+            "only one of `targets` or `config.target_position` should be provided"
+        )
 
-        if target is not None and self.config.target_position is not None:
-            msg = "only one of `targets` or `config.target_position` should be provided"
-            raise ValueError(msg)
+        match self.config.target_position:
+            case None:
+                pass
+            case "first":
+                target = torch.zeros(
+                    logits.size(0), dtype=torch.long, device=logits.device
+                )
+            case "diagonal":
+                target = torch.arange(
+                    logits.size(0), dtype=torch.long, device=logits.device
+                )
+            case _:
+                msg = f"invalid {self.config.target_position = }"
+                raise ValueError(msg)
 
-        if target is None:
-            match self.config.target_position:
-                case "first":
-                    target = torch.zeros(
-                        logits.size(0), dtype=torch.long, device=logits.device
-                    )
-                case "diagonal":
-                    target = torch.arange(
-                        logits.size(0), dtype=torch.long, device=logits.device
-                    )
-                case _:
-                    msg = f"invalid {self.config.target_position = }"
-                    raise ValueError(msg)
-
-        if target.dim() != 1:
-            msg = f"targets should have 1 dimension: {target.dim() = }"
-            raise ValueError(msg)
-
-        if target.size(0) != logits.size(0):
-            msg = f"batch_size should match: {target.size(0) = }, {logits.size(0) = }"
-            raise ValueError(msg)
+        assert target is not None
+        assert target.dim() == 1, f"{target.dim() = }, {target.size() = }"
+        assert target.size(0) == logits.size(0), (
+            f"{target.size(0) = } != {logits.size(0) = }"
+        )
 
         return target[:, None]
 
