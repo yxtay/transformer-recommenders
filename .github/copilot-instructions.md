@@ -1,134 +1,95 @@
 # Copilot Instructions for transformer-recommenders
 
-## Project Overview
+## Project overview
 
-This repository implements transformer-based recommender models in PyTorch,
-focused on MovieLens data. The architecture is modular, with clear separation between
-data loading, model definitions, training logic, and deployment scripts.
+This repository implements transformer-based recommender models in PyTorch.
+It is primarily designed for experimentation on MovieLens datasets.
+The codebase separates data handling, model definitions, training, and
+deployment utilities to keep experiments reproducible and modular.
 
-## Key Components & Structure
+## Key components
 
-- `xfmr_rec/`: Main package. Submodules include:
-  - `data.py`: Data loading and preprocessing (MovieLens, LanceDB)
-  - `models.py`, `mf/`, `seq/`, `seq_embedded/`:
-    Model architectures (matrix factorization, sequential, transformer-based)
-  - `losses.py`: Custom loss functions for recommendation (BPR, CCL, SSM, etc.)
-  - `metrics.py`: Evaluation metrics
-  - `trainer.py`: Training loop and experiment management
-  - `service.py`, `deploy.py`: Deployment and serving utilities
-- `data/`: Contains raw and processed MovieLens datasets
-- `lance_db/`: LanceDB format for fast data access
-- `lightning_logs/`, `mlruns/`: Experiment logs and model checkpoints
+- `xfmr_rec/`: core package. Important modules:
+  - `data.py`: dataset download, conversion and loader utilities
+    (Parquet / LanceDB)
+  - `models.py`, `mf/`, `seq/`, `seq_embedded/`: model definitions (MF,
+    sequential, transformer)
+  - `losses.py`: custom losses (BPR, CCL, SSM, etc.)
+  - `metrics.py`: evaluation metrics and helpers
+  - `trainer.py`: training loop, Lightning integration and experiment
+    wiring
+  - `service.py`, `deploy.py`: lightweight serving helpers for
+    checkpoints
 
-## Developer Workflows
+## Docstring & code style
 
-- **Training**: Run model training via scripts in `xfmr_rec/` (e.g., `trainer.py`).
-  Use PyTorch Lightning for experiment management.
-- **Data**:
-  Use `data.py` for loading and preprocessing. Supports LanceDB for scalable access.
-- **Experiment Tracking**:
-  Results and checkpoints are stored in `lightning_logs/` and `mlruns/`.
-- **Deployment**:
-  Use `deploy.py` and `service.py` for model serving.
-  Integration with LanceDB for retrieval.
+- Docstrings: prefer Google style for public functions and classes. Include
+  Args/Returns/Raises where appropriate.
+- Types: add type hints for new public APIs. Keep typing incremental and
+  pragmatic.
+- Tests: add focused unit tests under `tests/` for new behavior. Favor
+  fast, deterministic tests.
 
-## Patterns & Conventions
+## Developer workflows
 
-- **Loss Functions**:
-  Custom losses are implemented in `losses.py` and referenced in model/trainer code.
-  See references in README for theoretical background.
-- **Modularity**: Models are organized by type (MF, sequential, transformer)
-  in subfolders for clarity and extensibility.
-- **Data Format**: Parquet files for efficient I/O; LanceDB for fast retrieval.
-- **Experiment Logging**: PyTorch Lightning and MLflow are used for tracking.
-- **Naming**:
-  Model variants and experiments are named by approach (e.g., `xfmr_mf_rec`, `xfmr_seq_rec`).
+- Training: exposed as `uv` tasks (see `pyproject.toml`). Training uses
+  PyTorch Lightning; pass hyperparameter overrides via CLI (e.g.
+  `--trainer.max_epochs 16`).
+- Data: use `uv run data` to prepare MovieLens datasets (Parquet). For
+  retrieval benchmarks, create LanceDB datasets under `lance_db/`.
+- Experiment tracking: Lightning + MLflow store runs in
+  `lightning_logs/` and `mlruns/`.
+- Deployment: `xfmr_rec/deploy.py` and `xfmr_rec/service.py` can load
+  checkpoints and provide a simple retrieval API. For production, embed
+  these into a proper HTTP server and add batching and concurrency
+  controls.
 
-## Docstring style
+## Patterns & conventions
 
-Prefer Google style docstrings for all Python functions, classes and methods.
-When adding or updating docstrings follow the Google convention, including
-sections for Args, Returns, and Raises where appropriate. Keep docstrings
-concise and focused on behavior, inputs, outputs and error modes.
+- Keep model implementations small and modular; prefer composition over
+  monolithic classes.
+- Place new model variants in the corresponding folder (`mf/`, `seq/`, or
+  `seq_embedded/`).
+- Implement new loss variants in `xfmr_rec/losses.py` and add unit tests
+  that check shapes, dtypes, and small numerical sanity checks.
+- Use Parquet for development datasets; use LanceDB for
+  retrieval/benchmarking workloads.
 
-Minimal example:
+## Commit messages and PRs
 
-  def compute_sum(a: int, b: int) -> int:
-    """Compute the sum of two integers.
+Follow Conventional Commits: `type[optional scope]: short description`.
+Optionally add a longer body and footers for breaking changes.
 
-    Args:
-      a (int): First addend.
-      b (int): Second addend.
-
-    Returns:
-      int: The sum of ``a`` and ``b``.
-    """
-
-## Integration Points
-
-- **External Libraries**: PyTorch, PyTorch Lightning, LanceDB, MLflow
-- **References**:
-  See README for key papers and links that inform model and loss design.
-
-## Example Workflow
-
-1. Prepare data in `data/` (ensure Parquet format)
-2. Train a model: `uv run seq_train fit`
-3. Check results in `lightning_logs/`
-4. Deploy: `uv run python -m xfmr_rec.seq.deploy --ckpt_path <path>`
-
-## Tips for AI Agents
-
-- Always check `xfmr_rec/` for core logic and conventions
-- Losses and metrics are project-specific; reference `losses.py` and `metrics.py`
-- Use experiment logs for debugging and validation
-- Follow modular structure for adding new models or data sources
-
----
-For more details, see the README and referenced papers.
-
-## Commit Message Style (Conventional Commits)
-
-We follow the Conventional Commits spec to keep history readable and
-enable tool automation (CHANGELOG generation, CI rules, semantic versioning).
-
-Core format:
-
-`type[optional scope]: short description`
-
-Optional body describing the motivation and more details.
-
-Optional footer(s) for breaking changes or metadata
-(e.g. `BREAKING CHANGE: ...`, `Refs: #123`).
-
-Common types we use in this repo:
-
-- feat: a new feature
-- fix: a bug fix
-- docs: documentation only changes
-- style: formatting, whitespace or lint-only changes
-- refactor: code change that neither fixes a bug nor adds a feature
-- perf: code change that improves performance
-- test: adding or updating tests
-- ci: CI configuration and scripts
-- chore: build process or auxiliary tools (dependency updates)
+Common types: feat, fix, docs, style, refactor, perf, test, ci, chore.
 
 Examples:
 
-- feat(data): add lance db ingestion script
-- fix(trainer): handle empty validation set
-- docs: update README with usage examples
-- chore: bump uv/pyproject tooling
+- `feat(data): add lance db ingestion script`
+- `fix(trainer): handle empty validation set`
+- `docs: update README with usage examples`
 
-Tooling suggestions (optional):
+PR checklist for contributors and automated agents:
 
-- Commitizen: interactive commit prompts
-- (<https://commitizen-tools.github.io/>)
+1. Run unit tests and linting for modified files.
+2. Add or update unit tests for behavior changes.
+3. Confirm no large data files or secrets were added.
+4. Include a short PR description with verification steps (build, tests,
+  smoke checks).
+
+## Automated agent guidance
+
+- When an automated agent (bot/copilot) modifies code, create focused
+  commits and include `bot` in the scope when relevant (for example,
+  `chore(bot): update docs`).
+- Ensure at least the tests covering changed modules are run locally.
+  Prefer adding a small unit test when changing public behavior.
+- If an agent cannot run tests in the environment, state which checks
+  were attempted and any limitations in the PR description.
+
+## Tooling suggestions (optional)
+
+- commitizen to help format Conventional Commits
 - git-cliff or conventional-changelog for changelog generation
-- Husky + commitlint for local commit-msg enforcement
+- husky + commitlint to enforce commit message format locally
 
-If you're an automated agent creating commits, prefer clear,
-single-purpose commits with one of the types above.
-If the change is generated by a bot or assistant,
-include an explicit scope or `bot` in the type/scope
-(e.g. `chore(bot): add docs`).
+For more details, see the README and referenced papers.
