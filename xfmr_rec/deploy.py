@@ -51,55 +51,73 @@ def test_bento(
         return response.json()
 
 
-class TestService:
-    def __init__(self, service_cls: type[bentoml.Service]) -> None:
-        self.service_cls = service_cls
+def test_queries(service: type[bentoml.Service]) -> None:
+    """Execute a set of sanity-check API calls against a BentoML service.
 
-    def test_queries(self) -> None:
-        """Execute sanity-check API calls against a BentoML service.
+    This function issues several POST requests against a BentoML Service's
+    example endpoints using an in-process Starlette test client. Responses
+    are validated against the project's pydantic data models. The checks
+    exercise both single-object endpoints (item and user lookups) and the
+    top-k recommendation endpoints for users and items.
 
-        Calls the example endpoints and asserts returned payloads conform to
-        the canonical example schemas defined in the project's service
-        datamodels. Raises ValueError when checks fail.
-        """
+    Args:
+        service: A BentoML Service class (not an instance). The service's
+            configuration will be modified temporarily to disable metrics to
+            avoid duplicated Prometheus metrics during repeated test runs.
 
-        import rich
+    Returns:
+        None. The function raises on unexpected results.
 
-        example_item_data = test_bento(self.service_cls, "item_id", {"item_id": "1"})
-        example_item = ItemQuery.model_validate(example_item_data)
-        rich.print(example_item)
-        exclude_fields = {"embedding"}
-        if example_item.model_dump(exclude=exclude_fields) != EXAMPLE_ITEM.model_dump(
-            exclude=exclude_fields
-        ):
-            msg = f"{example_item = } != {EXAMPLE_ITEM = }"
-            raise ValueError(msg)
+    Raises:
+        ValueError: If any response does not match the expected example
+            schema or if recommendation endpoints do not return the expected
+            number of items.
 
-        example_user_data = test_bento(self.service_cls, "user_id", {"user_id": "1"})
-        example_user = UserQuery.model_validate(example_user_data)
-        rich.print(example_user)
-        exclude_fields = {"history", "target"}
-        if example_user.model_dump(exclude=exclude_fields) != EXAMPLE_USER.model_dump(
-            exclude=exclude_fields
-        ):
-            msg = f"{example_user = } != {EXAMPLE_USER = }"
-            raise ValueError(msg)
+    Notes:
+        - Uses `test_bento` to construct an ASGI app and make requests with
+            `starlette.testclient.TestClient` (runs the app in-process for tests).
+        - Comparison of example objects excludes large or non-deterministic
+            fields (for example, embeddings and user history) to focus the
+            checks on canonical structural equality.
+    """
 
-        top_k = 5
-        item_recs = test_bento(
-            self.service_cls, "recommend_with_item_id", {"item_id": "1", "top_k": top_k}
-        )
-        item_recs = pydantic.TypeAdapter(list[ItemCandidate]).validate_python(item_recs)
-        rich.print(item_recs)
-        if len(item_recs) != top_k:
-            msg = f"{len(item_recs) = } != {top_k}"
-            raise ValueError(msg)
+    import rich
 
-        user_recs = test_bento(
-            self.service_cls, "recommend_with_user_id", {"user_id": "1", "top_k": top_k}
-        )
-        user_recs = pydantic.TypeAdapter(list[ItemCandidate]).validate_python(user_recs)
-        rich.print(user_recs)
-        if len(user_recs) != top_k:
-            msg = f"{len(user_recs) = } != {top_k}"
-            raise ValueError(msg)
+    example_item_data = test_bento(service, "item_id", {"item_id": "1"})
+    example_item = ItemQuery.model_validate(example_item_data)
+    rich.print(example_item)
+    exclude_fields = {"embedding"}
+    if example_item.model_dump(exclude=exclude_fields) != EXAMPLE_ITEM.model_dump(
+        exclude=exclude_fields
+    ):
+        msg = f"{example_item = } != {EXAMPLE_ITEM = }"
+        raise ValueError(msg)
+
+    example_user_data = test_bento(service, "user_id", {"user_id": "1"})
+    example_user = UserQuery.model_validate(example_user_data)
+    rich.print(example_user)
+    exclude_fields = {"history", "target"}
+    if example_user.model_dump(exclude=exclude_fields) != EXAMPLE_USER.model_dump(
+        exclude=exclude_fields
+    ):
+        msg = f"{example_user = } != {EXAMPLE_USER = }"
+        raise ValueError(msg)
+
+    top_k = 5
+    item_recs = test_bento(
+        service, "recommend_with_item_id", {"item_id": "1", "top_k": top_k}
+    )
+    item_recs = pydantic.TypeAdapter(list[ItemCandidate]).validate_python(item_recs)
+    rich.print(item_recs)
+    if len(item_recs) != top_k:
+        msg = f"{len(item_recs) = } != {top_k}"
+        raise ValueError(msg)
+
+    user_recs = test_bento(
+        service, "recommend_with_user_id", {"user_id": "1", "top_k": top_k}
+    )
+    user_recs = pydantic.TypeAdapter(list[ItemCandidate]).validate_python(user_recs)
+    rich.print(user_recs)
+    if len(user_recs) != top_k:
+        msg = f"{len(user_recs) = } != {top_k}"
+        raise ValueError(msg)

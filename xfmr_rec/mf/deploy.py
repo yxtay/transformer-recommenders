@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from jsonargparse import auto_cli
 
-from xfmr_rec.deploy import TestService
+from xfmr_rec.deploy import test_queries
 from xfmr_rec.mf import MODEL_NAME
 from xfmr_rec.mf.data import MFDataModule
 from xfmr_rec.mf.service import Service
@@ -25,7 +25,7 @@ def main(ckpt_path: str = "") -> None:
     cli = LightningCLI(MFRecLightningModule, MFDataModule, model_name=MODEL_NAME)
     trainer = cli.prepare_trainer(ckpt_path=ckpt_path)
     cli.save_model(trainer=trainer)
-    TestService(Service).test_queries()
+    test_queries(Service)
 
 
 def cli_main() -> None:
