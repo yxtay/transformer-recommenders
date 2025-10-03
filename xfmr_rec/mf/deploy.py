@@ -21,7 +21,6 @@ def main(ckpt_path: str = "") -> None:
     Args:
         ckpt_path: Optional path to a Lightning checkpoint to load.
     """
-
     cli = LightningCLI(MFRecLightningModule, MFDataModule, model_name=MODEL_NAME)
     trainer = cli.prepare_trainer(ckpt_path=ckpt_path)
     cli.save_model(trainer=trainer)

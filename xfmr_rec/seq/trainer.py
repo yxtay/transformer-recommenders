@@ -58,7 +58,6 @@ class SeqRecLightningModule(lp.LightningModule):
             config (SeqRecLightningConfig): Configuration dataclass for the
                 sequential model and training hyperparameters.
         """
-
         super().__init__()
         self.config = SeqRecLightningConfig.model_validate(config)
         self.save_hyperparameters(self.config.model_dump())
@@ -79,7 +78,6 @@ class SeqRecLightningModule(lp.LightningModule):
         datamodule's item dataset if available, and prepares the id-to-text
         mapping and loss functions.
         """
-
         if self.model is None:
             self.model = SeqRecModel(self.config, device=self.device)
 
@@ -106,7 +104,6 @@ class SeqRecLightningModule(lp.LightningModule):
             torch.nn.ModuleList: One instantiated loss module per class in
                 ``LOSS_CLASSES``.
         """
-
         loss_fns = [loss_class(self.config) for loss_class in LOSS_CLASSES]
         return torch.nn.ModuleList(loss_fns)
 
@@ -120,7 +117,6 @@ class SeqRecLightningModule(lp.LightningModule):
                 method will be applied in batched mode to compute embeddings
                 before writing to the Lance index.
         """
-
         assert self.model is not None
         item_embeddings = items_dataset.map(
             lambda batch: {"embedding": self.model.embed_item_text(batch["item_text"])},
@@ -139,7 +135,6 @@ class SeqRecLightningModule(lp.LightningModule):
             dict[str, torch.Tensor]: Model outputs including ``sentence_embedding``
                 and any other tensors produced by the sequence model.
         """
-
         assert self.model is not None
         return self.model(item_texts)
 
@@ -157,7 +152,6 @@ class SeqRecLightningModule(lp.LightningModule):
         sentence embedding for the concatenated texts, and queries the
         items index to retrieve nearest neighbors.
         """
-
         assert self.id2text is not None
         item_ids = [item_id for item_id in item_ids if item_id in self.id2text.index]
         item_text = self.id2text[item_ids].tolist()
@@ -185,7 +179,6 @@ class SeqRecLightningModule(lp.LightningModule):
             dict[str, torch.Tensor]: Mapping of metric and loss names to
                 tensors ready for logging.
         """
-
         assert self.model is not None
         assert self.loss_fns is not None
 
@@ -236,7 +229,6 @@ class SeqRecLightningModule(lp.LightningModule):
             dict[str, torch.Tensor]: Mapping of metric names to tensors for
                 logging.
         """
-
         recs = self.predict_step(row)
         metrics = compute_retrieval_metrics(
             rec_ids=recs["item_id"][:],
@@ -256,7 +248,6 @@ class SeqRecLightningModule(lp.LightningModule):
         Returns:
             torch.Tensor: Primary scalar loss tensor for backprop.
         """
-
         loss_dict = self.compute_losses(batch)
         self.log_dict(loss_dict)
         return loss_dict[f"loss/{self.config.train_loss}"]
@@ -272,7 +263,6 @@ class SeqRecLightningModule(lp.LightningModule):
         Returns:
             dict[str, torch.Tensor]: Computed metrics for logging.
         """
-
         metrics = self.compute_metrics(row, stage="val")
         self.log_dict(metrics, batch_size=1)
         return metrics
@@ -285,7 +275,6 @@ class SeqRecLightningModule(lp.LightningModule):
         Mirrors :meth:`validation_step` but uses the "test" prefix for
         metrics.
         """
-
         metrics = self.compute_metrics(row, stage="test")
         self.log_dict(metrics, batch_size=1)
         return metrics
@@ -296,7 +285,6 @@ class SeqRecLightningModule(lp.LightningModule):
         Returns nearest-neighbour recommendations for the provided
         history item ids while excluding history items from results.
         """
-
         return self.recommend(
             row["history"]["item_id"].tolist(),
             top_k=self.config.top_k,
@@ -309,7 +297,6 @@ class SeqRecLightningModule(lp.LightningModule):
         Indexes item and user data into Lance indexes so prediction can use
         the latest embeddings.
         """
-
         self.index_items(self.trainer.datamodule.items_dataset)
         self.users_index.index_data(self.trainer.datamodule.users_dataset)
 
@@ -319,7 +306,6 @@ class SeqRecLightningModule(lp.LightningModule):
         Returns:
             torch.optim.Optimizer: Configured optimizer instance.
         """
-
         return torch.optim.AdamW(
             self.parameters(),
             lr=self.config.learning_rate,
@@ -333,7 +319,6 @@ class SeqRecLightningModule(lp.LightningModule):
         Returns:
             list[lp.Callback]: Checkpoint and EarlyStopping callbacks.
         """
-
         checkpoint = lp_callbacks.ModelCheckpoint(
             monitor=METRIC["name"], mode=METRIC["mode"]
         )
@@ -348,7 +333,6 @@ class SeqRecLightningModule(lp.LightningModule):
 
         Returns a tuple compatible with the model's forward signature.
         """
-
         return ([[], [""]],)
 
     def save(self, path: str | pathlib.Path) -> None:
@@ -357,7 +341,6 @@ class SeqRecLightningModule(lp.LightningModule):
         Args:
             path (str): Destination directory for saved model and index.
         """
-
         assert self.model is not None
         path = pathlib.Path(path)
         self.model.save(path)
@@ -377,7 +360,6 @@ def main() -> None:
     Delegates to the preconfigured LightningCLI instance which will set up
     loggers, callbacks and execute the requested action (fit/validate/test/predict).
     """
-
     cli_main()
 
 
