@@ -87,6 +87,7 @@ class UserIndex(BaseUserIndex):
 
 @bentoml.service(image=IMAGE, envs=ENVS, workers="cpu_count")
 class Service(BaseService):
+    model_ref = bentoml.models.BentoModel(MODEL_NAME)
     model = bentoml.depends(Model)
     item_index = bentoml.depends(ItemIndex)
     user_index = bentoml.depends(UserIndex)
@@ -205,6 +206,7 @@ class Service(BaseService):
         Returns:
             Query: Query with `item_ids`, `item_texts`, and `input_embeds`.
         """
+        assert item.embedding is not None
         return Query(
             item_ids=[item.item_id],
             item_texts=[item.item_text],

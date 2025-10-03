@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 import bentoml
 import numpy as np
@@ -66,6 +66,8 @@ ENVS = [{"name": "UV_NO_CACHE", "value": "1"}]
 
 
 class BaseItemIndex:
+    model_ref: bentoml.models.BentoModel
+
     @logger.catch(reraise=True)
     def __init__(self) -> None:
         """Initialize the item index dependency.
@@ -98,6 +100,7 @@ class BaseItemIndex:
             list[ItemCandidate]: A list of item candidate objects sorted by
                 descending score.
         """
+        assert query.embedding is not None
         results = self.index.search(
             query.embedding,
             exclude_item_ids=exclude_item_ids,
@@ -148,6 +151,8 @@ class BaseItemIndex:
 
 
 class BaseUserIndex:
+    model_ref: bentoml.models.BentoModel
+
     @logger.catch(reraise=True)
     def __init__(self) -> None:
         """Initialize the user index dependency.
@@ -184,9 +189,9 @@ class BaseUserIndex:
 
 
 class BaseService:
-    model_ref: bentoml.model.BentoModel
-    item_index: bentoml.Dependency
-    user_index: bentoml.Dependency
+    model_ref: bentoml.models.BentoModel
+    item_index: bentoml.Dependency[Any]
+    user_index: bentoml.Dependency[Any]
 
     @bentoml.api()
     @logger.catch(reraise=True)

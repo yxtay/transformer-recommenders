@@ -358,7 +358,8 @@ class SeqDataModule(lp.LightningDataModule):
             )
 
         if self.train_dataset is None:
-            train_dataset = datasets.Dataset.from_parquet(
+            assert self.items_dataset is not None
+            train_dataset: datasets.Dataset = datasets.Dataset.from_parquet(
                 self.config.users_parquet, filters=pc.field("is_train")
             )
             self.train_dataset = SeqDataset(
@@ -384,7 +385,7 @@ class SeqDataModule(lp.LightningDataModule):
 
     def get_dataloader(
         self,
-        dataset: datasets.Dataset,
+        dataset: datasets.Dataset | SeqDataset,
         *,
         shuffle: bool = False,
         batch_size: int | None = None,

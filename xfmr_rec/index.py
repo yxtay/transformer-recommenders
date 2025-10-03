@@ -434,7 +434,7 @@ class FaissIndex:
                 metric_type=faiss.METRIC_INNER_PRODUCT,
                 train_size=num_items,
             )
-            faiss_index = self.index.get_index("embedding_idx").faiss_index
+            faiss_index: faiss.Index = self.index.get_index("embedding_idx").faiss_index
             faiss.extract_index_ivf(faiss_index).nprobe = 8
 
         logger.info(f"{self.__class__.__name__}: {self.index}")

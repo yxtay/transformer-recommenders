@@ -376,6 +376,7 @@ if __name__ == "__main__":
     rich.print(model.compute_losses(next(iter(datamodule.train_dataloader()))))
 
     # validate
+    assert datamodule.items_dataset is not None
     model.items_index.index_data(datamodule.items_dataset)
     rich.print(model.compute_metrics(next(iter(datamodule.val_dataloader())), "val"))
 
