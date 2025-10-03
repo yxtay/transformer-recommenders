@@ -5,7 +5,6 @@ import datasets
 import lightning as lp
 import numpy as np
 import pandas as pd
-import polars as pl
 import pyarrow.compute as pc
 import pydantic
 import torch
@@ -133,14 +132,7 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
             ((len(history) - 1) // self.config.max_seq_length + 1)
             for history in history_item_idx
         ]
-        return {
-            key: [
-                el
-                for n, el in zip(num_copies, batch[key], strict=True)
-                for _ in range(n)
-            ]
-            for key in batch
-        }
+        return {key: batch[key].repeat(num_copies) for key in batch}
 
     def process_events(self, events_dataset: datasets.Dataset) -> datasets.Dataset:
         """Preprocess and expand per-user event records for sequential sampling.
@@ -264,7 +256,7 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         Returns:
             A :class:`SeqExample` mapping field names to tensors and lists.
         """
-        row = self.events_dataset[idx]
+        row: dict[str, np.ndarray] = self.events_dataset[idx]
         history_item_idx = row["history_item_idx"]
         history_label = row["history_label"]
 
@@ -280,11 +272,13 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         )
         return {
             "history_item_idx": torch.as_tensor(history_item_idx[sampled_indices]),
-            "history_item_text": self.item_texts[history_item_idx[sampled_indices] - 1],
+            "history_item_text": self.item_texts[
+                (history_item_idx[sampled_indices] - 1).tolist()
+            ],
             "pos_item_idx": torch.as_tensor(pos_item_idx),
-            "pos_item_text": self.item_texts[pos_item_idx - 1],
+            "pos_item_text": self.item_texts[(pos_item_idx - 1).tolist()],
             "neg_item_idx": torch.as_tensor(neg_item_idx),
-            "neg_item_text": self.item_texts[neg_item_idx - 1],
+            "neg_item_text": self.item_texts[(neg_item_idx - 1).tolist()],
         }
 
     def collate(self, batch: list[SeqExample]) -> SeqBatch:
@@ -321,7 +315,7 @@ class SeqDataModule(lp.LightningDataModule):
         self.test_dataset: datasets.Dataset | None = None
         self.predict_dataset: datasets.Dataset | None = None
 
-    def prepare_data(self, *, overwrite: bool = False) -> pl.LazyFrame:
+    def prepare_data(self, *, overwrite: bool = False) -> None:
         from filelock import FileLock
 
         """Download and prepare MovieLens artifacts for the sequence data module.
@@ -332,14 +326,11 @@ class SeqDataModule(lp.LightningDataModule):
 
         Args:
             overwrite: If True, force re-download and re-processing of the dataset.
-
-        Returns:
-            The processed events LazyFrame returned by :func:`prepare_movielens`.
         """
         data_dir = self.config.data_dir
         with FileLock(f"{data_dir}.lock"):
             download_unpack_data(MOVIELENS_1M_URL, data_dir, overwrite=overwrite)
-            return prepare_movielens(data_dir, overwrite=overwrite)
+            prepare_movielens(data_dir, overwrite=overwrite)
 
     def setup(self, stage: str | None = None) -> None:
         """Prepare datasets for the specified stage.
@@ -397,9 +388,8 @@ class SeqDataModule(lp.LightningDataModule):
         *,
         shuffle: bool = False,
         batch_size: int | None = None,
-        collate_fn: Callable[[list[dict[str, torch.Tensor]]], dict[str, torch.Tensor]]
-        | None = None,
-    ) -> torch_data.DataLoader:
+        collate_fn: Callable[[list[SeqExample]], SeqBatch] | None = None,
+    ) -> torch_data.DataLoader[dict[str, torch.Tensor]]:
         """Create a PyTorch DataLoader from a HuggingFace dataset.
 
         Args:
@@ -423,7 +413,7 @@ class SeqDataModule(lp.LightningDataModule):
             pin_memory=torch.cuda.is_available(),
         )
 
-    def train_dataloader(self) -> torch_data.DataLoader:
+    def train_dataloader(self) -> torch_data.DataLoader[dict[str, torch.Tensor]]:
         """Return the training DataLoader.
 
         Returns:
@@ -436,7 +426,7 @@ class SeqDataModule(lp.LightningDataModule):
             collate_fn=self.train_dataset.collate,
         )
 
-    def val_dataloader(self) -> torch_data.DataLoader:
+    def val_dataloader(self) -> torch_data.DataLoader[dict[str, torch.Tensor]]:
         """Return the validation DataLoader.
 
         Returns:
@@ -444,7 +434,7 @@ class SeqDataModule(lp.LightningDataModule):
         """
         return self.get_dataloader(self.val_dataset)
 
-    def test_dataloader(self) -> torch_data.DataLoader:
+    def test_dataloader(self) -> torch_data.DataLoader[dict[str, torch.Tensor]]:
         """Return the test DataLoader.
 
         Returns:
@@ -452,7 +442,7 @@ class SeqDataModule(lp.LightningDataModule):
         """
         return self.get_dataloader(self.test_dataset)
 
-    def predict_dataloader(self) -> torch_data.DataLoader:
+    def predict_dataloader(self) -> torch_data.DataLoader[dict[str, torch.Tensor]]:
         """Return the prediction DataLoader.
 
         Returns:

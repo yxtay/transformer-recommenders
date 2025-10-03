@@ -1,10 +1,7 @@
-from collections.abc import Callable
-
 import datasets
 import lightning as lp
 import numpy as np
 import pandas as pd
-import polars as pl
 import pyarrow.compute as pc
 import pydantic
 import torch
@@ -215,7 +212,7 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
         Returns:
             A dict with keys ``query_text``, ``pos_text``, and ``neg_text``.
         """
-        row = self.events_dataset[idx]
+        row: dict[str, np.ndarray] = self.events_dataset[idx]
         history_item_idx = row["history_item_idx"]
         history_label = row["history_label"]
 
@@ -255,7 +252,7 @@ class MFDataModule(lp.LightningDataModule):
         self.test_dataset: datasets.Dataset | None = None
         self.predict_dataset: datasets.Dataset | None = None
 
-    def prepare_data(self, *, overwrite: bool = False) -> pl.LazyFrame:
+    def prepare_data(self, *, overwrite: bool = False) -> None:
         from filelock import FileLock
 
         """Download and prepare MovieLens artifacts for the data module.
@@ -265,14 +262,11 @@ class MFDataModule(lp.LightningDataModule):
 
         Args:
             overwrite: If True, force re-download and re-processing of the dataset.
-
-        Returns:
-            The processed events LazyFrame returned by :func:`prepare_movielens`.
         """
         data_dir = self.config.data_dir
         with FileLock(f"{data_dir}.lock"):
             download_unpack_data(MOVIELENS_1M_URL, data_dir, overwrite=overwrite)
-            return prepare_movielens(data_dir, overwrite=overwrite)
+            prepare_movielens(data_dir, overwrite=overwrite)
 
     def setup(self, stage: str | None = None) -> None:
         """Load datasets for the given stage into memory or lazy handles.
@@ -326,9 +320,7 @@ class MFDataModule(lp.LightningDataModule):
         *,
         shuffle: bool = False,
         batch_size: int | None = None,
-        collate_fn: Callable[[list[dict[str, torch.Tensor]]], dict[str, torch.Tensor]]
-        | None = None,
-    ) -> torch_data.DataLoader:
+    ) -> torch_data.DataLoader[dict[str, torch.Tensor]]:
         """Create a PyTorch DataLoader from a HuggingFace dataset.
 
         Args:
@@ -345,14 +337,13 @@ class MFDataModule(lp.LightningDataModule):
             dataset,
             shuffle=shuffle,
             batch_size=batch_size,
-            collate_fn=collate_fn,
             num_workers=self.config.num_workers,
             multiprocessing_context="spawn" if self.config.num_workers > 0 else None,
             persistent_workers=self.config.num_workers > 0,
             pin_memory=torch.cuda.is_available(),
         )
 
-    def train_dataloader(self) -> torch_data.DataLoader:
+    def train_dataloader(self) -> torch_data.DataLoader[dict[str, torch.Tensor]]:
         """Return the training DataLoader.
 
         Returns:
@@ -362,7 +353,7 @@ class MFDataModule(lp.LightningDataModule):
             self.train_dataset, shuffle=True, batch_size=self.config.batch_size
         )
 
-    def val_dataloader(self) -> torch_data.DataLoader:
+    def val_dataloader(self) -> torch_data.DataLoader[dict[str, torch.Tensor]]:
         """Return the validation DataLoader.
 
         Returns:
@@ -370,7 +361,7 @@ class MFDataModule(lp.LightningDataModule):
         """
         return self.get_dataloader(self.val_dataset)
 
-    def test_dataloader(self) -> torch_data.DataLoader:
+    def test_dataloader(self) -> torch_data.DataLoader[dict[str, torch.Tensor]]:
         """Return the test DataLoader.
 
         Returns:
@@ -378,7 +369,7 @@ class MFDataModule(lp.LightningDataModule):
         """
         return self.get_dataloader(self.test_dataset)
 
-    def predict_dataloader(self) -> torch_data.DataLoader:
+    def predict_dataloader(self) -> torch_data.DataLoader[dict[str, torch.Tensor]]:
         """Return the prediction DataLoader.
 
         Returns:
