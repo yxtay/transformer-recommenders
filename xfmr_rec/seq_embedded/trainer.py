@@ -79,7 +79,6 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         model's ``configure_embeddings`` helper to prepare item embeddings.
         Also instantiates loss functions.
         """
-
         if self.model is None:
             self.model = SeqEmbeddedModel(self.config, device=self.device)
 
@@ -102,7 +101,6 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         Returns:
             torch.nn.ModuleList: Instantiated loss modules.
         """
-
         loss_fns = [loss_class(self.config) for loss_class in LOSS_CLASSES]
         return torch.nn.ModuleList(loss_fns)
 
@@ -117,7 +115,7 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
             dict[str, torch.Tensor]: Model outputs including embeddings and
                 attention masks used by downstream loss computation.
         """
-
+        assert self.model is not None
         return self.model(item_idx.to(self.device))
 
     @torch.inference_mode()
@@ -139,7 +137,7 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         Returns:
             datasets.Dataset: Search results from the items index.
         """
-
+        assert self.model is not None
         embedding = self.model.encode(item_ids).numpy(force=True)
         return self.items_index.search(
             embedding,
@@ -162,7 +160,8 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
             dict[str, torch.Tensor]: Mapping of loss and metric names to
                 scalar tensors for logging.
         """
-
+        assert self.model is not None
+        assert self.loss_fns is not None
         embeds = self.model.compute_embeds(
             batch["history_item_idx"],
             batch["pos_item_idx"],
@@ -208,7 +207,6 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         Returns:
             dict[str, torch.Tensor]: Mapping of metric names to tensors.
         """
-
         recs = self.predict_step(row)
         metrics = compute_retrieval_metrics(
             rec_ids=recs["item_id"][:],
@@ -228,7 +226,6 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         Returns:
             torch.Tensor: The scalar loss used for backpropagation.
         """
-
         loss_dict = self.compute_losses(batch)
         self.log_dict(loss_dict)
         return loss_dict[f"loss/{self.config.train_loss}"]
@@ -245,7 +242,6 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         Returns:
             dict[str, torch.Tensor]: Computed metrics mapped to tensors.
         """
-
         metrics = self.compute_metrics(row, stage="val")
         self.log_dict(metrics, batch_size=1)
         return metrics
@@ -257,7 +253,6 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
 
         Mirrors :meth:`validation_step` but uses the "test" metric prefix.
         """
-
         metrics = self.compute_metrics(row, stage="test")
         self.log_dict(metrics, batch_size=1)
         return metrics
@@ -267,7 +262,6 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
 
         Excludes history item ids from the returned results.
         """
-
         return self.recommend(
             row["history"]["item_id"].tolist(),
             top_k=self.config.top_k,
@@ -280,7 +274,6 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         Ensures both items and users Lance indexes are populated with the
         current embeddings before validation or prediction runs.
         """
-
         self.items_index.index_data(self.trainer.datamodule.items_dataset)
         self.users_index.index_data(self.trainer.datamodule.users_dataset)
 
@@ -291,7 +284,6 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
             torch.optim.Optimizer: An AdamW optimizer configured using the
                 module's learning rate and weight decay settings.
         """
-
         return torch.optim.AdamW(
             self.parameters(),
             lr=self.config.learning_rate,
@@ -305,7 +297,6 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
             list[lp.Callback]: Configured ModelCheckpoint and EarlyStopping
                 callbacks monitoring the project metric.
         """
-
         checkpoint = lp_callbacks.ModelCheckpoint(
             monitor=METRIC["name"], mode=METRIC["mode"]
         )
@@ -325,7 +316,6 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         Returns a tensor of item indices on the module device representative
         of a small batch.
         """
-
         return (torch.as_tensor([[0], [1]], device=self.device),)
 
     def state_dict(self, *args: object, **kwargs: object) -> dict[str, torch.Tensor]:
@@ -336,18 +326,17 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         state to reduce checkpoint size; this helper removes that entry if
         present.
         """
-
         state_dict = super().state_dict(*args, **kwargs)
         state_dict.pop("model.embeddings.weight", None)
         return state_dict
 
-    def save(self, path: str) -> None:
+    def save(self, path: str | pathlib.Path) -> None:
         """Persist the transformer and Lance DB index for this module.
 
         Args:
             path (str): Directory path where artifacts will be stored.
         """
-
+        assert self.model is not None
         path = pathlib.Path(path)
         self.model.save(path / TRANSFORMER_PATH)
         self.items_index.save(path / LANCE_DB_PATH)
@@ -367,7 +356,6 @@ def main() -> None:
     configured LightningCLI instance which will prepare the datamodule,
     model, loggers and then run the requested stage.
     """
-
     cli_main()
 
 
@@ -388,6 +376,7 @@ if __name__ == "__main__":
     rich.print(model.compute_losses(next(iter(datamodule.train_dataloader()))))
 
     # validate
+    assert datamodule.items_dataset is not None
     model.items_index.index_data(datamodule.items_dataset)
     rich.print(model.compute_metrics(next(iter(datamodule.val_dataloader())), "val"))
 

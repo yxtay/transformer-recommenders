@@ -20,7 +20,6 @@ def main(ckpt_path: str = "") -> None:
     Args:
         ckpt_path: Optional checkpoint path to load model/data configuration.
     """
-
     cli = LightningCLI(SeqRecLightningModule, SeqDataModule, model_name=MODEL_NAME)
     trainer = cli.prepare_trainer(ckpt_path=ckpt_path)
     cli.save_model(trainer=trainer)

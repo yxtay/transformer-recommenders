@@ -47,6 +47,7 @@ class SeqEmbeddedModel(torch.nn.Module):
         Returns:
             torch.device: Device used by the SentenceTransformer model.
         """
+        assert self.model is not None
         return self.model.device
 
     @property
@@ -56,6 +57,7 @@ class SeqEmbeddedModel(torch.nn.Module):
         Returns:
             int: Maximum sequence length (tokens) for the model.
         """
+        assert self.model is not None
         return self.model.max_seq_length
 
     def configure_model(self, device: torch.device | str | None = None) -> None:
@@ -102,6 +104,7 @@ class SeqEmbeddedModel(torch.nn.Module):
         Args:
             path (str): Path where the SentenceTransformer should be saved.
         """
+        assert self.model is not None
         self.model.save(path)
         logger.info(f"model saved: {path}")
 
@@ -164,6 +167,9 @@ class SeqEmbeddedModel(torch.nn.Module):
                 SentenceTransformer (contains keys like
                 ``sentence_embedding`` and ``token_embeddings``).
         """
+        assert self.embeddings is not None
+        assert self.model is not None
+
         if item_embeds is not None:
             input_embeds = item_embeds[:, -self.max_seq_length :, :].to(self.device)
         elif item_idx is not None:
@@ -192,6 +198,7 @@ class SeqEmbeddedModel(torch.nn.Module):
             torch.Tensor: 1D tensor with the pooled embedding for the
                 provided item IDs.
         """
+        assert self.id2idx is not None
         item_ids = [item_id for item_id in item_ids if item_id in self.id2idx.index]
         item_idx = torch.as_tensor(self.id2idx[item_ids].to_numpy(), device=self.device)
         return self(item_idx[None, :])["sentence_embedding"][0]
@@ -222,6 +229,7 @@ class SeqEmbeddedModel(torch.nn.Module):
                 - ``candidate_embed``: tensor of shape (num_valid_positions, 1 + num_candidates, hidden_size)
                 - ``attention_mask``: boolean mask of valid token positions
         """
+        assert self.embeddings is not None
         output = self(history_item_idx)
         attention_mask = output["attention_mask"].bool()
         # shape: (batch_size, seq_len)

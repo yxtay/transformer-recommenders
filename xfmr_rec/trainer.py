@@ -41,7 +41,6 @@ class LoggerSaveConfigCallback(lp_cli.SaveConfigCallback):
             temporary file and uploaded to the active MLflow run via the
             MlflowClient API.
         """
-
         for lp_logger in trainer.loggers:
             if not isinstance(lp_logger, lp_loggers.MLFlowLogger):
                 continue
@@ -71,7 +70,6 @@ def time_now_isoformat() -> str:
     Returns:
         str: ISO 8601 formatted current datetime with timezone offset.
     """
-
     datetime_now = datetime.datetime.now(datetime.UTC).astimezone()
     return datetime_now.isoformat(timespec="seconds")
 
@@ -97,7 +95,6 @@ class LightningCLI:
                 detected at runtime, its experiment name will override this
                 value.
         """
-
         self.lightning_module_cls = lightning_module_cls
         self.data_module_cls = data_module_cls
         self.model_name = model_name
@@ -127,7 +124,6 @@ class LightningCLI:
             lp_cli.LightningCLI: The constructed and optionally-run
             LightningCLI instance.
         """
-
         import mlflow
         from jsonargparse import lazy_instance
 
@@ -191,7 +187,6 @@ class LightningCLI:
         Returns:
             A dictionary with `data` and `model` config mappings.
         """
-
         if not ckpt_path:
             return {"data": {"config": {"num_workers": 0}}}
 
@@ -219,7 +214,6 @@ class LightningCLI:
         Returns:
             A configured `Trainer` instance.
         """
-
         if not ckpt_path:
             args = {"trainer": {"fast_dev_run": True}}
             return self.main({"fit": args}).trainer
@@ -249,6 +243,5 @@ class LightningCLI:
         Args:
             trainer: PyTorch Lightning Trainer holding the trained model.
         """
-
         with bentoml.models.create(self.model_name) as model_ref:
             trainer.model.save(model_ref.path)

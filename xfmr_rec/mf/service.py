@@ -85,6 +85,7 @@ class UserIndex(BaseUserIndex):
 
 @bentoml.service(image=IMAGE, envs=ENVS, workers="cpu_count")
 class Service(BaseService):
+    model_ref = bentoml.models.BentoModel(MODEL_NAME)
     model = bentoml.depends(Model)
     item_index = bentoml.depends(ItemIndex)
     user_index = bentoml.depends(UserIndex)

@@ -163,7 +163,7 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
         pos_candidates = pos_candidates[history_label[query_idx + 1 :]]
         return self.rng.choice(pos_candidates)
 
-    def sample_negative(self, history_item_idx: list[int]) -> int:
+    def sample_negative(self, history_item_idx: np.ndarray) -> int:
         """Sample a negative (non-interacted) item index.
 
         Picks uniformly from the set of items the user has not interacted
@@ -290,7 +290,8 @@ class MFDataModule(lp.LightningDataModule):
             )
 
         if self.train_dataset is None:
-            train_dataset = datasets.Dataset.from_parquet(
+            assert self.items_dataset is not None
+            train_dataset: datasets.Dataset = datasets.Dataset.from_parquet(
                 self.config.users_parquet, filters=pc.field("is_train")
             )
             self.train_dataset = MFDataset(
@@ -316,7 +317,7 @@ class MFDataModule(lp.LightningDataModule):
 
     def get_dataloader(
         self,
-        dataset: datasets.Dataset,
+        dataset: datasets.Dataset | MFDataset,
         *,
         shuffle: bool = False,
         batch_size: int | None = None,
@@ -349,6 +350,7 @@ class MFDataModule(lp.LightningDataModule):
         Returns:
             DataLoader for the training dataset.
         """
+        assert self.train_dataset is not None
         return self.get_dataloader(
             self.train_dataset, shuffle=True, batch_size=self.config.batch_size
         )
@@ -359,6 +361,7 @@ class MFDataModule(lp.LightningDataModule):
         Returns:
             DataLoader for the validation dataset.
         """
+        assert self.val_dataset is not None
         return self.get_dataloader(self.val_dataset)
 
     def test_dataloader(self) -> torch_data.DataLoader[dict[str, torch.Tensor]]:
@@ -367,6 +370,7 @@ class MFDataModule(lp.LightningDataModule):
         Returns:
             DataLoader for the test dataset.
         """
+        assert self.test_dataset is not None
         return self.get_dataloader(self.test_dataset)
 
     def predict_dataloader(self) -> torch_data.DataLoader[dict[str, torch.Tensor]]:
@@ -375,6 +379,7 @@ class MFDataModule(lp.LightningDataModule):
         Returns:
             DataLoader for the prediction dataset.
         """
+        assert self.predict_dataset is not None
         return self.get_dataloader(self.predict_dataset)
 
 

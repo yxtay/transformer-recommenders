@@ -63,11 +63,7 @@ class Model:
             Query: The same query with `embedding` populated as a numpy array
                 of shape (1, embedding_dim).
         """
-        if query.input_embeds is None or query.input_embeds.size == 0:
-            embedding_dim = self.model.get_sentence_embedding_dimension()
-            query.embedding = np.zeros((1, embedding_dim), dtype=np.float32)
-            return query
-
+        assert query.input_embeds is not None
         inputs_embeds = torch.as_tensor(query.input_embeds, device=self.model.device)
         query.embedding = self.model(
             {"inputs_embeds": inputs_embeds[None, -self.model.max_seq_length :, :]}
@@ -87,6 +83,7 @@ class UserIndex(BaseUserIndex):
 
 @bentoml.service(image=IMAGE, envs=ENVS, workers="cpu_count")
 class Service(BaseService):
+    model_ref = bentoml.models.BentoModel(MODEL_NAME)
     model = bentoml.depends(Model)
     item_index = bentoml.depends(ItemIndex)
     user_index = bentoml.depends(UserIndex)
@@ -205,6 +202,7 @@ class Service(BaseService):
         Returns:
             Query: Query with `item_ids`, `item_texts`, and `input_embeds`.
         """
+        assert item.embedding is not None
         return Query(
             item_ids=[item.item_id],
             item_texts=[item.item_text],

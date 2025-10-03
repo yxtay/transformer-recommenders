@@ -52,6 +52,7 @@ class SeqRecModel(torch.nn.Module):
         Returns:
             torch.device: Device used by the encoder SentenceTransformer.
         """
+        assert self.encoder is not None
         return self.encoder.device
 
     @property
@@ -61,6 +62,7 @@ class SeqRecModel(torch.nn.Module):
         Returns:
             int: Maximum sequence length (tokens) used by the encoder.
         """
+        assert self.encoder is not None
         return self.encoder.max_seq_length
 
     def configure_model(self, device: torch.device | str | None = None) -> None:
@@ -90,7 +92,7 @@ class SeqRecModel(torch.nn.Module):
             )
             self.embedder = init_sent_transformer(embedding_conf, device=self.device)
 
-    def save(self, path: str) -> None:
+    def save(self, path: str | pathlib.Path) -> None:
         """Save the encoder and embedder SentenceTransformer models.
 
         The encoder and embedder are saved into separate subdirectories
@@ -100,6 +102,8 @@ class SeqRecModel(torch.nn.Module):
         Args:
             path (str): Directory where the model components will be saved.
         """
+        assert self.encoder is not None
+        assert self.embedder is not None
         path = pathlib.Path(path)
         encoder_path = (path / self.ENCODER_PATH).as_posix()
         self.encoder.save(encoder_path)
@@ -110,7 +114,9 @@ class SeqRecModel(torch.nn.Module):
         logger.info(f"embedder saved: {embedder_path}")
 
     @classmethod
-    def load(cls, path: str, device: torch.device | str | None = None) -> SeqRecModel:
+    def load(
+        cls, path: str | pathlib.Path, device: torch.device | str | None = None
+    ) -> SeqRecModel:
         path = pathlib.Path(path)
         encoder_path = (path / cls.ENCODER_PATH).as_posix()
         encoder = SentenceTransformer(
@@ -152,11 +158,9 @@ class SeqRecModel(torch.nn.Module):
             torch.Tensor: Tensor of shape (len(item_text), hidden_size)
                 containing the item embeddings.
         """
+        assert self.embedder is not None
         tokenized = self.embedder.tokenize(item_text)
-        tokenized = {
-            key: value.to(self.device) if isinstance(value, torch.Tensor) else value
-            for key, value in tokenized.items()
-        }
+        tokenized = {key: value.to(self.device) for key, value in tokenized.items()}
         return self.embedder(tokenized)["sentence_embedding"]
 
     def embed_item_text_sequence(
@@ -181,11 +185,9 @@ class SeqRecModel(torch.nn.Module):
         embeddings = self.embed_item_text(
             list(itertools.chain.from_iterable(item_text_sequence))
         )
-        return pad_sequence(torch.split(embeddings, num_items), batch_first=True)
+        return pad_sequence(list(torch.split(embeddings, num_items)), batch_first=True)
 
-    def forward(
-        self, item_text_sequence: list[list[str]] | None = None
-    ) -> dict[str, torch.Tensor]:
+    def forward(self, item_text_sequence: list[list[str]]) -> dict[str, torch.Tensor]:
         """Encode a batch of item text sequences using the encoder.
 
         The method embeds the provided sequences, constructs an attention
@@ -204,6 +206,7 @@ class SeqRecModel(torch.nn.Module):
                 ``token_embeddings``, ``sentence_embedding``, and
                 ``attention_mask``.
         """
+        assert self.encoder is not None
         inputs_embeds = self.embed_item_text_sequence(item_text_sequence)
         attention_mask = (inputs_embeds != 0).any(-1).long()
         features = {"attention_mask": attention_mask, "inputs_embeds": inputs_embeds}

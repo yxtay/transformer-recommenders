@@ -67,7 +67,6 @@ class MFRecLightningModule(lp.LightningModule):
             config (MFRecLightningConfig): Configuration dataclass instance
                 controlling model and loss hyperparameters.
         """
-
         super().__init__()
         self.config = MFRecLightningConfig.model_validate(config)
         self.save_hyperparameters(self.config.model_dump())
@@ -116,7 +115,6 @@ class MFRecLightningModule(lp.LightningModule):
             torch.nn.ModuleList: A module list containing one instantiated
                 loss module for each entry in ``LOSS_CLASSES``.
         """
-
         loss_fns = [loss_class(self.config) for loss_class in LOSS_CLASSES]
         return torch.nn.ModuleList(loss_fns)
 
@@ -130,7 +128,7 @@ class MFRecLightningModule(lp.LightningModule):
                 ``embedding`` column using the model's encoder and then
                 written into the configured Lance index.
         """
-
+        assert self.model is not None
         item_embeddings = items_dataset.map(
             lambda batch: {"embedding": self.model.encode(batch["item_text"])},
             batched=True,
@@ -151,12 +149,9 @@ class MFRecLightningModule(lp.LightningModule):
             dict[str, torch.Tensor]: The model output dictionary's
                 ``sentence_embedding`` tensor.
         """
-
+        assert self.model is not None
         tokenized = self.model.tokenize(text)
-        tokenized = {
-            key: value.to(self.device) if isinstance(value, torch.Tensor) else value
-            for key, value in tokenized.items()
-        }
+        tokenized = {key: value.to(self.device) for key, value in tokenized.items()}
         return self.model(tokenized)["sentence_embedding"]
 
     @torch.inference_mode()
@@ -180,7 +175,7 @@ class MFRecLightningModule(lp.LightningModule):
             datasets.Dataset: A dataset-like object containing the search
                 results (e.g., item ids, scores, and any indexed columns).
         """
-
+        assert self.model is not None
         embedding = self.model.encode(query_text)
         return self.items_index.search(
             embedding,
@@ -205,7 +200,7 @@ class MFRecLightningModule(lp.LightningModule):
             dict[str, torch.Tensor]: Mapping of loss/metric names to tensors
                 that can be logged.
         """
-
+        assert self.loss_fns is not None
         query_embed = self(batch["query_text"])
         # shape: (batch_size, hidden_size)
         candidate_embed = self(batch["pos_text"] + batch["neg_text"])
@@ -251,7 +246,7 @@ class MFRecLightningModule(lp.LightningModule):
             dict[str, torch.Tensor]: Mapping of metric names to scalar
                 tensors for logging.
         """
-
+        assert self.id2text is not None
         recs = self.predict_step(row)
         metrics = compute_retrieval_metrics(
             rec_ids=recs["item_id"][:],
@@ -263,7 +258,7 @@ class MFRecLightningModule(lp.LightningModule):
         metrics = {f"{stage}/{key}": value for key, value in metrics.items()}
 
         try:
-            item_id = next(
+            item_id: str = next(
                 item_id
                 for item_id in reversed(row["history"]["item_id"].tolist())
                 if item_id in self.id2text.index
@@ -298,7 +293,6 @@ class MFRecLightningModule(lp.LightningModule):
         Returns:
             torch.Tensor: The scalar loss used for backpropagation.
         """
-
         loss_dict = self.compute_losses(batch)
         self.log_dict(loss_dict)
         return loss_dict[f"loss/{self.config.train_loss}"]
@@ -315,7 +309,6 @@ class MFRecLightningModule(lp.LightningModule):
         Returns:
             dict[str, torch.Tensor]: Computed metrics to aggregate.
         """
-
         metrics = self.compute_metrics(row, stage="val")
         self.log_dict(metrics, batch_size=1)
         return metrics
@@ -328,7 +321,6 @@ class MFRecLightningModule(lp.LightningModule):
         Mirrors :meth:`validation_step` but tags metrics with the
         "test" stage.
         """
-
         metrics = self.compute_metrics(row, stage="test")
         self.log_dict(metrics, batch_size=1)
         return metrics
@@ -341,7 +333,6 @@ class MFRecLightningModule(lp.LightningModule):
         Returns recommendations for the provided user's text while
         excluding items already present in the user's history.
         """
-
         return self.recommend(
             row["user_text"],
             top_k=self.config.top_k,
@@ -354,7 +345,6 @@ class MFRecLightningModule(lp.LightningModule):
         Indexes items and users into their respective Lance indexes so that
         validation-time retrieval/prediction can use the latest embeddings.
         """
-
         self.index_items(self.trainer.datamodule.items_dataset)
         self.users_index.index_data(self.trainer.datamodule.users_dataset)
 
@@ -365,7 +355,6 @@ class MFRecLightningModule(lp.LightningModule):
             torch.optim.Optimizer: An AdamW optimizer configured from the
                 lightning config's learning rate and weight decay.
         """
-
         return torch.optim.AdamW(
             self.parameters(),
             lr=self.config.learning_rate,
@@ -380,7 +369,6 @@ class MFRecLightningModule(lp.LightningModule):
                 EarlyStopping callback configured to monitor the project
                 metric.
         """
-
         checkpoint = lp_callbacks.ModelCheckpoint(
             monitor=METRIC["name"], mode=METRIC["mode"]
         )
@@ -395,10 +383,9 @@ class MFRecLightningModule(lp.LightningModule):
 
         Returns a tuple compatible with the model's forward signature.
         """
-
         return (["", ""],)
 
-    def save(self, path: str) -> None:
+    def save(self, path: str | pathlib.Path) -> None:
         """Persist the model artifacts and indexed data to disk.
 
         Args:
@@ -406,7 +393,7 @@ class MFRecLightningModule(lp.LightningModule):
                 be stored. The function creates the transformer and Lance
                 DB artifacts under this path.
         """
-
+        assert self.model is not None
         path = pathlib.Path(path)
         self.model.save(path / TRANSFORMER_PATH)
         self.items_index.save(path / LANCE_DB_PATH)
@@ -426,7 +413,6 @@ def main() -> None:
     instance to start a fit/validate/test/predict run according to
     command-line or programmatic arguments.
     """
-
     cli_main()
 
 
@@ -447,6 +433,7 @@ if __name__ == "__main__":
     rich.print(model.compute_losses(next(iter(datamodule.train_dataloader()))))
 
     # validate
+    assert datamodule.items_dataset is not None
     model.index_items(datamodule.items_dataset)
     rich.print(model.compute_metrics(next(iter(datamodule.val_dataloader())), "val"))
 

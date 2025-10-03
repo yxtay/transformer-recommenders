@@ -40,7 +40,6 @@ def test_bento(
         The function uses `starlette.testclient.TestClient` which runs the ASGI
         app in the same process and is intended for testing only.
     """
-
     # disable prometheus, which can cause duplicated metrics error with repeated runs
     service.config["metrics"] = {"enabled": False}
 
@@ -80,7 +79,6 @@ def test_queries(service: type[bentoml.Service[Any]]) -> None:
             fields (for example, embeddings and user history) to focus the
             checks on canonical structural equality.
     """
-
     import rich
 
     example_item_data = test_bento(service, "item_id", {"item_id": "1"})
