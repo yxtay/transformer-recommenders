@@ -85,21 +85,17 @@ def test_queries(service: type[bentoml.Service[Any]]) -> None:
     example_item = ItemQuery.model_validate(example_item_data)
     rich.print(example_item)
     exclude_fields = {"embedding"}
-    if example_item.model_dump(exclude=exclude_fields) != EXAMPLE_ITEM.model_dump(
+    assert example_item.model_dump(exclude=exclude_fields) == EXAMPLE_ITEM.model_dump(
         exclude=exclude_fields
-    ):
-        msg = f"{example_item = } != {EXAMPLE_ITEM = }"
-        raise ValueError(msg)
+    ), f"{example_item = } != {EXAMPLE_ITEM = }"
 
     example_user_data = test_bento(service, "user_id", {"user_id": "1"})
     example_user = UserQuery.model_validate(example_user_data)
     rich.print(example_user)
     exclude_fields = {"history", "target"}
-    if example_user.model_dump(exclude=exclude_fields) != EXAMPLE_USER.model_dump(
+    assert example_user.model_dump(exclude=exclude_fields) == EXAMPLE_USER.model_dump(
         exclude=exclude_fields
-    ):
-        msg = f"{example_user = } != {EXAMPLE_USER = }"
-        raise ValueError(msg)
+    ), f"{example_user = } != {EXAMPLE_USER = }"
 
     top_k = 5
     item_recs = test_bento(
@@ -107,15 +103,11 @@ def test_queries(service: type[bentoml.Service[Any]]) -> None:
     )
     item_recs = pydantic.TypeAdapter(list[ItemCandidate]).validate_python(item_recs)
     rich.print(item_recs)
-    if len(item_recs) != top_k:
-        msg = f"{len(item_recs) = } != {top_k}"
-        raise ValueError(msg)
+    assert len(item_recs) == top_k, f"{len(item_recs) = } != {top_k}"
 
     user_recs = test_bento(
         service, "recommend_with_user_id", {"user_id": "1", "top_k": top_k}
     )
     user_recs = pydantic.TypeAdapter(list[ItemCandidate]).validate_python(user_recs)
     rich.print(user_recs)
-    if len(user_recs) != top_k:
-        msg = f"{len(user_recs) = } != {top_k}"
-        raise ValueError(msg)
+    assert len(user_recs) == top_k, f"{len(user_recs) = } != {top_k}"
