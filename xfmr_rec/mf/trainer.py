@@ -131,6 +131,7 @@ class MFRecLightningModule(lp.LightningModule):
                 written into the configured Lance index.
         """
 
+        assert self.model is not None
         item_embeddings = items_dataset.map(
             lambda batch: {"embedding": self.model.encode(batch["item_text"])},
             batched=True,
@@ -152,11 +153,9 @@ class MFRecLightningModule(lp.LightningModule):
                 ``sentence_embedding`` tensor.
         """
 
+        assert self.model is not None
         tokenized = self.model.tokenize(text)
-        tokenized = {
-            key: value.to(self.device) if isinstance(value, torch.Tensor) else value
-            for key, value in tokenized.items()
-        }
+        tokenized = {key: value.to(self.device) for key, value in tokenized.items()}
         return self.model(tokenized)["sentence_embedding"]
 
     @torch.inference_mode()
@@ -181,6 +180,7 @@ class MFRecLightningModule(lp.LightningModule):
                 results (e.g., item ids, scores, and any indexed columns).
         """
 
+        assert self.model is not None
         embedding = self.model.encode(query_text)
         return self.items_index.search(
             embedding,
@@ -206,6 +206,7 @@ class MFRecLightningModule(lp.LightningModule):
                 that can be logged.
         """
 
+        assert self.loss_fns is not None
         query_embed = self(batch["query_text"])
         # shape: (batch_size, hidden_size)
         candidate_embed = self(batch["pos_text"] + batch["neg_text"])
@@ -271,7 +272,8 @@ class MFRecLightningModule(lp.LightningModule):
         except StopIteration:
             return metrics
 
-        item_text = self.id2text[item_id]
+        assert self.id2text is not None
+        item_text: str = self.id2text[item_id]
         item_recs = self.recommend(
             item_text,
             top_k=self.config.top_k,
@@ -398,7 +400,7 @@ class MFRecLightningModule(lp.LightningModule):
 
         return (["", ""],)
 
-    def save(self, path: str) -> None:
+    def save(self, path: str | pathlib.Path) -> None:
         """Persist the model artifacts and indexed data to disk.
 
         Args:
@@ -407,6 +409,7 @@ class MFRecLightningModule(lp.LightningModule):
                 DB artifacts under this path.
         """
 
+        assert self.model is not None
         path = pathlib.Path(path)
         self.model.save(path / TRANSFORMER_PATH)
         self.items_index.save(path / LANCE_DB_PATH)

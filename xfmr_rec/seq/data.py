@@ -419,6 +419,7 @@ class SeqDataModule(lp.LightningDataModule):
         Returns:
             DataLoader for the training dataset.
         """
+        assert self.train_dataset is not None
         return self.get_dataloader(
             self.train_dataset,
             shuffle=True,
@@ -432,6 +433,7 @@ class SeqDataModule(lp.LightningDataModule):
         Returns:
             DataLoader for the validation dataset.
         """
+        assert self.val_dataset is not None
         return self.get_dataloader(self.val_dataset)
 
     def test_dataloader(self) -> torch_data.DataLoader[dict[str, torch.Tensor]]:
@@ -440,6 +442,7 @@ class SeqDataModule(lp.LightningDataModule):
         Returns:
             DataLoader for the test dataset.
         """
+        assert self.test_dataset is not None
         return self.get_dataloader(self.test_dataset)
 
     def predict_dataloader(self) -> torch_data.DataLoader[dict[str, torch.Tensor]]:
@@ -448,6 +451,7 @@ class SeqDataModule(lp.LightningDataModule):
         Returns:
             DataLoader for the prediction dataset.
         """
+        assert self.predict_dataset is not None
         return self.get_dataloader(self.predict_dataset)
 
 

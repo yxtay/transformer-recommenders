@@ -121,6 +121,7 @@ class SeqRecLightningModule(lp.LightningModule):
                 before writing to the Lance index.
         """
 
+        assert self.model is not None
         item_embeddings = items_dataset.map(
             lambda batch: {"embedding": self.model.embed_item_text(batch["item_text"])},
             batched=True,
@@ -139,6 +140,7 @@ class SeqRecLightningModule(lp.LightningModule):
                 and any other tensors produced by the sequence model.
         """
 
+        assert self.model is not None
         return self.model(item_texts)
 
     @torch.inference_mode()
@@ -156,6 +158,7 @@ class SeqRecLightningModule(lp.LightningModule):
         items index to retrieve nearest neighbors.
         """
 
+        assert self.id2text is not None
         item_ids = [item_id for item_id in item_ids if item_id in self.id2text.index]
         item_text = self.id2text[item_ids].tolist()
         embedding = self([item_text])["sentence_embedding"].numpy(force=True)
@@ -182,6 +185,9 @@ class SeqRecLightningModule(lp.LightningModule):
             dict[str, torch.Tensor]: Mapping of metric and loss names to
                 tensors ready for logging.
         """
+
+        assert self.model is not None
+        assert self.loss_fns is not None
 
         embeds = self.model.compute_embeds(
             batch["history_item_text"],
@@ -345,13 +351,14 @@ class SeqRecLightningModule(lp.LightningModule):
 
         return ([[], [""]],)
 
-    def save(self, path: str) -> None:
+    def save(self, path: str | pathlib.Path) -> None:
         """Persist the sequence model and items index artifacts.
 
         Args:
             path (str): Destination directory for saved model and index.
         """
 
+        assert self.model is not None
         path = pathlib.Path(path)
         self.model.save(path)
         self.items_index.save(path / LANCE_DB_PATH)

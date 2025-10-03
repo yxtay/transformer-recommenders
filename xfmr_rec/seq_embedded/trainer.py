@@ -118,6 +118,7 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
                 attention masks used by downstream loss computation.
         """
 
+        assert self.model is not None
         return self.model(item_idx.to(self.device))
 
     @torch.inference_mode()
@@ -140,6 +141,7 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
             datasets.Dataset: Search results from the items index.
         """
 
+        assert self.model is not None
         embedding = self.model.encode(item_ids).numpy(force=True)
         return self.items_index.search(
             embedding,
@@ -163,6 +165,8 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
                 scalar tensors for logging.
         """
 
+        assert self.model is not None
+        assert self.loss_fns is not None
         embeds = self.model.compute_embeds(
             batch["history_item_idx"],
             batch["pos_item_idx"],
@@ -341,13 +345,14 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         state_dict.pop("model.embeddings.weight", None)
         return state_dict
 
-    def save(self, path: str) -> None:
+    def save(self, path: str | pathlib.Path) -> None:
         """Persist the transformer and Lance DB index for this module.
 
         Args:
             path (str): Directory path where artifacts will be stored.
         """
 
+        assert self.model is not None
         path = pathlib.Path(path)
         self.model.save(path / TRANSFORMER_PATH)
         self.items_index.save(path / LANCE_DB_PATH)

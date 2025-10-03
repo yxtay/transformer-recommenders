@@ -102,6 +102,7 @@ class LanceIndex:
         self = cls(config)
         self.open_table()
 
+        assert self.table is not None
         for index in self.table.list_indices():
             match index.index_type:
                 case "IvfHnswPq":
@@ -110,6 +111,8 @@ class LanceIndex:
                     self.config.text_col = index.columns[0]
                 case "BTree":
                     self.config.id_col = index.columns[0]
+                case _:
+                    pass
         return self
 
     def open_table(self) -> lancedb.table.Table:
@@ -236,6 +239,7 @@ class LanceIndex:
             additional ``score`` column. The ``score`` is computed as
             ``1 - _distance`` to resemble cosine similarity.
         """
+        assert self.table is not None
         exclude_item_ids = exclude_item_ids or [""]
         exclude_filter = ", ".join(
             f"'{str(item).replace("'", "''")}'" for item in exclude_item_ids
@@ -263,6 +267,7 @@ class LanceIndex:
         Returns:
             datasets.Dataset: Dataset containing the matching rows.
         """
+        assert self.table is not None
         ids_filter = ", ".join(f"'{str(id_val).replace("'", "''")}'" for id_val in ids)
         result = (
             self.table.search()
@@ -325,6 +330,7 @@ class FaissIndex:
         Returns:
             None: The function writes files to disk and does not return a value.
         """
+        assert self.index is not None
         index_name = self.index.list_indexes()[0]
         self.index.to_parquet(pathlib.Path(path, "data.parquet"))
         self.index.save_faiss_index(index_name, pathlib.Path(path, "index.faiss"))
@@ -378,10 +384,7 @@ class FaissIndex:
         if self.id2idx is not None and not overwrite:
             return self
 
-        if self.index is None:
-            msg = "index is not initialised"
-            raise RuntimeError(msg)
-
+        assert self.index is not None
         self.id2idx = pd.Series(
             pd.RangeIndex(len(self.index)),
             index=self.index.with_format("pandas")[self.config.id_col].array,
@@ -460,6 +463,7 @@ class FaissIndex:
             datasets.Dataset: Top-k search results as a Dataset. Scores are
             returned in the same order as the rows.
         """
+        assert self.index is not None
         exclude_set = set(exclude_item_ids or [""])
         # we take (2 * (top_k + len(exclude_set))) nearest items to ensure sufficient for post-filtering
         index_name = self.index.list_indexes()[0]
@@ -483,10 +487,8 @@ class FaissIndex:
         Returns:
             datasets.Dataset: Dataset containing the matching rows.
         """
-        if self.id2idx is None:
-            msg = "id2idx is not initialised"
-            raise RuntimeError(msg)
-
+        assert self.id2idx is not None
+        assert self.index is not None
         idx = [self.id2idx[id_] for id_ in ids if id_ in self.id2idx]
         return self.index.select(idx)
 
