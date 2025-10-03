@@ -102,13 +102,13 @@ class SeqRecModel(torch.nn.Module):
         Args:
             path (str): Directory where the model components will be saved.
         """
-        path = pathlib.Path(path)
         assert self.encoder is not None
+        assert self.embedder is not None
+        path = pathlib.Path(path)
         encoder_path = (path / self.ENCODER_PATH).as_posix()
         self.encoder.save(encoder_path)
         logger.info(f"encoder saved: {encoder_path}")
 
-        assert self.embedder is not None
         embedder_path = (path / self.EMBEDDER_PATH).as_posix()
         self.embedder.save(embedder_path)
         logger.info(f"embedder saved: {embedder_path}")

@@ -181,7 +181,6 @@ class SeqRecLightningModule(lp.LightningModule):
         """
         assert self.model is not None
         assert self.loss_fns is not None
-
         embeds = self.model.compute_embeds(
             batch["history_item_text"],
             batch["pos_item_text"],

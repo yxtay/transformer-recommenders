@@ -247,7 +247,6 @@ class MFRecLightningModule(lp.LightningModule):
                 tensors for logging.
         """
         assert self.id2text is not None
-
         recs = self.predict_step(row)
         metrics = compute_retrieval_metrics(
             rec_ids=recs["item_id"][:],
