@@ -11,7 +11,6 @@ deployment utilities to keep experiments reproducible and modular.
 
 - `xfmr_rec/`: core package. Important modules:
   - `data.py`: dataset download, conversion and loader utilities
-    (Parquet / LanceDB)
   - `models.py`, `mf/`, `seq/`, `seq_embedded/`: model definitions (MF,
     sequential, transformer)
   - `losses.py`: custom losses (BPR, CCL, SSM, etc.)
