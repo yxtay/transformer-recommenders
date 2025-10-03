@@ -88,7 +88,8 @@ PR checklist for contributors and automated agents:
 
 ## Tooling suggestions (optional)
 
-- [commitizen](https://commitizen-tools.github.io/website/) to help format Conventional Commits
+- [commitizen](https://commitizen-tools.github.io/website/)
+  to help format Conventional Commits
 - [git-cliff](https://github.com/orhun/git-cliff) or
   [conventional-changelog](https://github.com/conventional-changelog/conventional-changelog)
   for changelog generation
