@@ -68,9 +68,10 @@ def test_queries(service: type[bentoml.Service[Any]]) -> None:
         None. The function raises on unexpected results.
 
     Raises:
-        ValueError: If any response does not match the expected example
+        AssertionError: If any response does not match the expected example
             schema or if recommendation endpoints do not return the expected
-            number of items.
+            number of items. The function performs these checks using
+            assertion statements.
 
     Notes:
         - Uses `test_bento` to construct an ASGI app and make requests with

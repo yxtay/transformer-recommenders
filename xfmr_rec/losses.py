@@ -158,10 +158,10 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
         self, query_embed: torch.Tensor, candidate_embed: torch.Tensor
     ) -> None:
         """Validate shapes of query and candidate embedding tensors.
-
         Raises:
-            ValueError: If the input tensors do not have the expected
-                dimensions or if batch/embedding sizes mismatch.
+            AssertionError: If the input tensors do not have the expected
+                dimensions or if batch/embedding sizes mismatch. The method
+                now uses assertions for concise runtime checks.
         """
         assert query_embed.dim() == 2, (
             f"{query_embed.dim() = }, {query_embed.size() = }"
@@ -225,9 +225,10 @@ class EmbedLoss(torch.nn.Module, abc.ABC):
             torch.Tensor: Column tensor of shape ``(batch_size, 1)``.
 
         Raises:
-            ValueError: If neither ``target`` nor ``config.target_position``
+            AssertionError: If neither ``target`` nor ``config.target_position``
                 is provided, or if both are provided, or if shapes are
-                mismatched.
+                mismatched. The method performs these validations using
+                assertion statements.
         """
         assert target is not None or self.config.target_position is not None, (
             "either `targets` or `config.target_position` must be provided"
