@@ -511,6 +511,6 @@ def main(data_dir: str = DATA_DIR, *, overwrite: bool = True) -> None:
 
 
 if __name__ == "__main__":
-    from jsonargparse import CLI
+    from jsonargparse import auto_cli
 
-    CLI(main, as_positional=False)
+    auto_cli(main, as_positional=False)

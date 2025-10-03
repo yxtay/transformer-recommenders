@@ -13,7 +13,7 @@ from xfmr_rec.service import (
 
 
 def test_bento(
-    service: type[bentoml.Service], api_name: str, api_input: dict[str, Any]
+    service: type[bentoml.Service[Any]], api_name: str, api_input: dict[str, Any]
 ) -> dict[str, Any]:
     from starlette.testclient import TestClient
 
@@ -51,7 +51,7 @@ def test_bento(
         return response.json()
 
 
-def test_queries(service: type[bentoml.Service]) -> None:
+def test_queries(service: type[bentoml.Service[Any]]) -> None:
     """Execute a set of sanity-check API calls against a BentoML service.
 
     This function issues several POST requests against a BentoML Service's
