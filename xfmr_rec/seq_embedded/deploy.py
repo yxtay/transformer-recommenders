@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from jsonargparse import auto_cli
 
-from xfmr_rec.deploy import TestService
+from xfmr_rec.deploy import test_queries
 from xfmr_rec.seq.data import SeqDataModule
 from xfmr_rec.seq_embedded import MODEL_NAME
 from xfmr_rec.seq_embedded.service import Service
@@ -24,7 +24,7 @@ def main(ckpt_path: str = "") -> None:
     cli = LightningCLI(SeqEmbeddedLightningModule, SeqDataModule, model_name=MODEL_NAME)
     trainer = cli.prepare_trainer(ckpt_path=ckpt_path)
     cli.save_model(trainer=trainer)
-    TestService(Service).test_queries()
+    test_queries(Service)
 
 
 def cli_main() -> None:
