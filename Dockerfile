@@ -1,6 +1,6 @@
 # hadolint global ignore=DL3008
 # kics-scan disable=965a08d7-ef86-4f14-8792-4a3b2098937e,451d79dc-0588-476a-ad03-3c7f0320abb3
-FROM ghcr.io/astral-sh/uv:0.8.22@sha256:9874eb7afe5ca16c363fe80b294fe700e460df29a55532bbfea234a0f12eddb1 AS uv
+FROM ghcr.io/astral-sh/uv:0.8.23@sha256:94390f20a83e2de83f63b2dadcca2efab2e6798f772edab52bf545696c86bdb4 AS uv
 
 ##
 # base
