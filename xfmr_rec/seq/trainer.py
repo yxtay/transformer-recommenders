@@ -239,14 +239,6 @@ class SeqRecLightningModule(lp.LightningModule):
         return {f"{stage}/{key}": value for key, value in metrics.items()}
 
     def training_step(self, batch: SeqBatch) -> torch.Tensor:
-        """Training step: compute losses and return primary loss.
-
-        Args:
-            batch (SeqBatch): Batch produced by the Seq datamodule.
-
-        Returns:
-            torch.Tensor: Primary scalar loss tensor for backprop.
-        """
         loss_dict = self.compute_losses(batch)
         self.log_dict(loss_dict)
         return loss_dict[f"loss/{self.config.train_loss}"]
@@ -254,14 +246,6 @@ class SeqRecLightningModule(lp.LightningModule):
     def validation_step(
         self, row: dict[str, dict[str, np.ndarray]]
     ) -> dict[str, torch.Tensor]:
-        """Validation step: compute and log metrics for a single row.
-
-        Args:
-            row (dict): A validation row containing predictions/targets.
-
-        Returns:
-            dict[str, torch.Tensor]: Computed metrics for logging.
-        """
         metrics = self.compute_metrics(row, stage="val")
         self.log_dict(metrics, batch_size=1)
         return metrics
@@ -269,11 +253,6 @@ class SeqRecLightningModule(lp.LightningModule):
     def test_step(
         self, row: dict[str, dict[str, np.ndarray]]
     ) -> dict[str, torch.Tensor]:
-        """Test step: compute and log metrics for test data rows.
-
-        Mirrors :meth:`validation_step` but uses the "test" prefix for
-        metrics.
-        """
         metrics = self.compute_metrics(row, stage="test")
         self.log_dict(metrics, batch_size=1)
         return metrics
@@ -300,11 +279,6 @@ class SeqRecLightningModule(lp.LightningModule):
         self.users_index.index_data(self.trainer.datamodule.users_dataset)
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
-        """Configure and return optimizer (AdamW) for training.
-
-        Returns:
-            torch.optim.Optimizer: Configured optimizer instance.
-        """
         return torch.optim.AdamW(
             self.parameters(),
             lr=self.config.learning_rate,
@@ -312,12 +286,6 @@ class SeqRecLightningModule(lp.LightningModule):
         )
 
     def configure_callbacks(self) -> list[lp.Callback]:
-        """Create and return standard callbacks for model checkpointing
-        and early stopping.
-
-        Returns:
-            list[lp.Callback]: Checkpoint and EarlyStopping callbacks.
-        """
         checkpoint = lp_callbacks.ModelCheckpoint(
             monitor=METRIC["name"], mode=METRIC["mode"]
         )

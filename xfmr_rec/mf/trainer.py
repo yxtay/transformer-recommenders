@@ -285,14 +285,6 @@ class MFRecLightningModule(lp.LightningModule):
         return metrics | item_metrics
 
     def training_step(self, batch: dict[str, list[str]]) -> torch.Tensor:
-        """Lightning training step: compute and return the primary loss.
-
-        Args:
-            batch (dict): Training batch provided by the datamodule.
-
-        Returns:
-            torch.Tensor: The scalar loss used for backpropagation.
-        """
         loss_dict = self.compute_losses(batch)
         self.log_dict(loss_dict)
         return loss_dict[f"loss/{self.config.train_loss}"]
@@ -300,15 +292,6 @@ class MFRecLightningModule(lp.LightningModule):
     def validation_step(
         self, row: dict[str, str | dict[str, np.ndarray]]
     ) -> dict[str, torch.Tensor]:
-        """Validation step: compute and log retrieval metrics for a row.
-
-        Args:
-            row (dict): Single validation row containing user_text, history
-                and target fields.
-
-        Returns:
-            dict[str, torch.Tensor]: Computed metrics to aggregate.
-        """
         metrics = self.compute_metrics(row, stage="val")
         self.log_dict(metrics, batch_size=1)
         return metrics
@@ -316,11 +299,6 @@ class MFRecLightningModule(lp.LightningModule):
     def test_step(
         self, row: dict[str, str | dict[str, np.ndarray]]
     ) -> dict[str, torch.Tensor]:
-        """Test step: compute and log retrieval metrics for a test row.
-
-        Mirrors :meth:`validation_step` but tags metrics with the
-        "test" stage.
-        """
         metrics = self.compute_metrics(row, stage="test")
         self.log_dict(metrics, batch_size=1)
         return metrics
@@ -349,12 +327,6 @@ class MFRecLightningModule(lp.LightningModule):
         self.users_index.index_data(self.trainer.datamodule.users_dataset)
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
-        """Configure and return the optimizer used for training.
-
-        Returns:
-            torch.optim.Optimizer: An AdamW optimizer configured from the
-                lightning config's learning rate and weight decay.
-        """
         return torch.optim.AdamW(
             self.parameters(),
             lr=self.config.learning_rate,
@@ -362,13 +334,6 @@ class MFRecLightningModule(lp.LightningModule):
         )
 
     def configure_callbacks(self) -> list[lp.Callback]:
-        """Create standard callbacks for checkpointing and early stopping.
-
-        Returns:
-            list[lp.Callback]: A list containing a ModelCheckpoint and an
-                EarlyStopping callback configured to monitor the project
-                metric.
-        """
         checkpoint = lp_callbacks.ModelCheckpoint(
             monitor=METRIC["name"], mode=METRIC["mode"]
         )

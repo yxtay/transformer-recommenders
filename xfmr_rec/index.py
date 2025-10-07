@@ -51,21 +51,16 @@ class LanceIndex:
     Index implementation using LanceDB for fast vector and text search.
     """
 
-    def __init__(
-        self, config: LanceIndexConfig, table: lancedb.table.Table | None = None
-    ) -> None:
+    def __init__(self, config: LanceIndexConfig) -> None:
         """Initialize LanceIndex with configuration and optional table.
 
         Args:
             config (LanceIndexConfig): Configuration specifying paths and
                 column names used by the index.
-            table (lancedb.table.Table | None): Optional pre-opened
-                LanceDB table. If not provided the table will be opened
-                later via :meth:`open_table`.
         """
         super().__init__()
         self.config = config
-        self.table = table
+        self.table: lancedb.table.Table | None = None
 
     def save(self, path: str) -> None:
         """Copy the underlying LanceDB store to a new path.

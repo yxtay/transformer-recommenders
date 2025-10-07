@@ -141,7 +141,7 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
             The sampled query index.
         """
         indices = range(len(history_item_idx) - 1)
-        return self.rng.choice(indices).item()
+        return self.rng.choice(indices)
 
     def sample_positive(
         self, history_item_idx: np.ndarray, history_label: np.ndarray, query_idx: int
@@ -178,7 +178,7 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
         neg_candidates = list(self.all_idx - set(history_item_idx))
         if len(neg_candidates) == 0:
             neg_candidates = list(self.all_idx)
-        return self.rng.choice(neg_candidates).item()
+        return self.rng.choice(neg_candidates)
 
     def sample_query_text(self, user_text: str, item_text: str) -> str:
         """Return either the item text or the user text to use as the query.
@@ -232,6 +232,9 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
             "pos_text": self.item_text[pos_item_idx],
             "neg_text": self.item_text[neg_item_idx],
         }
+
+    def collate(self, batch: list[dict[str, str]]) -> dict[str, list[str]]:
+        return torch_data.default_collate(batch)
 
 
 class MFDataModule(lp.LightningDataModule):

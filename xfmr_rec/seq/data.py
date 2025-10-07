@@ -29,19 +29,19 @@ NumpyBoolArray = np.typing.NDArray[np.bool_]
 
 class SeqExample(TypedDict):
     history_item_idx: torch.Tensor
-    history_item_text: list[str]
     pos_item_idx: torch.Tensor
-    pos_item_text: list[str]
     neg_item_idx: torch.Tensor
+    history_item_text: list[str]
+    pos_item_text: list[str]
     neg_item_text: list[str]
 
 
 class SeqBatch(TypedDict):
     history_item_idx: torch.Tensor
-    history_item_text: list[list[str]]
     pos_item_idx: torch.Tensor
-    pos_item_text: list[list[str]]
     neg_item_idx: torch.Tensor
+    history_item_text: list[list[str]]
+    pos_item_text: list[list[str]]
     neg_item_text: list[list[str]]
 
 
@@ -272,12 +272,12 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         )
         return {
             "history_item_idx": torch.as_tensor(history_item_idx[sampled_indices]),
+            "pos_item_idx": torch.as_tensor(pos_item_idx),
+            "neg_item_idx": torch.as_tensor(neg_item_idx),
             "history_item_text": self.item_texts[
                 (history_item_idx[sampled_indices] - 1).tolist()
             ],
-            "pos_item_idx": torch.as_tensor(pos_item_idx),
             "pos_item_text": self.item_texts[(pos_item_idx - 1).tolist()],
-            "neg_item_idx": torch.as_tensor(neg_item_idx),
             "neg_item_text": self.item_texts[(neg_item_idx - 1).tolist()],
         }
 
