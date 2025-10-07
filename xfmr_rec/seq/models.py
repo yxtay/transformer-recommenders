@@ -196,9 +196,8 @@ class SeqRecModel(torch.nn.Module):
         embeddings and pooled sentence embeddings.
 
         Args:
-            item_text_sequence (list[list[str]] | None): Batch of item text
-                sequences. If ``None`` behaviour is undefined and likely
-                to raise later errors.
+            item_text_sequence (list[list[str]]): Batch of item text
+                sequences.
 
         Returns:
             dict[str, torch.Tensor]: Encoder output dictionary produced by

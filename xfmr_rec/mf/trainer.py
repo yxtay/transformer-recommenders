@@ -73,7 +73,7 @@ class MFRecLightningModule(lp.LightningModule):
 
         self.model: SentenceTransformer | None = None
         self.items_dataset: datasets.Dataset | None = None
-        self.id2text: pd.Series | None = None
+        self.id2text: pd.Series[str] | None = None
         self.loss_fns: torch.nn.ModuleList | None = None
         self.items_index = LanceIndex(self.config.items_config)
         self.users_index = LanceIndex(self.config.users_config)
@@ -211,12 +211,12 @@ class MFRecLightningModule(lp.LightningModule):
         # shape: (batch_size, 2 * batch_size, hidden_size)
 
         batch_size = query_embed.size(0)
-        metrics = {"batch/size": batch_size}
+        metrics: dict[str, float] = {"batch/size": batch_size}
         metrics |= loss_classes.LogitsStatistics(self.config)(
             query_embed=query_embed, candidate_embed=candidate_embed
         )
 
-        losses = {}
+        losses: dict[str, torch.Tensor] = {}
         for loss_fn in self.loss_fns:
             loss = loss_fn(query_embed=query_embed, candidate_embed=candidate_embed)
             key = f"loss/{loss_fn.__class__.__name__}"

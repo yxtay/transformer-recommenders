@@ -310,7 +310,7 @@ class FaissIndex:
         super().__init__()
         self.config = config
         self.index = index
-        self.id2idx: pd.Series | None = None
+        self.id2idx: pd.Series[int] | None = None
 
     def save(self, path: str) -> None:
         """Persist the dataset and Faiss index to disk.

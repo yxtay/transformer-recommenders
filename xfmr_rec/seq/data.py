@@ -415,11 +415,6 @@ class SeqDataModule(lp.LightningDataModule):
         )
 
     def train_dataloader(self) -> torch_data.DataLoader[dict[str, torch.Tensor]]:
-        """Return the training DataLoader.
-
-        Returns:
-            DataLoader for the training dataset.
-        """
         assert self.train_dataset is not None
         return self.get_dataloader(
             self.train_dataset,
@@ -429,29 +424,14 @@ class SeqDataModule(lp.LightningDataModule):
         )
 
     def val_dataloader(self) -> torch_data.DataLoader[dict[str, torch.Tensor]]:
-        """Return the validation DataLoader.
-
-        Returns:
-            DataLoader for the validation dataset.
-        """
         assert self.val_dataset is not None
         return self.get_dataloader(self.val_dataset)
 
     def test_dataloader(self) -> torch_data.DataLoader[dict[str, torch.Tensor]]:
-        """Return the test DataLoader.
-
-        Returns:
-            DataLoader for the test dataset.
-        """
         assert self.test_dataset is not None
         return self.get_dataloader(self.test_dataset)
 
     def predict_dataloader(self) -> torch_data.DataLoader[dict[str, torch.Tensor]]:
-        """Return the prediction DataLoader.
-
-        Returns:
-            DataLoader for the prediction dataset.
-        """
         assert self.predict_dataset is not None
         return self.get_dataloader(self.predict_dataset)
 

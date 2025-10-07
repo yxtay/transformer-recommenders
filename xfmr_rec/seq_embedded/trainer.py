@@ -172,7 +172,7 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         batch_size, seq_len = attention_mask.size()
         numel = attention_mask.numel()
         non_zero = attention_mask.count_nonzero().item()
-        metrics = {
+        metrics: dict[str, float] = {
             "batch/size": batch_size,
             "batch/seq_len": seq_len,
             "batch/numel": numel,
@@ -184,7 +184,7 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
             candidate_embed=embeds["candidate_embed"],
         )
 
-        losses = {}
+        losses: dict[str, torch.Tensor] = {}
         for loss_fn in self.loss_fns:
             loss = loss_fn(
                 query_embed=embeds["query_embed"],
@@ -289,7 +289,7 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         state to reduce checkpoint size; this helper removes that entry if
         present.
         """
-        state_dict = super().state_dict(*args, **kwargs)
+        state_dict: dict[str, torch.Tensor] = super().state_dict(*args, **kwargs)
         state_dict.pop("model.embeddings.weight", None)
         return state_dict
 
