@@ -34,7 +34,7 @@ class SeqEmbeddedModel(torch.nn.Module):
         self.config = config
         self.model = model
         self.embeddings: torch.nn.Embedding | None = None
-        self.id2idx: pd.Series | None = None
+        self.id2idx: pd.Series[int] | None = None
 
         self.configure_model(device=device)
         logger.info(repr(self.config))

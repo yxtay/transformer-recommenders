@@ -64,7 +64,7 @@ class SeqRecLightningModule(lp.LightningModule):
 
         self.model: SeqRecModel | None = None
         self.items_dataset: datasets.Dataset | None = None
-        self.id2text: pd.Series | None = None
+        self.id2text: pd.Series[str] | None = None
         self.loss_fns: torch.nn.ModuleList | None = None
         self.items_index = LanceIndex(self.config.items_config)
         self.users_index = LanceIndex(self.config.users_config)
@@ -191,7 +191,7 @@ class SeqRecLightningModule(lp.LightningModule):
         batch_size, seq_len = attention_mask.size()
         numel = attention_mask.numel()
         non_zero = attention_mask.count_nonzero().item()
-        metrics = {
+        metrics: dict[str, float] = {
             "batch/size": batch_size,
             "batch/seq_len": seq_len,
             "batch/numel": numel,
@@ -203,7 +203,7 @@ class SeqRecLightningModule(lp.LightningModule):
             candidate_embed=embeds["candidate_embed"],
         )
 
-        losses = {}
+        losses: dict[str, torch.Tensor] = {}
         for loss_fn in self.loss_fns:
             loss = loss_fn(
                 query_embed=embeds["query_embed"],
