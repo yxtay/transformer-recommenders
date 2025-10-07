@@ -218,14 +218,6 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         return {f"{stage}/{key}": value for key, value in metrics.items()}
 
     def training_step(self, batch: SeqBatch) -> torch.Tensor:
-        """Training step: compute and return the primary loss tensor.
-
-        Args:
-            batch (SeqBatch): Batch produced by the datamodule.
-
-        Returns:
-            torch.Tensor: The scalar loss used for backpropagation.
-        """
         loss_dict = self.compute_losses(batch)
         self.log_dict(loss_dict)
         return loss_dict[f"loss/{self.config.train_loss}"]
@@ -233,15 +225,6 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
     def validation_step(
         self, row: dict[str, dict[str, np.ndarray]]
     ) -> dict[str, torch.Tensor]:
-        """Validation step: compute retrieval metrics for a single row.
-
-        Args:
-            row (dict): A validation row containing history and target
-                information as produced by the datamodule.
-
-        Returns:
-            dict[str, torch.Tensor]: Computed metrics mapped to tensors.
-        """
         metrics = self.compute_metrics(row, stage="val")
         self.log_dict(metrics, batch_size=1)
         return metrics
@@ -249,10 +232,6 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
     def test_step(
         self, row: dict[str, dict[str, np.ndarray]]
     ) -> dict[str, torch.Tensor]:
-        """Test step: compute retrieval metrics for a test row.
-
-        Mirrors :meth:`validation_step` but uses the "test" metric prefix.
-        """
         metrics = self.compute_metrics(row, stage="test")
         self.log_dict(metrics, batch_size=1)
         return metrics
@@ -278,12 +257,6 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         self.users_index.index_data(self.trainer.datamodule.users_dataset)
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
-        """Create and return the optimizer used for training.
-
-        Returns:
-            torch.optim.Optimizer: An AdamW optimizer configured using the
-                module's learning rate and weight decay settings.
-        """
         return torch.optim.AdamW(
             self.parameters(),
             lr=self.config.learning_rate,
@@ -291,12 +264,6 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         )
 
     def configure_callbacks(self) -> list[lp.Callback]:
-        """Create and return common callbacks (checkpoint and early stop).
-
-        Returns:
-            list[lp.Callback]: Configured ModelCheckpoint and EarlyStopping
-                callbacks monitoring the project metric.
-        """
         checkpoint = lp_callbacks.ModelCheckpoint(
             monitor=METRIC["name"], mode=METRIC["mode"]
         )
@@ -304,10 +271,6 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
             monitor=METRIC["name"], mode=METRIC["mode"]
         )
         return [checkpoint, early_stop]
-
-    # Duplicate method block removed: previous definitions above include
-    # documentation and are the ones used by the module. This avoids
-    # redefinition warnings from linters and keeps a single clear API.
 
     @property
     def example_input_array(self) -> tuple[torch.Tensor]:

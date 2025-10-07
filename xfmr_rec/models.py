@@ -134,7 +134,7 @@ def to_sent_transformer(
     """
     with tempfile.TemporaryDirectory() as tmpdir:
         model.save_pretrained(tmpdir)
-        modules = [
+        modules: list[torch.nn.Module] = [
             models.Transformer(
                 tmpdir, tokenizer_name_or_path=config.pretrained_model_name
             )

@@ -11,6 +11,10 @@ from loguru import logger
 from xfmr_rec.data import download_unpack_data, prepare_movielens
 from xfmr_rec.params import DATA_DIR, ITEMS_PARQUET, MOVIELENS_1M_URL, USERS_PARQUET
 
+NumpyBoolArray = np.typing.NDArray[np.bool_]
+NumpyIntArray = np.typing.NDArray[np.int_]
+NumpyStrArray = np.typing.NDArray[np.str_]
+
 
 class MFDatasetConfig(pydantic.BaseModel):
     query_sampling_prob: float = 0.5
@@ -128,7 +132,7 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
         """
         return len(self.events_dataset)
 
-    def sample_query_idx(self, history_item_idx: np.ndarray) -> int:
+    def sample_query_idx(self, history_item_idx: NumpyIntArray) -> int:
         """Randomly sample a query (position) index from history.
 
         The query is selected from positions that have at least one later
@@ -141,10 +145,13 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
             The sampled query index.
         """
         indices = range(len(history_item_idx) - 1)
-        return self.rng.choice(indices).item()
+        return self.rng.choice(indices)
 
     def sample_positive(
-        self, history_item_idx: np.ndarray, history_label: np.ndarray, query_idx: int
+        self,
+        history_item_idx: NumpyIntArray,
+        history_label: NumpyBoolArray,
+        query_idx: int,
     ) -> int:
         """Sample a positive item index for a given query position.
 
@@ -163,7 +170,7 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
         pos_candidates = pos_candidates[history_label[query_idx + 1 :]]
         return self.rng.choice(pos_candidates)
 
-    def sample_negative(self, history_item_idx: np.ndarray) -> int:
+    def sample_negative(self, history_item_idx: NumpyIntArray) -> int:
         """Sample a negative (non-interacted) item index.
 
         Picks uniformly from the set of items the user has not interacted
@@ -178,7 +185,7 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
         neg_candidates = list(self.all_idx - set(history_item_idx))
         if len(neg_candidates) == 0:
             neg_candidates = list(self.all_idx)
-        return self.rng.choice(neg_candidates).item()
+        return self.rng.choice(neg_candidates)
 
     def sample_query_text(self, user_text: str, item_text: str) -> str:
         """Return either the item text or the user text to use as the query.
@@ -232,6 +239,9 @@ class MFDataset(torch_data.Dataset[dict[str, str]]):
             "pos_text": self.item_text[pos_item_idx],
             "neg_text": self.item_text[neg_item_idx],
         }
+
+    def collate(self, batch: list[dict[str, str]]) -> dict[str, list[str]]:
+        return torch_data.default_collate(batch)
 
 
 class MFDataModule(lp.LightningDataModule):
