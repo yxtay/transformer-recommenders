@@ -17,6 +17,9 @@
     "automerge": true,
     "enabled": true
   },
+  "pre-commit": {
+    "enabled": true
+  },
   "packageRules": [
     {
       "automerge": false,
