@@ -33,5 +33,3 @@ updates:
     ignore:
       - dependency-name: lightning
         versions: [">=2.5.1", <2.5.6]
-      - dependency-name: rich
-        versions: [14.1.0]

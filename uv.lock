@@ -3947,7 +3947,6 @@ dev = [
     { name = "mlflow" },
     { name = "pyarrow-stubs" },
     { name = "pytest" },
-    { name = "rich" },
     { name = "standard-imghdr" },
 ]
 
@@ -3975,7 +3974,6 @@ dev = [
     { name = "mlflow" },
     { name = "pyarrow-stubs", specifier = ">=20.0" },
     { name = "pytest", specifier = "~=8.4" },
-    { name = "rich", specifier = "!=14.1.0" },
     { name = "standard-imghdr", specifier = "~=3.13" },
 ]
 

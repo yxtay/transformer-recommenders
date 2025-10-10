@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any
 
 import bentoml
 import lightning as lp
-import lightning.pytorch.callbacks as lp_callbacks
 import lightning.pytorch.cli as lp_cli
 import lightning.pytorch.loggers as lp_loggers
 
@@ -125,7 +124,6 @@ class LightningCLI:
             LightningCLI instance.
         """
         import mlflow
-        from jsonargparse import lazy_instance
 
         model_name = self.model_name
         run_name = time_now_isoformat()
@@ -154,11 +152,11 @@ class LightningCLI:
             },
         }
 
-        progress_bar = lazy_instance(lp_callbacks.RichProgressBar)
+        # progress_bar = lazy_instance(lp_callbacks.RichProgressBar)
         trainer_defaults = {
             "precision": "bf16-mixed",
             "logger": [tensorboard_logger, mlflow_logger],
-            "callbacks": [progress_bar],
+            # "callbacks": [progress_bar],
             "max_epochs": 1,
             "max_time": "00:04:00:00",
             "num_sanity_val_steps": 0,
