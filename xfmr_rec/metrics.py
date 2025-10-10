@@ -1,5 +1,17 @@
+from collections.abc import Callable
+
 import torch
 import torchmetrics.functional.retrieval as tm_retrieval
+
+METRIC_FNS: list[Callable[..., torch.Tensor]] = [
+    tm_retrieval.retrieval_auroc,
+    tm_retrieval.retrieval_average_precision,
+    tm_retrieval.retrieval_hit_rate,
+    tm_retrieval.retrieval_normalized_dcg,
+    tm_retrieval.retrieval_precision,
+    tm_retrieval.retrieval_recall,
+    tm_retrieval.retrieval_reciprocal_rank,
+]
 
 
 def compute_retrieval_metrics(
@@ -37,13 +49,5 @@ def compute_retrieval_metrics(
 
     return {
         metric_fn.__name__: metric_fn(preds=preds, target=target, top_k=top_k)
-        for metric_fn in [
-            tm_retrieval.retrieval_auroc,
-            tm_retrieval.retrieval_average_precision,
-            tm_retrieval.retrieval_hit_rate,
-            tm_retrieval.retrieval_normalized_dcg,
-            tm_retrieval.retrieval_precision,
-            tm_retrieval.retrieval_recall,
-            tm_retrieval.retrieval_reciprocal_rank,
-        ]
+        for metric_fn in METRIC_FNS
     }
