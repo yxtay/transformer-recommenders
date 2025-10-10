@@ -34,7 +34,6 @@ dev = [
   "mlflow",
   "pyarrow-stubs>=20.0",
   "pytest~=8.4",
-  "rich!=14.1.0",
   "standard-imghdr~=3.13",
 ]
 
