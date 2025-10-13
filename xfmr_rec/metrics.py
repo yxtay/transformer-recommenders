@@ -38,12 +38,12 @@ def compute_retrieval_metrics(
         = more relevant) consistent with ``rec_ids``.
 
     Args:
-        rec_ids: Ranked list of recommended item IDs (most -> least
+        rec_ids (list[str]): Ranked list of recommended item IDs (most -> least
             relevant). Items must be comparable to the values in
             ``target_ids`` (usually strings or ints converted to str).
-        target_ids: Iterable of ground-truth positive item IDs for the
+        target_ids (list[str]): Iterable of ground-truth positive item IDs for the
             query. This can be a set or list; duplicates are ignored.
-        top_k: Cutoff at which to evaluate rank-sensitive metrics. If
+        top_k (int): Cutoff at which to evaluate rank-sensitive metrics. If
             ``top_k`` is greater than ``len(rec_ids)`` it will be
             reduced to ``len(rec_ids)``.
 
