@@ -4,12 +4,12 @@ import torch
 import torchmetrics.functional.retrieval as tm_retrieval
 
 METRIC_FNS: list[Callable[..., torch.Tensor]] = [
-    tm_retrieval.retrieval_auroc,
-    tm_retrieval.retrieval_average_precision,
-    tm_retrieval.retrieval_hit_rate,
     tm_retrieval.retrieval_normalized_dcg,
+    tm_retrieval.retrieval_average_precision,
+    tm_retrieval.retrieval_auroc,
     tm_retrieval.retrieval_precision,
     tm_retrieval.retrieval_recall,
+    tm_retrieval.retrieval_hit_rate,
     tm_retrieval.retrieval_reciprocal_rank,
 ]
 
