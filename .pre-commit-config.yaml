@@ -99,10 +99,12 @@ repos:
     hooks:
       - id: uv-lock
 
-  - repo: https://github.com/google/yamlfmt
-    rev: v0.17.2
+  - repo: https://github.com/adrienverge/yamllint.git
+    rev: v1.37.1
     hooks:
-      - id: yamlfmt
+      - id: yamllint
+        args:
+          [--strict, -d, "{extends: relaxed, rules: {line-length: disable}}"]
 
 ci:
   autoupdate_commit_msg: "ci: pre-commit autoupdate"
