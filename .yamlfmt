@@ -1,5 +1,5 @@
 $schema: https://raw.githubusercontent.com/google/yamlfmt/main/schema.json
+extensions: [.yaml, .yml]
 formatter:
   type: basic
   retain_line_breaks_single: true
-  extensions: [.yaml, .yml]
