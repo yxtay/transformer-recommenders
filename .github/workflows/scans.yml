@@ -45,7 +45,7 @@ jobs:
           path: megalinter-reports
 
       - if: ${{ success() || failure() }}
-        uses: github/codeql-action/upload-sarif@f443b600d91635bebf5b0d9ebc620189c0d6fba5 # v4
+        uses: github/codeql-action/upload-sarif@16140ae1a102900babc80a33c44059580f687047 # v4
         with:
           sarif_file: megalinter-reports/megalinter-report.sarif
           ref: ${{ github.head_ref && format('refs/heads/{0}', github.head_ref) || github.ref }}
@@ -77,7 +77,7 @@ jobs:
       - uses: microsoft/security-devops-action@08976cb623803b1b36d7112d4ff9f59eae704de0 # v1
         id: msdo
 
-      - uses: github/codeql-action/upload-sarif@f443b600d91635bebf5b0d9ebc620189c0d6fba5 # v4
+      - uses: github/codeql-action/upload-sarif@16140ae1a102900babc80a33c44059580f687047 # v4
         with:
           sarif_file: ${{ steps.msdo.outputs.sarifFile }}
 
@@ -108,7 +108,7 @@ jobs:
           output: trivy-results.sarif
           scanners: vuln,secret,misconfig
 
-      - uses: github/codeql-action/upload-sarif@f443b600d91635bebf5b0d9ebc620189c0d6fba5 # v4
+      - uses: github/codeql-action/upload-sarif@16140ae1a102900babc80a33c44059580f687047 # v4
         with:
           sarif_file: trivy-results.sarif
 
@@ -147,6 +147,6 @@ jobs:
           format: sarif
           output: trivy-results.sarif
 
-      - uses: github/codeql-action/upload-sarif@f443b600d91635bebf5b0d9ebc620189c0d6fba5 # v4
+      - uses: github/codeql-action/upload-sarif@16140ae1a102900babc80a33c44059580f687047 # v4
         with:
           sarif_file: trivy-results.sarif
