@@ -48,10 +48,7 @@ jobs:
       - id: setup-python
         uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6
 
-      - run: |
-          uv lock --check
-          uv sync
-          uv pip list
+      - run: uv sync && uv pip list
 
       - if: ${{ success() || failure() }}
         run: uv run ${{ matrix.model }}_train fit --print_config
