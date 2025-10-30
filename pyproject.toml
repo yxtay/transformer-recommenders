@@ -48,7 +48,6 @@ seq_tune = "xfmr_rec.seq.tune:main"
 seq_embedded_deploy = "xfmr_rec.seq_embedded.deploy:cli_main"
 seq_embedded_train = "xfmr_rec.seq_embedded.trainer:main"
 
-
 [tool.bentoml.build]
 service = "xfmr_rec.seq.service:Service"
 description = "file: ./README.md"
