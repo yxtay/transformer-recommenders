@@ -62,13 +62,14 @@ def compute_retrieval_metrics(
     if len(target_ids) == 0:
         return {}
 
-    if len(rec_ids) < top_k:
+    rec_ids_padded = rec_ids
+    if len(rec_ids_padded) < top_k:
         # pad rec_ids with empty string if fewer than top_k items
-        rec_ids += [""] * (top_k - len(rec_ids))
+        rec_ids_padded += [""] * (top_k - len(rec_ids_padded))
 
     target_ids = set(target_ids)
     # rec_ids first, followed by any missing target_ids appended at the end
-    all_items = rec_ids + list(target_ids - set(rec_ids))
+    all_items = rec_ids_padded + list(target_ids - set(rec_ids))
     preds = torch.linspace(1, 0, len(all_items))
     target = torch.as_tensor([item in target_ids for item in all_items])
 
