@@ -33,7 +33,7 @@ dev = [
   "huggingface-hub[cli]>=0.35,<1.0",
   "mlflow",
   "pyarrow-stubs>=20.0",
-  "pytest~=8.4",
+  "pytest~=9.0",
   "standard-imghdr~=3.13",
 ]
 
