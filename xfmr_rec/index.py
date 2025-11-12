@@ -44,7 +44,7 @@ class LanceIndexConfig(IndexConfig):
     lancedb_path: str = LANCE_DB_PATH
     table_name: str = ITEMS_TABLE_NAME
     text_col: str = "item_text"
-    index_metric: Literal["l2", "dot", "cosine"] = "dot"
+    index_metric: Literal["l2", "dot", "cosine"] = "cosine"
 
 
 class LanceIndex:
