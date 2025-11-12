@@ -5,6 +5,7 @@ import pathlib
 from typing import Literal
 
 import torch
+import torch.nn.functional as torch_fn
 from loguru import logger
 from sentence_transformers import SentenceTransformer
 from torch.nn.utils.rnn import pad_sequence
@@ -22,6 +23,7 @@ class SeqRecModelConfig(ModelConfig):
     is_decoder: bool = True
 
     pooling_mode: Literal["mean", "max", "cls", "lasttoken"] = "lasttoken"
+    is_normalized: bool = False
 
 
 class SeqRecModel(torch.nn.Module):
@@ -245,6 +247,9 @@ class SeqRecModel(torch.nn.Module):
         attention_mask = output["attention_mask"].bool()
         # shape: (batch_size, seq_len)
         query_embed = output["token_embeddings"][attention_mask]
+        # shape: (batch_size * seq_len, hidden_size)
+        if self.config.is_normalized:
+            query_embed = torch_fn.normalize(query_embed, dim=-1)
         # shape: (batch_size * seq_len, hidden_size)
 
         pos_embed = self.embed_item_text_sequence(pos_item_text)[attention_mask]

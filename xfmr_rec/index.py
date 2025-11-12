@@ -4,7 +4,7 @@ import datetime
 import math
 import pathlib
 import shutil
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import datasets
 import pandas as pd
@@ -44,6 +44,7 @@ class LanceIndexConfig(IndexConfig):
     lancedb_path: str = LANCE_DB_PATH
     table_name: str = ITEMS_TABLE_NAME
     text_col: str = "item_text"
+    index_metric: Literal["l2", "dot", "cosine"] = "dot"
 
 
 class LanceIndex:
@@ -192,7 +193,7 @@ class LanceIndex:
 
             self.table.create_index(
                 vector_column_name=self.config.embedding_col,
-                metric="cosine",
+                metric=self.config.index_metric,
                 num_partitions=num_partitions,
                 num_sub_vectors=num_sub_vectors,
                 index_type="IVF_HNSW_PQ",
