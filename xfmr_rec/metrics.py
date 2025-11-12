@@ -59,13 +59,17 @@ def compute_retrieval_metrics(
         >>> compute_retrieval_metrics(rec_ids, target_ids, top_k=3)
         {"retrieval_auroc": tensor(1.), ...}
     """
-    if len(target_ids) == 0 or len(rec_ids) == 0:
+    if len(target_ids) == 0:
         return {}
 
-    top_k = min(top_k, len(rec_ids))
+    rec_ids_padded = rec_ids
+    if len(rec_ids_padded) < top_k:
+        # pad rec_ids with empty string if fewer than top_k items
+        rec_ids_padded += [""] * (top_k - len(rec_ids_padded))
+
     target_ids = set(target_ids)
     # rec_ids first, followed by any missing target_ids appended at the end
-    all_items = rec_ids + [tid for tid in target_ids if tid not in set(rec_ids)]
+    all_items = rec_ids_padded + list(target_ids - set(rec_ids))
     preds = torch.linspace(1, 0, len(all_items))
     target = torch.as_tensor([item in target_ids for item in all_items])
 

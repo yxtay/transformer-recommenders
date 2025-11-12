@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 import torch
+import torch.nn.functional as torch_fn
 from loguru import logger
 from sentence_transformers import SentenceTransformer
 
@@ -20,6 +21,8 @@ class SeqEmbeddedModelConfig(ModelConfig):
     intermediate_size: int | None = 48
     max_seq_length: int | None = 32
     is_decoder: bool = True
+
+    is_normalized: bool = False
 
 
 class SeqEmbeddedModel(torch.nn.Module):
@@ -234,6 +237,9 @@ class SeqEmbeddedModel(torch.nn.Module):
         attention_mask = output["attention_mask"].bool()
         # shape: (batch_size, seq_len)
         query_embed = output["token_embeddings"][attention_mask]
+        # shape: (batch_size * seq_len, hidden_size)
+        if self.config.is_normalized:
+            query_embed = torch_fn.normalize(query_embed, dim=-1)
         # shape: (batch_size * seq_len, hidden_size)
 
         pos_embed = self.embeddings(pos_item_idx)[attention_mask]
