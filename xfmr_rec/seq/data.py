@@ -112,7 +112,14 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
         labels = example["history.label"]
         mask = [item_id in self.id2idx.index for item_id in item_ids]
         item_idx = self.id2idx[item_ids[mask]].to_numpy()
-        return {"history_item_idx": item_idx, "history_label": labels[mask]}
+        labels = labels[mask]
+        # trim away events after the last positive label
+        # for history with no positive, empty array is returned and filtered away later
+        max_idx = np.flatnonzero(labels).max(initial=-1) + 1
+        return {
+            "history_item_idx": item_idx[:max_idx],
+            "history_label": labels[:max_idx],
+        }
 
     def duplicate_rows(self, batch: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
         """Duplicate per-user rows so long histories can be chunked.
@@ -152,6 +159,7 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
             .select_columns(["history.item_id", "history.label"])
             .with_format("numpy")
             .map(self.map_id2idx)
+            .filter(lambda row: len(row["history_item_idx"]) > 0)
             .map(self.duplicate_rows, batched=True)
         )
 

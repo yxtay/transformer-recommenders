@@ -171,13 +171,16 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
         attention_mask = embeds["attention_mask"]
         batch_size, seq_len = attention_mask.size()
         numel = attention_mask.numel()
-        non_zero = attention_mask.count_nonzero().item()
+        attn_non_zero = attention_mask.count_nonzero().item()
+        pos_non_zero = embeds["positive_mask"].count_nonzero().item()
         metrics: dict[str, float] = {
             "batch/size": batch_size,
             "batch/seq_len": seq_len,
             "batch/numel": numel,
-            "batch/non_zero": non_zero,
-            "batch/density": non_zero / (numel + 1e-9),
+            "batch/attention_non_zero": attn_non_zero,
+            "batch/attention_density": attn_non_zero / (numel + 1e-9),
+            "batch/positive_non_zero": pos_non_zero,
+            "batch/positive_density": pos_non_zero / (attn_non_zero + 1e-9),
         }
         metrics |= loss_classes.LogitsStatistics(self.config)(
             query_embed=embeds["query_embed"],
@@ -192,7 +195,7 @@ class SeqEmbeddedLightningModule(lp.LightningModule):
             )
             key = f"loss/{loss_fn.__class__.__name__}"
             losses[key] = loss
-            losses[f"{key}Mean"] = loss / (non_zero + 1e-9)
+            losses[f"{key}Mean"] = loss / (pos_non_zero + 1e-9)
         return losses | metrics
 
     def compute_metrics(
