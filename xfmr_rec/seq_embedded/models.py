@@ -242,18 +242,25 @@ class SeqEmbeddedModel(torch.nn.Module):
             query_embed = torch_fn.normalize(query_embed, dim=-1)
         # shape: (batch_size * seq_len, hidden_size)
 
-        pos_embed = self.embeddings(pos_item_idx)[attention_mask]
+        pos_item_idx = pos_item_idx[attention_mask]
+        # shape: (batch_size * seq_len)
+        pos_embed = self.embeddings(pos_item_idx)
         # shape: (batch_size * seq_len, hidden_size)
         pos_embed = pos_embed[:, None, :]
         # shape: (batch_size * seq_len, 1, hidden_size)
-        neg_embed = self.embeddings(neg_item_idx)[attention_mask]
+        neg_item_idx = neg_item_idx[attention_mask]
+        # shape: (batch_size * seq_len)
+        neg_embed = self.embeddings(neg_item_idx)
         # shape: (batch_size * seq_len, hidden_size)
         neg_embed = neg_embed[None, :, :].expand(pos_embed.size(0), -1, -1)
         # shape: (batch_size * seq_len, batch_size * seq_len, hidden_size)
         candidate_embed = torch.cat([pos_embed, neg_embed], dim=1)
         # shape: (batch_size * seq_len, 1 + batch_size * seq_len, hidden_size)
+        # remove samples with padding as positive
+        pos_mask = pos_item_idx != 0
         return {
-            "query_embed": query_embed,
-            "candidate_embed": candidate_embed,
+            "query_embed": query_embed[pos_mask],
+            "candidate_embed": candidate_embed[pos_mask],
             "attention_mask": attention_mask,
+            "positive_mask": pos_mask,
         }
