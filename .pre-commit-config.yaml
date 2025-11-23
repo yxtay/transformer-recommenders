@@ -6,7 +6,7 @@ default_stages:
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit
-    rev: v4.4.0
+    rev: v4.5.0
     hooks:
       - id: validate_manifest
 
@@ -50,12 +50,12 @@ repos:
       - id: gitleaks
 
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.8
+    rev: v1.7.9
     hooks:
       - id: actionlint
 
   - repo: https://github.com/editorconfig-checker/editorconfig-checker
-    rev: v3.4.1
+    rev: v3.5.0
     hooks:
       - id: editorconfig-checker
 
@@ -65,13 +65,13 @@ repos:
       - id: hadolint-docker
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.19.0
+    rev: v0.19.1
     hooks:
       - id: markdownlint-cli2
         args: [--fix]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.5
+    rev: v0.14.6
     hooks:
       - id: ruff
         types_or: [python, pyi, jupyter]
