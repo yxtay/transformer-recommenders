@@ -34,7 +34,7 @@ jobs:
       UV_LOCKED: "1"
       UV_NO_SYNC: "1"
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
 
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
@@ -43,10 +43,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-huggingface-
 
-      - uses: astral-sh/setup-uv@5a7eac68fb9809dea845d802897dc5c723910fa3 # v7
+      - uses: astral-sh/setup-uv@1e862dfacbd1d6d858c55d9b792c756523627244 # v7
 
       - id: setup-python
-        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6
+        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6
 
       - run: uv sync && uv pip list
 
@@ -87,7 +87,7 @@ jobs:
           --env "HF_HOME=/tmp/huggingface"
           --volume /tmp/huggingface:/tmp/huggingface
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
         with:
           sparse-checkout: uv.lock
 
