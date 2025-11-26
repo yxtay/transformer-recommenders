@@ -30,7 +30,7 @@ dependencies = [
 [dependency-groups]
 dev = [
   "flaml[automl,blendsearch]~=2.3",
-  "huggingface-hub[cli]>=0.35,<1.0",
+  "huggingface-hub[cli]>=0.35,<2.0",
   "mlflow",
   "pyarrow-stubs>=20.0",
   "pytest~=9.0",

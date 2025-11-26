@@ -3918,7 +3918,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "flaml", extras = ["automl", "blendsearch"], specifier = "~=2.3" },
-    { name = "huggingface-hub", extras = ["cli"], specifier = ">=0.35,<1.0" },
+    { name = "huggingface-hub", extras = ["cli"], specifier = ">=0.35,<2.0" },
     { name = "mlflow" },
     { name = "pyarrow-stubs", specifier = ">=20.0" },
     { name = "pytest", specifier = "~=9.0" },
