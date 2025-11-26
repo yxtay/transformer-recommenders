@@ -55,7 +55,7 @@ repos:
       - id: actionlint
 
   - repo: https://github.com/editorconfig-checker/editorconfig-checker
-    rev: v3.5.0
+    rev: v3.6.0
     hooks:
       - id: editorconfig-checker
 
@@ -95,7 +95,7 @@ repos:
       - id: taplo-format
 
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.9.11
+    rev: 0.9.12
     hooks:
       - id: uv-lock
 
