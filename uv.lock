@@ -140,6 +140,18 @@ wheels = [
 ]
 
 [[package]]
+name = "aiohttp-asgi-connector"
+version = "1.1.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiohttp" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/16/7d/4ccb494487aa491420a8d005539460ebb33fb280cecfb04e822767c68080/aiohttp_asgi_connector-1.1.2.tar.gz", hash = "sha256:6e89b1c0b422787b6021e28de5d381a702435b0a56a2828d0c39e4f73c114f78", size = 7091, upload-time = "2025-06-22T04:05:10.096Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/70/4e/5e25ab24ca0e4f873ea439a721ddf5b25dff29fc4a46afd2952a00af3e4e/aiohttp_asgi_connector-1.1.2-py3-none-any.whl", hash = "sha256:9f0d76a2b0c131d790a0c7f56baf939d10daf4c1a0fa8d6bd4974d3da57745aa", size = 7456, upload-time = "2025-06-22T04:05:09.007Z" },
+]
+
+[[package]]
 name = "aiosignal"
 version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -230,11 +242,12 @@ wheels = [
 
 [[package]]
 name = "bentoml"
-version = "1.4.29"
+version = "1.4.30"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "a2wsgi" },
     { name = "aiohttp" },
+    { name = "aiohttp-asgi-connector" },
     { name = "aiosqlite" },
     { name = "attrs" },
     { name = "cattrs" },
@@ -274,9 +287,9 @@ dependencies = [
     { name = "uvicorn" },
     { name = "watchfiles" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b8/d3/b4e15bdc36e07b5111b9b47d4056d96a279a3e42ca5014fa6310df9f4efa/bentoml-1.4.29.tar.gz", hash = "sha256:c972d3562a69de6f9d8872fdfcd8b9c42509be9e74eefd84a1dbced89ef55e53", size = 976414, upload-time = "2025-11-17T12:03:01.563Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4b/81/4fe9bf3d447c1bd3f50743588da1754d2c33442cc925e951638c3fc2d412/bentoml-1.4.30.tar.gz", hash = "sha256:59b9e9805d3a9a16dd5be5c250449ee9ebef8767a03f0d2811a9af11203641cc", size = 980619, upload-time = "2025-11-27T03:15:43.893Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/30/98/9ebca2176641a97ced98294ced1f7754bcdf3a3a8fb4f8715483f82b1410/bentoml-1.4.29-py3-none-any.whl", hash = "sha256:73ff591b3f55ac48f6ceeadcf088f67db349d29d39f6ac3d88ed96684cf969bd", size = 1158133, upload-time = "2025-11-17T12:02:59.49Z" },
+    { url = "https://files.pythonhosted.org/packages/cb/ed/53ca054ad09808d6c538fb20daf827cdcf78a2affa3d468826af5fdef04c/bentoml-1.4.30-py3-none-any.whl", hash = "sha256:3e24fca340d6f3d49231048d2a2417b2e8226a95553944820bffa0636eb0d295", size = 1165252, upload-time = "2025-11-27T03:15:41.998Z" },
 ]
 
 [[package]]
