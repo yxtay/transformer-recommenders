@@ -34,7 +34,7 @@ jobs:
       UV_LOCKED: "1"
       UV_NO_SYNC: "1"
     steps:
-      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
@@ -87,7 +87,7 @@ jobs:
           --env "HF_HOME=/tmp/huggingface"
           --volume /tmp/huggingface:/tmp/huggingface
     steps:
-      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           sparse-checkout: uv.lock
 
@@ -155,7 +155,7 @@ jobs:
           IMAGE_ID: ${{ steps.build.outputs.imageid }}
 
       - id: docker_metadata
-        uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           images: ${{ env.GHCR_IMAGE_NAME }}
 
