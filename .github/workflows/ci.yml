@@ -29,19 +29,11 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     env:
-      HF_HOME: /tmp/huggingface
       PROJECT_NAME: xfmr_rec
       UV_LOCKED: "1"
       UV_NO_SYNC: "1"
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
-
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ${{ env.HF_HOME }}
-          key: ${{ runner.os }}-huggingface-${{ hashFiles('**/uv.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-huggingface-
 
       - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7
 
@@ -80,7 +72,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GHCR_IMAGE_NAME: ghcr.io/${{ github.repository }}
-      HF_HOME: /tmp/huggingface
       PROJECT_NAME: xfmr_rec
       DOCKER_RUN_CMD: >-
         docker run
@@ -90,13 +81,6 @@ jobs:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           sparse-checkout: uv.lock
-
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ${{ env.HF_HOME }}
-          key: ${{ runner.os }}-huggingface-${{ hashFiles('**/uv.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-huggingface-
 
       - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
 
