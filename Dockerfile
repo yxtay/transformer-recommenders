@@ -5,7 +5,7 @@ FROM ghcr.io/astral-sh/uv:0.9.25@sha256:13e233d08517abdafac4ead26c16d881cd77504a
 ##
 # base
 ##
-FROM debian:stable-slim@sha256:f6681102cd18b4c0c4720a77b602498f4bdcf701c8fc02776dfb0d4c350c381f AS base
+FROM debian:stable-slim@sha256:ed542b2d269ff08139fc5ab8c762efe8c8986b564a423d5241a5ce9fb09b6c08 AS base
 
 # set up user
 ARG USER=user
