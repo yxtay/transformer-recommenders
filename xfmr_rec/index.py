@@ -419,9 +419,7 @@ class FaissIndex:
 
             nlist = 2 ** int(math.log2(num_items) / 2)
             m = embedding_dim // 8
-            string_factory = (
-                f"L2norm,OPQ{m},IVF{nlist}_HNSW32,PQ{m},Refine(L2norm,Flat)"
-            )
+            string_factory = f"OPQ{m},IVF{nlist}_HNSW32,PQ{m},RFlat"
 
             self.index.add_faiss_index(
                 column=self.config.embedding_col,
@@ -431,6 +429,7 @@ class FaissIndex:
                 train_size=num_items,
             )
             faiss_index: faiss.Index = self.index.get_index("embedding_idx").faiss_index
+            faiss.k_factor = 4
             faiss.extract_index_ivf(faiss_index).nprobe = 8
 
         logger.info(f"{self.__class__.__name__}: {self.index}")
