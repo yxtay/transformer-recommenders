@@ -20,6 +20,12 @@ class Activity(pydantic.BaseModel):
     item_text: list[str]
 
 
+class BaseQuery(bentoml.IODescriptor):
+    embedding: NumpyArrayType | None = None
+    exclude_item_ids: list[str] | None = None
+    top_k: int = TOP_K
+
+
 class UserQuery(pydantic.BaseModel):
     user_id: str = "0"
     user_text: str = ""
@@ -30,10 +36,6 @@ class UserQuery(pydantic.BaseModel):
 class ItemQuery(bentoml.IODescriptor):
     item_id: str = "0"
     item_text: str = ""
-    embedding: NumpyArrayType | None = None
-
-
-class BaseQuery(bentoml.IODescriptor):
     embedding: NumpyArrayType | None = None
 
 
@@ -84,9 +86,7 @@ class BaseItemIndex:
 
     @bentoml.api()
     @logger.catch(reraise=True)
-    def search(
-        self, query: BaseQuery, exclude_item_ids: list[str], top_k: int = TOP_K
-    ) -> list[ItemCandidate]:
+    def search(self, query: BaseQuery) -> list[ItemCandidate]:
         """Search for item candidates by embedding.
 
         Args:
@@ -103,8 +103,8 @@ class BaseItemIndex:
         assert query.embedding is not None
         results = self.index.search(
             query.embedding,
-            exclude_item_ids=exclude_item_ids,
-            top_k=top_k,
+            exclude_item_ids=query.exclude_item_ids,
+            top_k=query.top_k,
         )
         return pydantic.TypeAdapter(list[ItemCandidate]).validate_python(
             results.to_list()
@@ -195,12 +195,7 @@ class BaseService:
 
     @bentoml.api()
     @logger.catch(reraise=True)
-    async def search_items(
-        self,
-        query: BaseQuery,
-        exclude_item_ids: list[str] | None = None,
-        top_k: int = TOP_K,
-    ) -> list[ItemCandidate]:
+    async def search_items(self, query: BaseQuery) -> list[ItemCandidate]:
         """Asynchronously search for items using the item index dependency.
 
         This method delegates to the item index service's async `search`
@@ -217,10 +212,11 @@ class BaseService:
         Returns:
             list[ItemCandidate]: The search results returned by the index.
         """
-        exclude_item_ids = exclude_item_ids or []
-        return await self.item_index.to_async.search(
-            query, exclude_item_ids=exclude_item_ids, top_k=top_k
-        )
+        if query.embedding is None:
+            return []
+
+        query.exclude_item_ids = query.exclude_item_ids or []
+        return await self.item_index.to_async.search(query)
 
     @bentoml.api()
     @logger.catch(reraise=True)

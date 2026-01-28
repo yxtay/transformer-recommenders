@@ -79,12 +79,7 @@ class Service(BaseService):
 
     @bentoml.api()
     @logger.catch(reraise=True)
-    async def recommend_with_query(
-        self,
-        query: Query,
-        exclude_item_ids: list[str] | None = None,
-        top_k: int = TOP_K,
-    ) -> list[ItemCandidate]:
+    async def recommend_with_query(self, query: Query) -> list[ItemCandidate]:
         """Recommend items for a given sequential query.
 
         This method ensures the query is expanded with item texts
@@ -103,10 +98,11 @@ class Service(BaseService):
         """
         query = await self.process_query(query)
         query = await self.embed_query(query)
-        exclude_item_ids = [*(exclude_item_ids or []), *(query.item_ids or [])]
-        return await self.search_items(
-            query, exclude_item_ids=exclude_item_ids, top_k=top_k
-        )
+        query.exclude_item_ids = [
+            *(query.exclude_item_ids or []),
+            *(query.item_ids or []),
+        ]
+        return await self.search_items(query)
 
     async def process_query(self, query: Query) -> Query:
         """Populate `item_texts` for a query when only `item_ids` are given.
@@ -124,14 +120,12 @@ class Service(BaseService):
         """
         if query.item_ids is None:
             return query
-
         if query.item_texts is not None:
             return query
 
-        items = await self.item_index.to_async.get_ids(query.item_ids)
-        query.item_texts = [
-            items[item_id].item_text for item_id in query.item_ids if item_id in items
-        ]
+        items: list[ItemQuery] = await self.item_index.to_async.get_ids(query.item_ids)
+        query.item_ids = [item_id for item_id in query.item_ids if item_id in items]
+        query.item_texts = [items[item_id].item_text for item_id in query.item_ids]
         return query
 
     @bentoml.api()
@@ -145,8 +139,11 @@ class Service(BaseService):
         Returns:
             Query: The same query with `embedding` populated.
         """
+        if query.item_texts is None:
+            return query
         if query.embedding is not None:
             return query
+
         return (await self.model.to_async.embed([query]))[0]
 
     @bentoml.api()
@@ -167,14 +164,19 @@ class Service(BaseService):
         Returns:
             list[ItemCandidate]: Recommended items.
         """
-        query = await self.process_item(item)
-        return await self.recommend_with_query(
-            query, exclude_item_ids=exclude_item_ids, top_k=top_k
+        query = await self.process_item(
+            item, exclude_item_ids=exclude_item_ids, top_k=top_k
         )
+        return await self.recommend_with_query(query)
 
     @bentoml.api()
     @logger.catch(reraise=True)
-    async def process_item(self, item: ItemQuery) -> Query:
+    async def process_item(
+        self,
+        item: ItemQuery,
+        exclude_item_ids: list[str] | None = None,
+        top_k: int = TOP_K,
+    ) -> Query:
         """Convert an ItemQuery into a Query (single-item sequence).
 
         Args:
@@ -183,7 +185,12 @@ class Service(BaseService):
         Returns:
             Query: Query with a single item id and text.
         """
-        return Query(item_ids=[item.item_id], item_texts=[item.item_text])
+        return Query(
+            item_ids=[item.item_id],
+            item_texts=[item.item_text],
+            exclude_item_ids=exclude_item_ids,
+            top_k=top_k,
+        )
 
     @bentoml.api()
     @logger.catch(reraise=True)
@@ -240,14 +247,19 @@ class Service(BaseService):
         Returns:
             list[ItemCandidate]: Recommended items for the user.
         """
-        query = await self.process_user(user)
-        return await self.recommend_with_query(
-            query, exclude_item_ids=exclude_item_ids, top_k=top_k
+        query = await self.process_user(
+            user, exclude_item_ids=exclude_item_ids, top_k=top_k
         )
+        return await self.recommend_with_query(query)
 
     @bentoml.api()
     @logger.catch(reraise=True)
-    async def process_user(self, user: UserQuery) -> Query:
+    async def process_user(
+        self,
+        user: UserQuery,
+        exclude_item_ids: list[str] | None = None,
+        top_k: int = TOP_K,
+    ) -> Query:
         """Convert a UserQuery into a Query by aggregating history and target
         items.
 
@@ -265,7 +277,13 @@ class Service(BaseService):
         if user.target:
             item_ids += user.target.item_id
             item_texts += user.target.item_text
-        return Query(item_ids=item_ids, item_texts=item_texts)
+
+        return Query(
+            item_ids=item_ids,
+            item_texts=item_texts,
+            exclude_item_ids=exclude_item_ids,
+            top_k=top_k,
+        )
 
     @bentoml.api()
     @logger.catch(reraise=True)
