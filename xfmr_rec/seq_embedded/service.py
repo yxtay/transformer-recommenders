@@ -154,7 +154,7 @@ class Service(BaseService):
             return query
 
         # trim item_ids to valid ones and max_seq_len only
-        items: list[ItemQuery] = await self.item_index.to_async.get_ids(query.item_ids)
+        items: dict[str, ItemQuery] = await self.item_index.to_async.get_ids(query.item_ids)
         item_ids = [item_id for item_id in query.item_ids if item_id in items]
         query.item_ids = item_ids[-self.model.max_seq_length() :]
         embeddings = [items[item_id].embedding for item_id in query.item_ids]
