@@ -21,6 +21,14 @@ class Activity(pydantic.BaseModel):
 
 
 class BaseQuery(bentoml.IODescriptor):
+    """Base query object containing embedding and search parameters.
+
+    Attributes:
+        embedding: The computed embedding for the query (optional).
+        exclude_item_ids: List of item ids to exclude from results.
+        top_k: Maximum number of results to return.
+    """
+
     embedding: NumpyArrayType | None = None
     exclude_item_ids: list[str] | None = None
     top_k: int = TOP_K
@@ -91,10 +99,7 @@ class BaseItemIndex:
 
         Args:
             query (BaseQuery): Object containing an `embedding` array to search
-                with.
-            exclude_item_ids (list[str]): List of item ids to exclude from the
-                results (e.g. items already seen by the user).
-            top_k (int): Number of top candidates to return.
+                with, along with `exclude_item_ids` and `top_k` parameters.
 
         Returns:
             list[ItemCandidate]: A list of item candidate objects sorted by

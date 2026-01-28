@@ -87,11 +87,8 @@ class Service(BaseService):
         delegates to `search_items`.
 
         Args:
-            query (Query): The input query with optional `item_ids` or
-                `item_texts`.
-            exclude_item_ids (list[str] | None): Optional list of item ids to
-                exclude.
-            top_k (int): Number of results to return.
+            query (Query): The input query with optional `item_ids`,
+                `item_texts`, `exclude_item_ids`, and `top_k`.
 
         Returns:
             list[ItemCandidate]: Recommended item candidates.
@@ -174,16 +171,19 @@ class Service(BaseService):
     async def process_item(
         self,
         item: ItemQuery,
-        exclude_item_ids: list[str] | None = None,
-        top_k: int = TOP_K,
+        exclude_item_ids: list[str] | None,
+        top_k: int,
     ) -> Query:
         """Convert an ItemQuery into a Query (single-item sequence).
 
         Args:
             item (ItemQuery): Item to convert.
+            exclude_item_ids (list[str] | None): Optional ids to exclude.
+            top_k (int): Number of results to return.
 
         Returns:
-            Query: Query with a single item id and text.
+            Query: Query with a single item id, text, and any provided
+                exclude_item_ids and top_k parameters.
         """
         return Query(
             item_ids=[item.item_id],
@@ -257,17 +257,20 @@ class Service(BaseService):
     async def process_user(
         self,
         user: UserQuery,
-        exclude_item_ids: list[str] | None = None,
-        top_k: int = TOP_K,
+        exclude_item_ids: list[str] | None,
+        top_k: int,
     ) -> Query:
         """Convert a UserQuery into a Query by aggregating history and target
         items.
 
         Args:
             user (UserQuery): The user to process.
+            exclude_item_ids (list[str] | None): Optional ids to exclude.
+            top_k (int): Number of results to return.
 
         Returns:
-            Query: Aggregated Query with item ids and texts.
+            Query: Aggregated Query with item ids, texts, and any provided
+                exclude_item_ids and top_k parameters.
         """
         item_ids: list[str] = []
         item_texts: list[str] = []

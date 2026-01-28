@@ -58,26 +58,26 @@ class Model:
     @logger.catch(reraise=True)
     @torch.inference_mode()
     def embed(self, queries: list[Query]) -> list[Query]:
-        """Embed a single Query that provides input embeddings or item texts.
+        """Embed a batch of queries using the SentenceTransformer.
 
-        If `query.input_embeds` is empty or None, returns a zero embedding of
-        the expected dimensionality. Otherwise, converts the provided numpy
-        embeddings into a torch tensor, truncates to the model's maximum
-        sequence length (keeping the last tokens), and computes a sentence
-        embedding with the transformer.
+        For each query, if `input_embeds` is empty or None, returns a zero
+        embedding of the expected dimensionality. Otherwise, converts the
+        provided numpy embeddings into a torch tensor, truncates to the
+        model's maximum sequence length (keeping the last tokens), and
+        computes a sentence embedding with the transformer.
 
         Args:
-            query (Query): The query containing either `input_embeds` or
-                optionally `item_texts`.
+            queries (list[Query]): Batch of queries containing either
+                `input_embeds` or optional `item_texts`.
 
         Returns:
-            Query: The same query with `embedding` populated as a numpy array
-                of shape (1, embedding_dim).
+            list[Query]: The same queries with `embedding` populated as
+                numpy arrays of shape (embedding_dim,).
         """
         inputs_embeds = [
             torch.as_tensor(query.input_embeds)
             if query.input_embeds is not None
-            else torch.zeros(self.embed_dim)
+            else torch.zeros(1, self.embed_dim)
             for query in queries
         ]
         inputs_embeds = pad_sequence(inputs_embeds, batch_first=True).to(
@@ -120,10 +120,8 @@ class Service(BaseService):
 
         Args:
             query (Query): The input query containing optional `item_ids`,
-                `item_texts`, or `input_embeds`.
-            exclude_item_ids (list[str] | None): Optional list of item ids to
-                exclude.
-            top_k (int): Number of results to return.
+                `item_texts`, `input_embeds`, `exclude_item_ids`, and
+                `top_k`.
 
         Returns:
             list[ItemCandidate]: Recommended item candidates.
@@ -213,8 +211,8 @@ class Service(BaseService):
     async def process_item(
         self,
         item: ItemQuery,
-        exclude_item_ids: list[str] | None = None,
-        top_k: int = TOP_K,
+        exclude_item_ids: list[str] | None,
+        top_k: int,
     ) -> Query:
         """Convert an ItemQuery into a Query that contains its embedding.
 
@@ -223,9 +221,12 @@ class Service(BaseService):
 
         Args:
             item (ItemQuery): The source item.
+            exclude_item_ids (list[str] | None): Optional ids to exclude.
+            top_k (int): Number of results to return.
 
         Returns:
-            Query: Query with `item_ids`, `item_texts`, and `input_embeds`.
+            Query: Query with `item_ids`, `item_texts`, `input_embeds`, and
+                any provided exclude_item_ids and top_k parameters.
         """
         assert item.embedding is not None
         return Query(
@@ -288,17 +289,20 @@ class Service(BaseService):
     async def process_user(
         self,
         user: UserQuery,
-        exclude_item_ids: list[str] | None = None,
-        top_k: int = TOP_K,
+        exclude_item_ids: list[str] | None,
+        top_k: int,
     ) -> Query:
         """Convert a UserQuery into a Query by aggregating history and target
         items.
 
         Args:
             user (UserQuery): The user to process.
+            exclude_item_ids (list[str] | None): Optional ids to exclude.
+            top_k (int): Number of results to return.
 
         Returns:
-            Query: Aggregated Query with item ids and texts.
+            Query: Aggregated Query with item ids, texts, and any provided
+                exclude_item_ids and top_k parameters.
         """
         item_ids: list[str] = []
         item_texts: list[str] = []

@@ -100,11 +100,8 @@ class Service(BaseService):
         query itself, and delegates the search to `search_items`.
 
         Args:
-            query (Query): The input query containing optional `text` or
-                `item_ids`.
-            exclude_item_ids (list[str] | None): Optional list of item ids to
-                exclude from the recommendations.
-            top_k (int): Number of top candidates to return.
+            query (Query): The input query containing optional `text`,
+                `item_ids`, `exclude_item_ids`, and `top_k`.
 
         Returns:
             list[ItemCandidate]: A list of recommended item candidates.
@@ -169,16 +166,19 @@ class Service(BaseService):
     async def process_item(
         self,
         item: ItemQuery,
-        exclude_item_ids: list[str] | None = None,
-        top_k: int = TOP_K,
+        exclude_item_ids: list[str] | None,
+        top_k: int,
     ) -> Query:
         """Convert an ItemQuery into an internal Query.
 
         Args:
             item (ItemQuery): Item to convert.
+            exclude_item_ids (list[str] | None): Optional ids to exclude.
+            top_k (int): Number of results to return.
 
         Returns:
-            Query: A Query containing the single item id and its text.
+            Query: A Query containing the item id, text, and any provided
+                exclude_item_ids and top_k parameters.
         """
         return Query(
             item_ids=[item.item_id],
@@ -259,8 +259,8 @@ class Service(BaseService):
     async def process_user(
         self,
         user: UserQuery,
-        exclude_item_ids: list[str] | None = None,
-        top_k: int = TOP_K,
+        exclude_item_ids: list[str] | None,
+        top_k: int,
     ) -> Query:
         """Convert a UserQuery into an internal Query.
 
@@ -269,9 +269,12 @@ class Service(BaseService):
 
         Args:
             user (UserQuery): The user to process.
+            exclude_item_ids (list[str] | None): Optional ids to exclude.
+            top_k (int): Number of results to return.
 
         Returns:
-            Query: Aggregated Query object representing the user's context.
+            Query: Aggregated Query object with item ids, text, and any
+                provided exclude_item_ids and top_k parameters.
         """
         item_ids: list[str] = []
         item_texts: list[str] = []
