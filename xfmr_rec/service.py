@@ -20,6 +20,20 @@ class Activity(pydantic.BaseModel):
     item_text: list[str]
 
 
+class BaseQuery(bentoml.IODescriptor):
+    """Base query object containing embedding and search parameters.
+
+    Attributes:
+        embedding: The computed embedding for the query (optional).
+        exclude_item_ids: List of item ids to exclude from results.
+        top_k: Maximum number of results to return.
+    """
+
+    embedding: NumpyArrayType | None = None
+    exclude_item_ids: list[str] | None = None
+    top_k: int = TOP_K
+
+
 class UserQuery(pydantic.BaseModel):
     user_id: str = "0"
     user_text: str = ""
@@ -30,10 +44,6 @@ class UserQuery(pydantic.BaseModel):
 class ItemQuery(bentoml.IODescriptor):
     item_id: str = "0"
     item_text: str = ""
-    embedding: NumpyArrayType | None = None
-
-
-class BaseQuery(bentoml.IODescriptor):
     embedding: NumpyArrayType | None = None
 
 
@@ -84,17 +94,12 @@ class BaseItemIndex:
 
     @bentoml.api()
     @logger.catch(reraise=True)
-    def search(
-        self, query: BaseQuery, exclude_item_ids: list[str], top_k: int = TOP_K
-    ) -> list[ItemCandidate]:
+    def search(self, query: BaseQuery) -> list[ItemCandidate]:
         """Search for item candidates by embedding.
 
         Args:
             query (BaseQuery): Object containing an `embedding` array to search
-                with.
-            exclude_item_ids (list[str]): List of item ids to exclude from the
-                results (e.g. items already seen by the user).
-            top_k (int): Number of top candidates to return.
+                with, along with `exclude_item_ids` and `top_k` parameters.
 
         Returns:
             list[ItemCandidate]: A list of item candidate objects sorted by
@@ -103,8 +108,8 @@ class BaseItemIndex:
         assert query.embedding is not None
         results = self.index.search(
             query.embedding,
-            exclude_item_ids=exclude_item_ids,
-            top_k=top_k,
+            exclude_item_ids=query.exclude_item_ids,
+            top_k=query.top_k,
         )
         return pydantic.TypeAdapter(list[ItemCandidate]).validate_python(
             results.to_list()
@@ -195,12 +200,7 @@ class BaseService:
 
     @bentoml.api()
     @logger.catch(reraise=True)
-    async def search_items(
-        self,
-        query: BaseQuery,
-        exclude_item_ids: list[str] | None = None,
-        top_k: int = TOP_K,
-    ) -> list[ItemCandidate]:
+    async def search_items(self, query: BaseQuery) -> list[ItemCandidate]:
         """Asynchronously search for items using the item index dependency.
 
         This method delegates to the item index service's async `search`
@@ -217,10 +217,10 @@ class BaseService:
         Returns:
             list[ItemCandidate]: The search results returned by the index.
         """
-        exclude_item_ids = exclude_item_ids or []
-        return await self.item_index.to_async.search(
-            query, exclude_item_ids=exclude_item_ids, top_k=top_k
-        )
+        if query.embedding is None:
+            return []
+
+        return await self.item_index.to_async.search(query)
 
     @bentoml.api()
     @logger.catch(reraise=True)
