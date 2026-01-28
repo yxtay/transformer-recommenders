@@ -120,7 +120,7 @@ class Service(BaseService):
         if query.item_texts is not None:
             return query
 
-        items: list[ItemQuery] = await self.item_index.to_async.get_ids(query.item_ids)
+        items: dict[str, ItemQuery] = await self.item_index.to_async.get_ids(query.item_ids)
         query.item_ids = [item_id for item_id in query.item_ids if item_id in items]
         query.item_texts = [items[item_id].item_text for item_id in query.item_ids]
         return query
