@@ -220,7 +220,6 @@ class BaseService:
         if query.embedding is None:
             return []
 
-        query.exclude_item_ids = query.exclude_item_ids or []
         return await self.item_index.to_async.search(query)
 
     @bentoml.api()
