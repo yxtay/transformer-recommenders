@@ -75,14 +75,14 @@ class Model:
                 numpy arrays of shape (embedding_dim,).
         """
         inputs_embeds = [
-            torch.as_tensor(query.input_embeds)
+            torch.as_tensor(query.input_embeds[-self.max_seq_length() :])
             if query.input_embeds is not None
             else torch.zeros(1, self.embed_dim)
             for query in queries
         ]
         inputs_embeds = pad_sequence(inputs_embeds, batch_first=True).to(
             self.model.device
-        )[:, -self.max_seq_length() :, :]
+        )
 
         attention_mask = (inputs_embeds == 0).all(-1).logical_not()
         embeddings = self.model(
