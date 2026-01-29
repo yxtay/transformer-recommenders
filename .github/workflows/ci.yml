@@ -33,7 +33,7 @@ jobs:
       UV_LOCKED: "1"
       UV_NO_SYNC: "1"
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
       - uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b # v7
 
@@ -78,7 +78,7 @@ jobs:
           --env "HF_HOME=/tmp/huggingface"
           --volume /tmp/huggingface:/tmp/huggingface
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           sparse-checkout: uv.lock
 
@@ -144,7 +144,7 @@ jobs:
           images: ${{ env.GHCR_IMAGE_NAME }}
 
       - if: ${{ github.event_name == 'push' || github.ref_name == github.event.repository.default_branch }}
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
