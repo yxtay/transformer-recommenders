@@ -82,9 +82,11 @@ class Model:
         ]
         inputs_embeds = pad_sequence(inputs_embeds, batch_first=True).to(
             self.model.device
-        )
+        )[:, -self.max_seq_length() :, :]
+
+        attention_mask = (inputs_embeds == 0).all(-1).logical_not()
         embeddings = self.model(
-            {"inputs_embeds": inputs_embeds[:, -self.model.max_seq_length :, :]}
+            {"inputs_embeds": inputs_embeds, "attention_mask": attention_mask}
         )["sentence_embedding"].numpy(force=True)
 
         for query, embedding in zip(queries, embeddings, strict=True):
