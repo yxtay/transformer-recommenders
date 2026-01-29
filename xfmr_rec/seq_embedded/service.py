@@ -75,7 +75,7 @@ class Model:
                 numpy arrays of shape (embedding_dim,).
         """
         inputs_embeds = [
-            torch.as_tensor(query.input_embeds)
+            torch.as_tensor(query.input_embeds[-self.max_seq_length() :])
             if query.input_embeds is not None
             else torch.zeros(1, self.embed_dim)
             for query in queries
@@ -83,8 +83,10 @@ class Model:
         inputs_embeds = pad_sequence(inputs_embeds, batch_first=True).to(
             self.model.device
         )
+
+        attention_mask = (inputs_embeds != 0).any(-1)
         embeddings = self.model(
-            {"inputs_embeds": inputs_embeds[:, -self.model.max_seq_length :, :]}
+            {"inputs_embeds": inputs_embeds, "attention_mask": attention_mask}
         )["sentence_embedding"].numpy(force=True)
 
         for query, embedding in zip(queries, embeddings, strict=True):
