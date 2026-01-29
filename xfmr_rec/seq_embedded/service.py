@@ -84,7 +84,7 @@ class Model:
             self.model.device
         )
 
-        attention_mask = (inputs_embeds == 0).all(-1).logical_not()
+        attention_mask = (inputs_embeds != 0).any(-1)
         embeddings = self.model(
             {"inputs_embeds": inputs_embeds, "attention_mask": attention_mask}
         )["sentence_embedding"].numpy(force=True)
