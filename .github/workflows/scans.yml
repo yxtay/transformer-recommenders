@@ -91,7 +91,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.30
+      - uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284 # 0.30
         with:
           scan-type: fs
           ignore-unfixed: true
@@ -100,7 +100,7 @@ jobs:
           output: dependency-results.sbom.json
           github-pat: ${{ github.token }}
 
-      - uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.30
+      - uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284 # 0.30
         with:
           scan-type: fs
           ignore-unfixed: true
@@ -126,12 +126,12 @@ jobs:
         # required for sarif upload
 
       - id: build
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           cache-from: ${{ env.GHCR_IMAGE_NAME }}:cache
           load: true
 
-      - uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.30
+      - uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284 # 0.30
         with:
           image-ref: ${{ steps.build.outputs.imageid }}
           ignore-unfixed: true
@@ -140,7 +140,7 @@ jobs:
           output: dependency-results.sbom.json
           github-pat: ${{ github.token }}
 
-      - uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.30
+      - uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284 # 0.30
         with:
           image-ref: ${{ steps.build.outputs.imageid }}
           ignore-unfixed: true
