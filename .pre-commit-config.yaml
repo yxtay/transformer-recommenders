@@ -65,7 +65,7 @@ repos:
       - id: hadolint-docker
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.20.0
+    rev: v0.21.0
     hooks:
       - id: markdownlint-cli2
         args: [--fix]
@@ -95,7 +95,7 @@ repos:
       - id: taplo-format
 
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.10.2
+    rev: 0.10.3
     hooks:
       - id: uv-lock
 
