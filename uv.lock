@@ -2790,7 +2790,7 @@ wheels = [
 
 [[package]]
 name = "pylance"
-version = "2.0.0"
+version = "2.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "lance-namespace" },
@@ -2798,12 +2798,12 @@ dependencies = [
     { name = "pyarrow" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/89/1e/7cba63f641e25243521a73c85d9f198c970546904bd32d86a74d8a5503b4/pylance-2.0.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:ecfc291cace1aae2faeac9b329ee9b42674e6cad505fafcfe223b7fcbbc15a34", size = 51673048, upload-time = "2026-02-05T19:53:58.676Z" },
-    { url = "https://files.pythonhosted.org/packages/3d/b7/0674bea6e33a3edf466afa6d28271c495996a6f287f4426dd20d3cc08fcc/pylance-2.0.0-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:c0397d7b9e7da2bbcc15c13edc52698a988f10e30ddb7577bebe82ec5deb82eb", size = 54124374, upload-time = "2026-02-05T20:01:43.278Z" },
-    { url = "https://files.pythonhosted.org/packages/f5/16/43ddd4dab5ae785eb6b6fea10c747ef757edebd702d8cdd2f7c451c82810/pylance-2.0.0-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:25be16d2797d7b684365f44e2ccdc85da210a1763cf7abb9382fbb1b132a605f", size = 57604350, upload-time = "2026-02-05T20:10:03.402Z" },
-    { url = "https://files.pythonhosted.org/packages/ab/91/94bd6e88cc59e9a3642479a448c636307cbe3919cfbb03a2894fe40004d7/pylance-2.0.0-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:63fcedecb88ff0ab18d538b32ed5d285a814f2bab0776a75ef9f3bd42d5b6d7d", size = 54139864, upload-time = "2026-02-05T20:02:07.957Z" },
-    { url = "https://files.pythonhosted.org/packages/b1/ac/4cf5c2529cf7f10d1ed1195745c75e0817a09862297ad705ab539abab830/pylance-2.0.0-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:a3792af7bb4e77aa80436d7553b8567a3ac63be9199a0ece786a9ef2438f7930", size = 57575193, upload-time = "2026-02-05T20:10:27.163Z" },
-    { url = "https://files.pythonhosted.org/packages/45/a3/05fd03f25c417e55f5f141e08585da8a5e5d0b17c71882b446388f203584/pylance-2.0.0-cp39-abi3-win_amd64.whl", hash = "sha256:f08d9f87c6d6ac2d2dea6898a4364faef57d3c6a802f8faf3b62fe756fb6834b", size = 61682039, upload-time = "2026-02-05T20:30:48.272Z" },
+    { url = "https://files.pythonhosted.org/packages/08/d2/46da0b890b958d9cceec4485de85d69eceab4f8be0144090b18672a94304/pylance-2.0.1-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:bff6452cdb8c56e84102a52291b7a9b4c08c87248d620afef05793b97de32341", size = 51732078, upload-time = "2026-02-13T18:27:23.674Z" },
+    { url = "https://files.pythonhosted.org/packages/00/32/834d2abcff7b26c2acb8f401aa3c198e5b29dcde070af4eb791806de1a23/pylance-2.0.1-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:804fcfb351a97fd3aad532df1fedafbc0109088e7b0ac3051c3512c3100a4a45", size = 54201004, upload-time = "2026-02-13T18:35:08.91Z" },
+    { url = "https://files.pythonhosted.org/packages/10/97/127eb70f6c2eeac986812a889461b8b6627f05bb93021aa9cb77dd92c2c3/pylance-2.0.1-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:51d089429b40cd81c89d7993191e758059e580dd7239fd2748bedd2e1021b592", size = 57723179, upload-time = "2026-02-13T18:42:11.695Z" },
+    { url = "https://files.pythonhosted.org/packages/8d/a4/e0928a866d45dd2eced31ba84db44ea80c05055c4ff105fc754262c1159d/pylance-2.0.1-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:7fc5ba370514e6ba3e67f49b51e75687534b37e2eefdb91755d4fb20b3f6fe0b", size = 54227900, upload-time = "2026-02-13T18:35:02.269Z" },
+    { url = "https://files.pythonhosted.org/packages/9e/7b/0eb1f7522c8324c3248862d9de308f1f04cc787b53a6a70cb1687498b2c7/pylance-2.0.1-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:d740d7a7ff9905e358a70d2adae2178ab9d6798cf3ef47729371223463c442e6", size = 57675386, upload-time = "2026-02-13T18:41:27.773Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/2e/fff9905866ba91fad883727d482a10b4973a03aed31cb4c726236f6e5716/pylance-2.0.1-cp39-abi3-win_amd64.whl", hash = "sha256:a67f7a96d40a5012b04205879fe7ae50b6bf856fd79e97868582e449cfedbd1b", size = 61882118, upload-time = "2026-02-13T19:06:19.264Z" },
 ]
 
 [[package]]
