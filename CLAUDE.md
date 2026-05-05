@@ -44,7 +44,8 @@ The package is `xfmr_rec/`. Three model families, each in its own subpackage wit
 
 - `models.py` — `ModelConfig` (pydantic), `init_bert`, `init_sent_transformer`;
   the base transformer building blocks used by each subpackage
-- `losses.py` — pluggable contrastive/ranking losses (BPR, CCL, SSM, DirectAU, InfoNCE+, etc.) controlled by `LossConfig`
+- `losses.py` — pluggable contrastive/ranking losses (BPR, CCL, SSM, DirectAU, InfoNCE+, etc.)
+  controlled by `LossConfig`
 - `metrics.py` — retrieval evaluation metrics
 - `trainer.py` — `LightningCLI` wrapper: sets up TensorBoard + MLflow loggers and bf16-mixed precision defaults;
   all trainers go through this
