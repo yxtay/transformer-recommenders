@@ -151,7 +151,10 @@ class MFRecLightningModule(lp.LightningModule):
         """
         assert self.model is not None
         tokenized = self.model.tokenize(text)
-        tokenized = {key: value.to(self.device) for key, value in tokenized.items()}
+        tokenized = {
+            key: value.to(self.device) if isinstance(value, torch.Tensor) else value
+            for key, value in tokenized.items()
+        }
         return self.model(tokenized)["sentence_embedding"]
 
     @torch.inference_mode()

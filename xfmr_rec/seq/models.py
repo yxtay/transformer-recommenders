@@ -133,7 +133,7 @@ class SeqRecModel(torch.nn.Module):
         logger.info(f"embedder loaded: {embedder_path}")
 
         tokenizer_name = embedder[0].tokenizer.name_or_path
-        pooling_mode = encoder[1].get_pooling_mode_str()
+        pooling_mode = encoder[1].pooling_mode
         encoder_conf = encoder[0].auto_model.config
         config = SeqRecModelConfig.model_validate(
             encoder_conf, from_attributes=True
@@ -162,7 +162,10 @@ class SeqRecModel(torch.nn.Module):
         """
         assert self.embedder is not None
         tokenized = self.embedder.tokenize(item_text)
-        tokenized = {key: value.to(self.device) for key, value in tokenized.items()}
+        tokenized = {
+            key: value.to(self.device) if isinstance(value, torch.Tensor) else value
+            for key, value in tokenized.items()
+        }
         return self.embedder(tokenized)["sentence_embedding"]
 
     def embed_item_text_sequence(

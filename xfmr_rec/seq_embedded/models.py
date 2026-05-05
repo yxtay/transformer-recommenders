@@ -133,7 +133,7 @@ class SeqEmbeddedModel(torch.nn.Module):
         logger.info(f"model loaded: {path}")
 
         tokenizer_name = model[0].tokenizer.name_or_path
-        pooling_mode = model[1].get_pooling_mode_str()
+        pooling_mode = model[1].pooling_mode
         model_conf = model[0].auto_model.config
         config = SeqEmbeddedModelConfig.model_validate(
             model_conf, from_attributes=True
