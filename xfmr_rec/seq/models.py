@@ -162,7 +162,10 @@ class SeqRecModel(torch.nn.Module):
         """
         assert self.embedder is not None
         tokenized = self.embedder.tokenize(item_text)
-        tokenized = {key: value.to(self.device) for key, value in tokenized.items()}
+        tokenized = {
+            key: value.to(self.device) if isinstance(value, torch.Tensor) else value
+            for key, value in tokenized.items()
+        }
         return self.embedder(tokenized)["sentence_embedding"]
 
     def embed_item_text_sequence(
