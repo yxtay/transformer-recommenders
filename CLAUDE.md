@@ -34,10 +34,10 @@ uv run data
 The package is `xfmr_rec/`. Three model families, each in its own subpackage with a consistent file layout
 (`trainer.py`, `data.py`, `models.py`, `service.py`, `deploy.py`, `tune.py`):
 
-| Subpackage | Description |
-| --- | --- |
-| `mf/` | Matrix factorisation two-tower model |
-| `seq/` | Sequential transformer — learns from interaction history |
+| Subpackage      | Description                                                           |
+|-----------------|-----------------------------------------------------------------------|
+| `mf/`           | Matrix factorisation two-tower model                                  |
+| `seq/`          | Sequential transformer — learns from interaction history              |
 | `seq_embedded/` | Like `seq/` but with pre-trained sentence-transformer item embeddings |
 
 **Shared utilities in `xfmr_rec/`:**
