@@ -46,7 +46,7 @@ jobs:
           path: megalinter-reports
 
       - if: ${{ success() || failure() }}
-        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4
+        uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4
         with:
           sarif_file: megalinter-reports/megalinter-report.sarif
           ref: ${{ github.head_ref && format('refs/heads/{0}', github.head_ref) || github.ref }}
@@ -78,7 +78,7 @@ jobs:
       - uses: microsoft/security-devops-action@08976cb623803b1b36d7112d4ff9f59eae704de0 # v1
         id: msdo
 
-      - uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4
+      - uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4
         with:
           sarif_file: ${{ steps.msdo.outputs.sarifFile }}
 
@@ -109,7 +109,7 @@ jobs:
           output: trivy-results.sarif
           scanners: vuln,secret,misconfig
 
-      - uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4
+      - uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4
         with:
           sarif_file: trivy-results.sarif
 
@@ -126,7 +126,7 @@ jobs:
         # required for sarif upload
 
       - id: build
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
         with:
           cache-from: ${{ env.GHCR_IMAGE_NAME }}:cache
           load: true
@@ -148,6 +148,6 @@ jobs:
           format: sarif
           output: trivy-results.sarif
 
-      - uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4
+      - uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4
         with:
           sarif_file: trivy-results.sarif
