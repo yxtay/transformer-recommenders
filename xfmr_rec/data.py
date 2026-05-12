@@ -3,7 +3,6 @@ from __future__ import annotations
 import pathlib
 import shutil
 import tempfile
-from collections.abc import Callable
 from typing import TYPE_CHECKING, TypedDict
 
 import datasets
@@ -28,7 +27,7 @@ from xfmr_rec.params import (
 )
 
 if TYPE_CHECKING:
-    import numpy as np
+    from collections.abc import Callable
 
 ###
 # download data

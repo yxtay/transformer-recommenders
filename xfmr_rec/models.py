@@ -269,7 +269,9 @@ class RecommenderModel(torch.nn.Module):
         logger.info(f"model saved: {path}")
 
     @classmethod
-    def load(cls, path: str, device: torch.device | str | None = None) -> RecommenderModel:
+    def load(
+        cls, path: str, device: torch.device | str | None = None
+    ) -> RecommenderModel:
         """Load a RecommenderModel from a saved SentenceTransformer.
 
         The method inspects the saved model to reconstruct a

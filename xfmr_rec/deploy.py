@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import bentoml
 import pydantic
 from jsonargparse import auto_cli
 
@@ -16,6 +15,9 @@ from xfmr_rec.service import (
     UserQuery,
 )
 from xfmr_rec.trainer import LightningCLI, RecommenderLightningModule
+
+if TYPE_CHECKING:
+    import bentoml
 
 
 def test_bento(

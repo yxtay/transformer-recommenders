@@ -1,9 +1,9 @@
 import pytest
 import torch
-import numpy as np
+
 from xfmr_rec.data import SeqDataModule, SeqDataModuleConfig
-from xfmr_rec.trainer import RecommenderLightningModule, LightningConfig
-from xfmr_rec.models import RecommenderModel, ModelConfig
+from xfmr_rec.trainer import LightningConfig, RecommenderLightningModule
+
 
 @pytest.fixture(scope="module")
 def datamodule():
@@ -13,7 +13,8 @@ def datamodule():
     dm.setup()
     return dm
 
-def test_data_module(datamodule):
+
+def test_data_module(datamodule) -> None:
     assert datamodule.items_dataset is not None
     assert datamodule.users_dataset is not None
 
@@ -23,7 +24,8 @@ def test_data_module(datamodule):
     assert "neg_item_idx" in batch
     assert batch["history_item_idx"].shape[0] == 2
 
-def test_model_forward(datamodule):
+
+def test_model_forward(datamodule) -> None:
     config = LightningConfig()
     module = RecommenderLightningModule(config)
     module.items_dataset = datamodule.items_dataset
@@ -34,7 +36,8 @@ def test_model_forward(datamodule):
     assert "sentence_embedding" in output
     assert "token_embeddings" in output
 
-def test_training_step(datamodule):
+
+def test_training_step(datamodule) -> None:
     config = LightningConfig()
     module = RecommenderLightningModule(config)
     module.items_dataset = datamodule.items_dataset
@@ -45,7 +48,8 @@ def test_training_step(datamodule):
     assert isinstance(loss, torch.Tensor)
     assert loss.item() >= 0
 
-def test_validation_step(datamodule):
+
+def test_validation_step(datamodule) -> None:
     config = LightningConfig()
     module = RecommenderLightningModule(config)
     module.items_dataset = datamodule.items_dataset

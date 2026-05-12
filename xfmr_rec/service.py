@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated
 
 import bentoml
 import numpy as np
@@ -23,6 +23,7 @@ from xfmr_rec.params import (
 
 NumpyArrayType = Annotated[np.typing.NDArray[np.float32], DType("float32")]
 MODEL_NAME = "xfmr_rec"
+
 
 class Activity(pydantic.BaseModel):
     item_id: list[str]
@@ -257,7 +258,9 @@ class Service:
         query = Query(
             item_ids=[item.item_id],
             item_texts=[item.item_text],
-            input_embeds=item.embedding[None, :] if item.embedding is not None else None,
+            input_embeds=item.embedding[None, :]
+            if item.embedding is not None
+            else None,
             exclude_item_ids=exclude_item_ids,
             top_k=top_k,
         )
