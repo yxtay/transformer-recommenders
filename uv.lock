@@ -41,8 +41,8 @@ dependencies = [
     { name = "psutil" },
     { name = "pyyaml" },
     { name = "safetensors" },
-    { name = "torch", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
-    { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
+    { name = "torch", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "platform_machine != 's390x' and sys_platform == 'darwin'" },
+    { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "platform_machine == 's390x' or sys_platform != 'darwin'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ca/14/787e5498cd062640f0f3d92ef4ae4063174f76f9afd29d13fc52a319daae/accelerate-1.13.0.tar.gz", hash = "sha256:d631b4e0f5b3de4aff2d7e9e6857d164810dfc3237d54d017f075122d057b236", size = 402835, upload-time = "2026-03-04T19:34:12.359Z" }
 wheels = [
@@ -1465,19 +1465,19 @@ wheels = [
 
 [[package]]
 name = "lance-namespace"
-version = "0.6.1"
+version = "0.7.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "lance-namespace-urllib3-client" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/28/9f/7906ba4117df8d965510285eaf07264a77de2fd283b9d44ec7fc63a4a57a/lance_namespace-0.6.1.tar.gz", hash = "sha256:f0deea442bd3f1056a8e2fed056ae2778e3356517ec2e680db049058b824d131", size = 10666, upload-time = "2026-03-17T17:55:44.977Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2b/da/134670003173881bed44af656badffd91e0b2e0232c083eeacc5923d7335/lance_namespace-0.7.6.tar.gz", hash = "sha256:4e12094005d105ef1b44346c9d7feda4a0f733b127dab90c1a5ffbf7cd433770", size = 10686, upload-time = "2026-05-05T18:26:38.885Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d1/91/aee1c0a04d17f2810173bd304bd444eb78332045df1b0c1b07cebd01f530/lance_namespace-0.6.1-py3-none-any.whl", hash = "sha256:9699c9e3f12236e5e08ea979cc4e036a8e3c67ed2f37ae6f25c5353ab908e1be", size = 12498, upload-time = "2026-03-17T17:55:44.062Z" },
+    { url = "https://files.pythonhosted.org/packages/83/88/44463a5f41f7077b2ea641f2afded72eaceb6a6a1b4a55c11b22318fed74/lance_namespace-0.7.6-py3-none-any.whl", hash = "sha256:c94a1b8a6aab127e55a20cbf44d927ae3a9b7d435656d2130dccf84ccf7c9999", size = 12519, upload-time = "2026-05-05T18:26:36.425Z" },
 ]
 
 [[package]]
 name = "lance-namespace-urllib3-client"
-version = "0.6.1"
+version = "0.7.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
@@ -1485,9 +1485,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/63/a1/8706a2be25bd184acccc411e48f1a42a4cbf3b6556cba15b9fcf4c15cfcc/lance_namespace_urllib3_client-0.6.1.tar.gz", hash = "sha256:31fbd058ce1ea0bf49045cdeaa756360ece0bc61e9e10276f41af6d217debe87", size = 182567, upload-time = "2026-03-17T17:55:46.87Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/01/44/024aae184c08b3800482cd9b832d534249e25de145af732d4e4c8dff38a8/lance_namespace_urllib3_client-0.7.6.tar.gz", hash = "sha256:15ae7f0d8d56fa34d837f7f6ec5c80a327a905e89ccfed05f7b409d6fe704cdf", size = 195551, upload-time = "2026-05-05T18:26:37.808Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cd/c7/cb9580602dec25f0fdd6005c1c9ba1d4c8c0c3dc8d543107e5a9f248bba8/lance_namespace_urllib3_client-0.6.1-py3-none-any.whl", hash = "sha256:b9c103e1377ad46d2bd70eec894bfec0b1e2133dae0964d7e4de543c6e16293b", size = 317111, upload-time = "2026-03-17T17:55:45.546Z" },
+    { url = "https://files.pythonhosted.org/packages/00/50/60c983cc8180772c82370dfad2104b7e788aaacc3bf9a84e8b42bb1ae6a7/lance_namespace_urllib3_client-0.7.6-py3-none-any.whl", hash = "sha256:fb884d8afff8af3aae04a3270624694a189d7ea79225dd349e6c555a1a1d6b52", size = 324603, upload-time = "2026-05-05T18:26:39.718Z" },
 ]
 
 [[package]]
@@ -1539,8 +1539,8 @@ dependencies = [
     { name = "packaging" },
     { name = "pytorch-lightning" },
     { name = "pyyaml" },
-    { name = "torch", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
-    { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
+    { name = "torch", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "platform_machine != 's390x' and sys_platform == 'darwin'" },
+    { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "platform_machine == 's390x' or sys_platform != 'darwin'" },
     { name = "torchmetrics" },
     { name = "tqdm" },
     { name = "typing-extensions" },
@@ -2242,8 +2242,8 @@ dependencies = [
     { name = "huggingface-hub" },
     { name = "numpy" },
     { name = "packaging" },
-    { name = "torch", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
-    { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
+    { name = "torch", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "platform_machine != 's390x' and sys_platform == 'darwin'" },
+    { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "platform_machine == 's390x' or sys_platform != 'darwin'" },
     { name = "transformers" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/f0/69/e1e9fe4d54f6b1b90cc278d6da74dd90eb4d9fd9228882886d7c275712e2/optimum-2.1.0.tar.gz", hash = "sha256:0a2a13f91500e41d34863ffdb08fcb886b3ce68a84a386e59653e3064a45dd4b", size = 125896, upload-time = "2025-12-19T10:47:18.571Z" }
@@ -2843,7 +2843,7 @@ wheels = [
 
 [[package]]
 name = "pylance"
-version = "4.0.1"
+version = "6.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "lance-namespace" },
@@ -2851,12 +2851,12 @@ dependencies = [
     { name = "pyarrow" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/be/85/bb068389faa6cd51fe64f7451b4d455f92551086a6615856bdc552206823/pylance-4.0.1-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:9887930ff174851ef2b0471ad89675cb27b40f20ba048ceb4c09664eea778076", size = 54447317, upload-time = "2026-04-24T18:01:38.839Z" },
-    { url = "https://files.pythonhosted.org/packages/57/46/2c823b6910cc1977905f8c8ea83827f1c2abf1024453ddb2242f1a565b8c/pylance-4.0.1-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:400aa25ee82efd09ed8184f669f1150073c701330c614c63c4ed377b076a79e7", size = 56732089, upload-time = "2026-04-24T18:07:39.1Z" },
-    { url = "https://files.pythonhosted.org/packages/ed/d8/a09f1640c1192d63ce5e85ad6226948fdb7ff43d2ddcd0db8e270df7aa5c/pylance-4.0.1-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:53b64cee1970d273642b70b0a5d337e2421402730dd1d15cbf488924fbcda0c7", size = 60288807, upload-time = "2026-04-24T18:18:57.672Z" },
-    { url = "https://files.pythonhosted.org/packages/ff/a0/6fee0460309af73d46a22488dbff8f341f6463afd520f70afd59c16adeb8/pylance-4.0.1-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:c8459ffedae783941c73ae0e8cb2d453316b91b2b100c74c3825c44b6f7bd75c", size = 56768062, upload-time = "2026-04-24T18:07:54.339Z" },
-    { url = "https://files.pythonhosted.org/packages/13/e1/80bfb3d7024ac8e904fc0cab2d3338393bf5caa81041fd7cbe80f5c32499/pylance-4.0.1-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:b467f096079a805f568738548ed72f0951bc9c07a6786c76e1c3052b73e5ae69", size = 60269797, upload-time = "2026-04-24T18:18:11.477Z" },
-    { url = "https://files.pythonhosted.org/packages/30/7c/698a3b1f4f8c8a3a54ec4164762f6d8eb2119416281ffc34744b08d8e596/pylance-4.0.1-cp39-abi3-win_amd64.whl", hash = "sha256:15c1b9d215d9a4cc15538faca192497f97c807128c759a37d28ea0a6780cce1c", size = 65115322, upload-time = "2026-04-24T18:21:24.544Z" },
+    { url = "https://files.pythonhosted.org/packages/16/b1/cb6aeb437cdf91cce19046a16306bafa497bfbe77afe042c8fbd20bdffb5/pylance-6.0.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:5e2a5bd8f585c28b0a1d3a96eb004402b6145e7f1b91fa762820b2793da1e965", size = 56430685, upload-time = "2026-05-11T18:23:19.099Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/71/c708942aba9572e937de63db473d6b386d1cade1874a62ceda24d6c8e8e4/pylance-6.0.0-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:7a09adbf14f55565a0be257776648825b18093ab44bec4ca41e2fd57828b1519", size = 59481518, upload-time = "2026-05-11T18:23:26.435Z" },
+    { url = "https://files.pythonhosted.org/packages/f3/58/2ea559e1c28564a00aa51fb707000358568cd8f61de49ec4f2e32dca4686/pylance-6.0.0-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:78877b76ae2182ea17987e2b5ca939ca4fce8fe1f7984b42ca4a4b7c06ecb49c", size = 63945086, upload-time = "2026-05-11T18:35:30.09Z" },
+    { url = "https://files.pythonhosted.org/packages/4e/52/fb0bae5175157e2ec9e0d5a0470bb24d9f4d66bf9ec70cd7bb5a123e0576/pylance-6.0.0-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:ff09200172e1680be6e364a791e6561f553611019daa375c00ea8b0a84dfbb55", size = 59472473, upload-time = "2026-05-11T18:23:25.737Z" },
+    { url = "https://files.pythonhosted.org/packages/00/0b/cd86cb7544ae815cf33195220cb83a958e87cb92717753e5a36bc128c9f0/pylance-6.0.0-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:7d225554a9c999dc14fdfa217f8255a81a05f6a5420fa245ba443b1e22ead879", size = 63927567, upload-time = "2026-05-11T18:35:37.481Z" },
+    { url = "https://files.pythonhosted.org/packages/20/16/a00db2cdd7e59b95a803f130f1f29e84f02526100fa4e77b071bf89a8847/pylance-6.0.0-cp39-abi3-win_amd64.whl", hash = "sha256:588e15b7c7562d2c10cc7a153fef15ac29f76e41ca33d38e41c5b4f55203c1c8", size = 68653887, upload-time = "2026-05-11T18:38:02.927Z" },
 ]
 
 [[package]]
@@ -2932,8 +2932,8 @@ dependencies = [
     { name = "lightning-utilities" },
     { name = "packaging" },
     { name = "pyyaml" },
-    { name = "torch", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
-    { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
+    { name = "torch", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "platform_machine != 's390x' and sys_platform == 'darwin'" },
+    { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "platform_machine == 's390x' or sys_platform != 'darwin'" },
     { name = "torchmetrics" },
     { name = "tqdm" },
     { name = "typing-extensions" },
@@ -3332,8 +3332,8 @@ dependencies = [
     { name = "numpy" },
     { name = "scikit-learn" },
     { name = "scipy" },
-    { name = "torch", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
-    { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
+    { name = "torch", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "platform_machine != 's390x' and sys_platform == 'darwin'" },
+    { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "platform_machine == 's390x' or sys_platform != 'darwin'" },
     { name = "tqdm" },
     { name = "transformers" },
     { name = "typing-extensions" },
@@ -3574,17 +3574,15 @@ source = { registry = "https://download.pytorch.org/whl/cpu" }
 resolution-markers = [
     "python_full_version >= '3.13' and platform_machine != 's390x' and sys_platform == 'darwin'",
     "python_full_version < '3.13' and platform_machine != 's390x' and sys_platform == 'darwin'",
-    "python_full_version >= '3.13' and platform_machine == 's390x' and sys_platform == 'darwin'",
-    "python_full_version < '3.13' and platform_machine == 's390x' and sys_platform == 'darwin'",
 ]
 dependencies = [
-    { name = "filelock", marker = "sys_platform == 'darwin'" },
-    { name = "fsspec", marker = "sys_platform == 'darwin'" },
-    { name = "jinja2", marker = "sys_platform == 'darwin'" },
-    { name = "networkx", marker = "sys_platform == 'darwin'" },
-    { name = "setuptools", marker = "sys_platform == 'darwin'" },
-    { name = "sympy", marker = "sys_platform == 'darwin'" },
-    { name = "typing-extensions", marker = "sys_platform == 'darwin'" },
+    { name = "filelock", marker = "platform_machine != 's390x' and sys_platform == 'darwin'" },
+    { name = "fsspec", marker = "platform_machine != 's390x' and sys_platform == 'darwin'" },
+    { name = "jinja2", marker = "platform_machine != 's390x' and sys_platform == 'darwin'" },
+    { name = "networkx", marker = "platform_machine != 's390x' and sys_platform == 'darwin'" },
+    { name = "setuptools", marker = "platform_machine != 's390x' and sys_platform == 'darwin'" },
+    { name = "sympy", marker = "platform_machine != 's390x' and sys_platform == 'darwin'" },
+    { name = "typing-extensions", marker = "platform_machine != 's390x' and sys_platform == 'darwin'" },
 ]
 wheels = [
     { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.11.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:43b35116802c85fb88d99f4a396b8bd4472bfca1dd82e69499e5a4f9b8b4e252", upload-time = "2026-03-23T15:16:58Z" },
@@ -3603,15 +3601,17 @@ resolution-markers = [
     "python_full_version < '3.13' and platform_machine != 's390x' and sys_platform != 'darwin'",
     "python_full_version >= '3.13' and platform_machine == 's390x' and sys_platform != 'darwin'",
     "python_full_version < '3.13' and platform_machine == 's390x' and sys_platform != 'darwin'",
+    "python_full_version >= '3.13' and platform_machine == 's390x' and sys_platform == 'darwin'",
+    "python_full_version < '3.13' and platform_machine == 's390x' and sys_platform == 'darwin'",
 ]
 dependencies = [
-    { name = "filelock", marker = "sys_platform != 'darwin'" },
-    { name = "fsspec", marker = "sys_platform != 'darwin'" },
-    { name = "jinja2", marker = "sys_platform != 'darwin'" },
-    { name = "networkx", marker = "sys_platform != 'darwin'" },
-    { name = "setuptools", marker = "sys_platform != 'darwin'" },
-    { name = "sympy", marker = "sys_platform != 'darwin'" },
-    { name = "typing-extensions", marker = "sys_platform != 'darwin'" },
+    { name = "filelock", marker = "platform_machine == 's390x' or sys_platform != 'darwin'" },
+    { name = "fsspec", marker = "platform_machine == 's390x' or sys_platform != 'darwin'" },
+    { name = "jinja2", marker = "platform_machine == 's390x' or sys_platform != 'darwin'" },
+    { name = "networkx", marker = "platform_machine == 's390x' or sys_platform != 'darwin'" },
+    { name = "setuptools", marker = "platform_machine == 's390x' or sys_platform != 'darwin'" },
+    { name = "sympy", marker = "platform_machine == 's390x' or sys_platform != 'darwin'" },
+    { name = "typing-extensions", marker = "platform_machine == 's390x' or sys_platform != 'darwin'" },
 ]
 wheels = [
     { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.11.0%2Bcpu-cp312-cp312-linux_s390x.whl", hash = "sha256:2db3ae5404e32cb42b5fcbd94f13607761eaec0cf1687fde95095289d1e26cfb", upload-time = "2026-04-28T00:06:06Z" },
@@ -3644,8 +3644,8 @@ dependencies = [
     { name = "lightning-utilities" },
     { name = "numpy" },
     { name = "packaging" },
-    { name = "torch", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
-    { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
+    { name = "torch", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "platform_machine != 's390x' and sys_platform == 'darwin'" },
+    { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "platform_machine == 's390x' or sys_platform != 'darwin'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/81/34/39b8b749333db56c0585d7a11fa62a283c087bb1dfc897d69fb8cedbefb1/torchmetrics-1.9.0.tar.gz", hash = "sha256:a488609948600df52d3db4fcdab02e62aab2a85ef34da67037dc3e65b8512faa", size = 581765, upload-time = "2026-03-09T17:41:22.443Z" }
 wheels = [
@@ -3969,8 +3969,8 @@ dependencies = [
     { name = "pylance" },
     { name = "sentence-transformers", extra = ["onnx", "train"] },
     { name = "tensorboard" },
-    { name = "torch", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
-    { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
+    { name = "torch", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "platform_machine != 's390x' and sys_platform == 'darwin'" },
+    { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "platform_machine == 's390x' or sys_platform != 'darwin'" },
 ]
 
 [package.dev-dependencies]
@@ -3994,7 +3994,7 @@ requires-dist = [
     { name = "loguru", specifier = ">=0.7,<1.0" },
     { name = "mlflow-skinny", specifier = "~=3.1" },
     { name = "polars", extras = ["pandas"], specifier = "~=1.19" },
-    { name = "pylance", specifier = "~=4.0" },
+    { name = "pylance", specifier = "~=6.0" },
     { name = "sentence-transformers", extras = ["onnx", "train"], specifier = "~=5.0" },
     { name = "tensorboard", specifier = "~=2.18" },
     { name = "torch", specifier = "~=2.5", index = "https://download.pytorch.org/whl/cpu" },
