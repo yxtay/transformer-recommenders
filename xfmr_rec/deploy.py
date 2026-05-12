@@ -1,15 +1,21 @@
+from __future__ import annotations
+
 from typing import Any
 
 import bentoml
 import pydantic
+from jsonargparse import auto_cli
 
+from xfmr_rec.data import SeqDataModule
 from xfmr_rec.service import (
     EXAMPLE_ITEM,
     EXAMPLE_USER,
     ItemCandidate,
     ItemQuery,
+    Service,
     UserQuery,
 )
+from xfmr_rec.trainer import LightningCLI, RecommenderLightningModule
 
 
 def test_bento(
@@ -17,29 +23,7 @@ def test_bento(
 ) -> dict[str, Any]:
     from starlette.testclient import TestClient
 
-    """Invoke a BentoML service endpoint using a Starlette test client.
-
-    This helper constructs an ASGI app from the provided BentoML service and
-    issues a POST request to the given API name with the provided JSON payload.
-
-    Args:
-        service: A BentoML Service class (not an instance). The service's
-            configuration will be modified to disable metrics to avoid
-            duplicated Prometheus metrics during repeated test runs.
-        api_name: The name of the BentoML service API (route) to call.
-        api_input: A JSON-serializable dictionary to send as the request body.
-
-    Returns:
-        The parsed JSON response from the service as a Python dictionary.
-
-    Raises:
-        HTTPError: If the response status is not successful (raised by
-            `response.raise_for_status()`).
-
-    Notes:
-        The function uses `starlette.testclient.TestClient` which runs the ASGI
-        app in the same process and is intended for testing only.
-    """
+    """Invoke a BentoML service endpoint using a Starlette test client."""
     # disable prometheus, which can cause duplicated metrics error with repeated runs
     service.config["metrics"] = {"enabled": False}
 
@@ -51,35 +35,7 @@ def test_bento(
 
 
 def test_queries(service: type[bentoml.Service[Any]]) -> None:
-    """Execute a set of sanity-check API calls against a BentoML service.
-
-    This function issues several POST requests against a BentoML Service's
-    example endpoints using an in-process Starlette test client. Responses
-    are validated against the project's pydantic data models. The checks
-    exercise both single-object endpoints (item and user lookups) and the
-    top-k recommendation endpoints for users and items.
-
-    Args:
-        service: A BentoML Service class (not an instance). The service's
-            configuration will be modified temporarily to disable metrics to
-            avoid duplicated Prometheus metrics during repeated test runs.
-
-    Returns:
-        None. The function raises on unexpected results.
-
-    Raises:
-        AssertionError: If any response does not match the expected example
-            schema or if recommendation endpoints do not return the expected
-            number of items. The function performs these checks using
-            assertion statements.
-
-    Notes:
-        - Uses `test_bento` to construct an ASGI app and make requests with
-            `starlette.testclient.TestClient` (runs the app in-process for tests).
-        - Comparison of example objects excludes large or non-deterministic
-            fields (for example, embeddings and user history) to focus the
-            checks on canonical structural equality.
-    """
+    """Execute a set of sanity-check API calls against a BentoML service."""
     import rich
 
     example_item_data = test_bento(service, "item_id", {"item_id": "1"})
@@ -112,3 +68,19 @@ def test_queries(service: type[bentoml.Service[Any]]) -> None:
     user_recs = pydantic.TypeAdapter(list[ItemCandidate]).validate_python(user_recs)
     rich.print(user_recs)
     assert len(user_recs) == top_k, f"{len(user_recs) = } != {top_k}"
+
+
+def main(ckpt_path: str = "") -> None:
+    """CLI helper: prepare trainer, save model, and run basic validation."""
+    cli = LightningCLI(RecommenderLightningModule, SeqDataModule, model_name="xfmr_rec")
+    trainer = cli.prepare_trainer(ckpt_path=ckpt_path)
+    cli.save_model(trainer=trainer)
+    test_queries(Service)
+
+
+def cli_main() -> None:
+    auto_cli(main, as_positional=False)
+
+
+if __name__ == "__main__":
+    cli_main()

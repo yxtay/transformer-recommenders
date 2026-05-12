@@ -1,0 +1,93 @@
+# lightning.pytorch==2.6.1
+seed_everything: 0
+trainer:
+  accelerator: cpu
+  strategy: auto
+  devices: auto
+  num_nodes: 1
+  precision: bf16-mixed
+  logger: false
+  callbacks: []
+  fast_dev_run: false
+  max_epochs: 1
+  min_epochs: null
+  max_steps: -1
+  min_steps: null
+  max_time: 00:04:00:00
+  limit_train_batches: 1
+  limit_val_batches: 1
+  limit_test_batches: null
+  limit_predict_batches: null
+  overfit_batches: 0.0
+  val_check_interval: null
+  check_val_every_n_epoch: 1
+  num_sanity_val_steps: 0
+  log_every_n_steps: null
+  enable_checkpointing: null
+  enable_progress_bar: null
+  enable_model_summary: null
+  accumulate_grad_batches: 1
+  gradient_clip_val: null
+  gradient_clip_algorithm: null
+  deterministic: null
+  benchmark: null
+  inference_mode: true
+  use_distributed_sampler: true
+  profiler: null
+  detect_anomaly: false
+  barebones: false
+  plugins: null
+  sync_batchnorm: false
+  reload_dataloaders_every_n_epochs: 0
+  default_root_dir: null
+  enable_autolog_hparams: true
+  model_registry: null
+model:
+  config:
+    vocab_size: 1
+    hidden_size: null
+    num_hidden_layers: 1
+    num_attention_heads: 12
+    intermediate_size: 48
+    max_seq_length: 32
+    is_decoder: true
+    pretrained_model_name: sentence-transformers/all-MiniLM-L6-v2
+    pooling_mode: mean
+    is_normalized: false
+    target_position: first
+    mask_false_negatives: true
+    num_hard_negatives: 0
+    scale: 1.0
+    margin: 0.5
+    train_loss: InfoNCELoss
+    learning_rate: 0.001
+    weight_decay: 0.01
+    items_config:
+      id_col: item_id
+      embedding_col: embedding
+      lancedb_path: lance_db
+      table_name: items
+      text_col: item_text
+      index_metric: cosine
+    users_config:
+      id_col: user_id
+      embedding_col: null
+      lancedb_path: lance_db
+      table_name: users
+      text_col: user_text
+      index_metric: cosine
+    top_k: 20
+data:
+  config:
+    max_seq_length: 32
+    pos_lookahead: 0
+    data_dir: data
+    items_parquet: data/ml-1m/items.parquet
+    users_parquet: data/ml-1m/users.parquet
+    pretrained_model_name: sentence-transformers/all-MiniLM-L6-v2
+    batch_size: 32
+    num_workers: 0
+optimizer: null
+lr_scheduler: null
+ckpt_path: null
+weights_only: null

@@ -5,31 +5,46 @@ from typing import Annotated, Any
 import bentoml
 import numpy as np
 import pydantic
+import torch
 from bentoml.exceptions import NotFound
 from bentoml.validators import DType
 from loguru import logger
+from sentence_transformers import SentenceTransformer
+from torch.nn.utils.rnn import pad_sequence
 
 from xfmr_rec.index import LanceIndex, LanceIndexConfig
-from xfmr_rec.params import ITEMS_TABLE_NAME, LANCE_DB_PATH, TOP_K, USERS_TABLE_NAME
+from xfmr_rec.params import (
+    ITEMS_TABLE_NAME,
+    LANCE_DB_PATH,
+    TOP_K,
+    TRANSFORMER_PATH,
+    USERS_TABLE_NAME,
+)
 
 NumpyArrayType = Annotated[np.typing.NDArray[np.float32], DType("float32")]
-
+MODEL_NAME = "xfmr_rec"
 
 class Activity(pydantic.BaseModel):
     item_id: list[str]
     item_text: list[str]
 
 
-class BaseQuery(bentoml.IODescriptor):
-    """Base query object containing embedding and search parameters.
+class Query(bentoml.IODescriptor):
+    """Query object containing embedding and search parameters.
 
     Attributes:
-        embedding: The computed embedding for the query (optional).
+        embedding: The computed embedding for the query.
+        item_ids: List of item ids to base recommendations on.
+        item_texts: List of item texts to base recommendations on.
+        input_embeds: Precomputed item embeddings.
         exclude_item_ids: List of item ids to exclude from results.
         top_k: Maximum number of results to return.
     """
 
     embedding: NumpyArrayType | None = None
+    item_ids: list[str] | None = None
+    item_texts: list[str] | None = None
+    input_embeds: NumpyArrayType | None = None
     exclude_item_ids: list[str] | None = None
     top_k: int = TOP_K
 
@@ -75,17 +90,54 @@ IMAGE = bentoml.images.Image().python_packages(*packages)
 ENVS = [{"name": "UV_NO_CACHE", "value": "1"}]
 
 
-class BaseItemIndex:
-    model_ref: bentoml.models.BentoModel
+@bentoml.service()
+class Model:
+    model_ref = bentoml.models.BentoModel(MODEL_NAME)
 
     @logger.catch(reraise=True)
     def __init__(self) -> None:
-        """Initialize the item index dependency.
+        """Load the SentenceTransformer used for sequence-embedded queries."""
+        model_path = self.model_ref.path_of(TRANSFORMER_PATH)
+        self.model = SentenceTransformer(model_path).eval()
+        self.embed_dim: int = self.model.get_sentence_embedding_dimension()
+        logger.info("model loaded: {}", model_path)
 
-        Loads a `LanceIndex` configured to point at the items table inside the
-        BentoModel's LANCE_DB_PATH artifact. This is used by the item index
-        service to perform vector search and lookups.
-        """
+    @bentoml.api()
+    def max_seq_length(self) -> int:
+        return self.model.max_seq_length
+
+    @bentoml.api(batchable=True)
+    @logger.catch(reraise=True)
+    @torch.inference_mode()
+    def embed(self, queries: list[Query]) -> list[Query]:
+        """Embed a batch of queries using the SentenceTransformer."""
+        inputs_embeds = [
+            torch.as_tensor(query.input_embeds[-self.max_seq_length() :])
+            if query.input_embeds is not None
+            else torch.zeros(1, self.embed_dim)
+            for query in queries
+        ]
+        inputs_embeds = pad_sequence(inputs_embeds, batch_first=True).to(
+            self.model.device
+        )
+
+        attention_mask = (inputs_embeds != 0).any(-1)
+        embeddings = self.model(
+            {"inputs_embeds": inputs_embeds, "attention_mask": attention_mask}
+        )["sentence_embedding"].numpy(force=True)
+
+        for query, embedding in zip(queries, embeddings, strict=True):
+            query.embedding = embedding
+        return queries
+
+
+@bentoml.service()
+class ItemIndex:
+    model_ref = bentoml.models.BentoModel(MODEL_NAME)
+
+    @logger.catch(reraise=True)
+    def __init__(self) -> None:
+        """Initialize the item index dependency."""
         lance_db_path = self.model_ref.path_of(LANCE_DB_PATH)
         config = LanceIndexConfig(
             lancedb_path=lance_db_path, table_name=ITEMS_TABLE_NAME
@@ -94,17 +146,8 @@ class BaseItemIndex:
 
     @bentoml.api()
     @logger.catch(reraise=True)
-    def search(self, query: BaseQuery) -> list[ItemCandidate]:
-        """Search for item candidates by embedding.
-
-        Args:
-            query (BaseQuery): Object containing an `embedding` array to search
-                with, along with `exclude_item_ids` and `top_k` parameters.
-
-        Returns:
-            list[ItemCandidate]: A list of item candidate objects sorted by
-                descending score.
-        """
+    def search(self, query: Query) -> list[ItemCandidate]:
+        """Search for item candidates by embedding."""
         assert query.embedding is not None
         results = self.index.search(
             query.embedding,
@@ -118,18 +161,6 @@ class BaseItemIndex:
     @bentoml.api()
     @logger.catch(reraise=True)
     def get_id(self, item_id: str) -> ItemQuery:
-        """Retrieve a single item by id from the index.
-
-        Args:
-            item_id (str): The string identifier of the item to fetch.
-
-        Returns:
-            ItemQuery: A pydantic model representing the item.
-
-        Raises:
-            bentoml.exceptions.NotFound: If the item does not exist in the
-                index.
-        """
         result = self.index.get_id(item_id)
         if len(result) == 0:
             msg = f"item not found: {item_id = }"
@@ -139,15 +170,6 @@ class BaseItemIndex:
     @bentoml.api()
     @logger.catch(reraise=True)
     def get_ids(self, item_ids: list[str]) -> dict[str, ItemQuery]:
-        """Retrieve multiple items by id from the index.
-
-        Args:
-            item_ids (list[str]): List of item ids to fetch.
-
-        Returns:
-            dict[str, ItemQuery]: Mapping from item id to `ItemQuery` models for
-                all found items. Missing ids are omitted from the result.
-        """
         results = self.index.get_ids(item_ids)
         results = pydantic.TypeAdapter(list[ItemQuery]).validate_python(
             results.to_list()
@@ -155,16 +177,13 @@ class BaseItemIndex:
         return {item.item_id: item for item in results}
 
 
-class BaseUserIndex:
-    model_ref: bentoml.models.BentoModel
+@bentoml.service()
+class UserIndex:
+    model_ref = bentoml.models.BentoModel(MODEL_NAME)
 
     @logger.catch(reraise=True)
     def __init__(self) -> None:
-        """Initialize the user index dependency.
-
-        Loads a `LanceIndex` configured to point at the users table inside the
-        BentoModel's LANCE_DB_PATH artifact. This provides user lookups by id.
-        """
+        """Initialize the user index dependency."""
         lance_db_path = self.model_ref.path_of(LANCE_DB_PATH)
         config = LanceIndexConfig(
             lancedb_path=lance_db_path, table_name=USERS_TABLE_NAME
@@ -174,18 +193,6 @@ class BaseUserIndex:
     @bentoml.api()
     @logger.catch(reraise=True)
     def get_id(self, user_id: str) -> UserQuery:
-        """Retrieve a single user by id from the index.
-
-        Args:
-            user_id (str): The string identifier of the user to fetch.
-
-        Returns:
-            UserQuery: A pydantic model representing the user.
-
-        Raises:
-            bentoml.exceptions.NotFound: If the user does not exist in the
-                index.
-        """
         result = self.index.get_id(user_id)
         if len(result) == 0:
             msg = f"user not found: {user_id = }"
@@ -193,77 +200,111 @@ class BaseUserIndex:
         return UserQuery.model_validate(result)
 
 
-class BaseService:
-    model_ref: bentoml.models.BentoModel
-    item_index: bentoml.Dependency[Any]
-    user_index: bentoml.Dependency[Any]
+@bentoml.service(image=IMAGE, envs=ENVS, workers="cpu_count")
+class Service:
+    model_ref = bentoml.models.BentoModel(MODEL_NAME)
+    model = bentoml.depends(Model)
+    item_index = bentoml.depends(ItemIndex)
+    user_index = bentoml.depends(UserIndex)
 
     @bentoml.api()
     @logger.catch(reraise=True)
-    async def search_items(self, query: BaseQuery) -> list[ItemCandidate]:
-        """Asynchronously search for items using the item index dependency.
-
-        This method delegates to the item index service's async `search`
-        implementation. It ensures `exclude_item_ids` is a list before
-        forwarding the call.
-
-        Args:
-            query (BaseQuery): Query object containing an `embedding` to search
-                with.
-            exclude_item_ids (list[str] | None): Optional list of item ids to
-                exclude from the results.
-            top_k (int): Number of candidates to return.
-
-        Returns:
-            list[ItemCandidate]: The search results returned by the index.
-        """
+    async def recommend_with_query(self, query: Query) -> list[ItemCandidate]:
+        query = await self.process_query(query)
+        query = await self.embed_query(query)
+        query.exclude_item_ids = [
+            *(query.exclude_item_ids or []),
+            *(query.item_ids or []),
+        ]
         if query.embedding is None:
             return []
-
         return await self.item_index.to_async.search(query)
+
+    async def process_query(self, query: Query) -> Query:
+        if query.item_ids is None:
+            return query
+        if query.input_embeds is not None:
+            return query
+
+        items: dict[str, ItemQuery] = await self.item_index.to_async.get_ids(
+            query.item_ids
+        )
+        item_ids = [item_id for item_id in query.item_ids if item_id in items]
+        query.item_ids = item_ids[-await self.model.to_async.max_seq_length() :]
+        embeddings = [items[item_id].embedding for item_id in query.item_ids]
+        query.input_embeds = np.stack(embeddings) if embeddings else None
+        return query
+
+    @bentoml.api()
+    @logger.catch(reraise=True)
+    async def embed_query(self, query: Query) -> Query:
+        if query.input_embeds is None:
+            return query
+        if query.embedding is not None:
+            return query
+
+        return (await self.model.to_async.embed([query]))[0]
+
+    @bentoml.api()
+    @logger.catch(reraise=True)
+    async def recommend_with_item_id(
+        self,
+        item_id: str,
+        exclude_item_ids: list[str] | None = None,
+        top_k: int = TOP_K,
+    ) -> list[ItemCandidate]:
+        item = await self.item_id(item_id)
+        query = Query(
+            item_ids=[item.item_id],
+            item_texts=[item.item_text],
+            input_embeds=item.embedding[None, :] if item.embedding is not None else None,
+            exclude_item_ids=exclude_item_ids,
+            top_k=top_k,
+        )
+        return await self.recommend_with_query(query)
+
+    @bentoml.api()
+    @logger.catch(reraise=True)
+    async def recommend_with_user_id(
+        self,
+        user_id: str,
+        exclude_item_ids: list[str] | None = None,
+        top_k: int = TOP_K,
+    ) -> list[ItemCandidate]:
+        user = await self.user_id(user_id)
+        item_ids: list[str] = []
+        item_texts: list[str] = []
+        if user.history:
+            item_ids += user.history.item_id
+            item_texts += user.history.item_text
+        if user.target:
+            item_ids += user.target.item_id
+            item_texts += user.target.item_text
+
+        query = Query(
+            item_ids=item_ids,
+            item_texts=item_texts,
+            exclude_item_ids=exclude_item_ids,
+            top_k=top_k,
+        )
+        return await self.recommend_with_query(query)
 
     @bentoml.api()
     @logger.catch(reraise=True)
     async def item_id(self, item_id: str) -> ItemQuery:
-        """Asynchronously retrieve an item by id using the item index.
-
-        Args:
-            item_id (str): The id of the item to fetch.
-
-        Returns:
-            ItemQuery: The item model returned by the index.
-        """
         return await self.item_index.to_async.get_id(item_id)
 
     @bentoml.api()
     @logger.catch(reraise=True)
     async def user_id(self, user_id: str) -> UserQuery:
-        """Asynchronously retrieve a user by id using the user index.
-
-        Args:
-            user_id (str): The id of the user to fetch.
-
-        Returns:
-            UserQuery: The user model returned by the index.
-        """
         return await self.user_index.to_async.get_id(user_id)
 
     @bentoml.api()
     @logger.catch(reraise=True)
     async def model_version(self) -> str:
-        """Return the BentoModel's version tag as a string.
-
-        Returns:
-            str: The model version from the BentoModel tag.
-        """
         return self.model_ref.tag.version
 
     @bentoml.api()
     @logger.catch(reraise=True)
     async def model_name(self) -> str:
-        """Return the BentoModel's name tag as a string.
-
-        Returns:
-            str: The model name from the BentoModel tag.
-        """
         return self.model_ref.tag.name
