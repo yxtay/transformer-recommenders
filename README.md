@@ -4,7 +4,9 @@ Transformer-based Recommender Models in PyTorch for MovieLens
 
 ## Overview
 
-This repository provides a sequential transformer recommender system using item embeddings from pre-trained sentence-transformers. It is designed for research and experimentation on MovieLens data, with scalable data access and experiment tracking.
+This repository provides a sequential transformer recommender system using item embeddings
+from pre-trained sentence-transformers. It is designed for research and experimentation
+on MovieLens data, with scalable data access and experiment tracking.
 
 ## Architecture & Components
 

@@ -780,7 +780,9 @@ class SeqDataset(torch_data.Dataset[SeqExample]):
             "history_item_text": self.item_texts[
                 (history_item_idx[sampled_indices] - 1).tolist()
             ],
-            "pos_item_text": self.item_texts[(pos_item_idx - 1).tolist()],
+            "pos_item_text": [
+                self.item_texts[i - 1] if i > 0 else "" for i in pos_item_idx.tolist()
+            ],
             "neg_item_text": self.item_texts[(neg_item_idx - 1).tolist()],
         }
 

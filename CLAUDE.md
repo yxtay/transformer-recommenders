@@ -27,7 +27,8 @@ uv run data
 
 ## Architecture
 
-The package is `xfmr_rec/`. It implements a sequential transformer recommender model with pre-trained sentence-transformer item embeddings.
+The package is `xfmr_rec/`. It implements a sequential transformer recommender model
+with pre-trained sentence-transformer item embeddings.
 
 **Core components in `xfmr_rec/`:**
 
@@ -40,9 +41,12 @@ The package is `xfmr_rec/`. It implements a sequential transformer recommender m
 - `service.py` — BentoML service scaffolding
 - `deploy.py` — Checkpoint-to-service helpers and smoke tests
 
-**Training flow:** `xfmr_rec/trainer.py` defines a `RecommenderLightningModule` and calls `xfmr_rec.trainer.LightningCLI.main()`. The CLI is JSONArgparse-based.
+**Training flow:** `xfmr_rec/trainer.py` defines a `RecommenderLightningModule` and calls
+`xfmr_rec.trainer.LightningCLI.main()`. The CLI is JSONArgparse-based.
 
-**Serving flow:** `xfmr_rec/deploy.py` loads a Lightning checkpoint, reconstructs the model config, builds a LanceDB index, and registers the model in BentoML. `xfmr_rec/service.py` wraps it in a BentoML `Service`.
+**Serving flow:** `xfmr_rec/deploy.py` loads a Lightning checkpoint, reconstructs the model config,
+builds a LanceDB index, and registers the model in BentoML.
+`xfmr_rec/service.py` wraps it in a BentoML `Service`.
 
 ## Toolchain
 
