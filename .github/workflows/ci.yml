@@ -56,13 +56,10 @@ jobs:
         run: uv run deploy
 
       - if: ${{ failure() }}
-        run: uv run python -m "${PROJECT_NAME}.trainer"
+        run: uv run python -c "import ${PROJECT_NAME}.trainer"
 
       - if: ${{ failure() }}
-        run: uv run python -m "${PROJECT_NAME}.data"
-
-      - if: ${{ failure() }}
-        run: uv run data
+        run: uv run python -c "import ${PROJECT_NAME}.data"
 
   docker:
     permissions:
@@ -123,19 +120,14 @@ jobs:
       - if: ${{ failure() }}
         run: |
           ${DOCKER_RUN_CMD} "${IMAGE_ID}" \
-            python -m "${PROJECT_NAME}.trainer"
+            python -c "import ${PROJECT_NAME}.trainer"
         env:
           IMAGE_ID: ${{ steps.build.outputs.imageid }}
 
       - if: ${{ failure() }}
         run: |
           ${DOCKER_RUN_CMD} "${IMAGE_ID}" \
-            python -m "${PROJECT_NAME}.data"
-        env:
-          IMAGE_ID: ${{ steps.build.outputs.imageid }}
-
-      - if: ${{ failure() }}
-        run: ${DOCKER_RUN_CMD} "${IMAGE_ID}" uv run data
+            python -c "import ${PROJECT_NAME}.data"
         env:
           IMAGE_ID: ${{ steps.build.outputs.imageid }}
 
