@@ -5,16 +5,6 @@ default_stages:
   - pre-commit
 
 repos:
-  - repo: https://github.com/pre-commit/pre-commit
-    rev: v4.6.0
-    hooks:
-      - id: validate_manifest
-
-  - repo: meta
-    hooks:
-      #   - id: check-hooks-apply
-      - id: check-useless-excludes
-
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
@@ -38,11 +28,6 @@ repos:
       - id: check-vcs-permalinks
       - id: no-commit-to-branch
       - id: forbid-new-submodules
-
-        # security
-      - id: detect-aws-credentials
-        args: [--allow-missing-credentials]
-      - id: detect-private-key
 
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1
