@@ -508,4 +508,45 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    import rich
+
+    from xfmr_rec.data import SeqDataModuleConfig
+
+    datamodule = SeqDataModule(SeqDataModuleConfig())
+    datamodule.prepare_data()
+    datamodule.setup()
+    model = RecommenderLightningModule(LightningConfig())
+    model.items_dataset = datamodule.items_dataset
+    model.configure_model()
+
+    # train
+    rich.print(model(*model.example_input_array))
+    rich.print(model.compute_losses(next(iter(datamodule.train_dataloader()))))
+
+    # validate
+    assert datamodule.items_dataset is not None
+    model.items_index.index_data(datamodule.items_dataset)
+    rich.print(model.compute_metrics(next(iter(datamodule.val_dataloader())), "val"))
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        trainer_args = {
+            "accelerator": "cpu",
+            "logger": False,
+            "max_epochs": 1,
+            "limit_train_batches": 1,
+            "limit_val_batches": 1,
+            "limit_test_batches": 1,
+            "limit_predict_batches": 1,
+            "default_root_dir": tmpdir,
+        }
+        data_args = {"config": {"num_workers": 0}}
+        args = {"trainer": trainer_args, "data": data_args}
+
+        cli = LightningCLI().main(args={"fit": args})
+        rich.print(cli.trainer.validate(ckpt_path="best", datamodule=cli.datamodule)[0])
+        rich.print(cli.trainer.test(ckpt_path="best", datamodule=cli.datamodule)[0])
+        rich.print(cli.trainer.predict(ckpt_path="best", datamodule=cli.datamodule)[0])
+
+        ckpt_path = next(pathlib.Path(tmpdir).glob("**/*.ckpt"))
+        model = RecommenderLightningModule.load_from_checkpoint(ckpt_path)
+        rich.print(model)
