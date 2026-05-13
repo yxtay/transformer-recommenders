@@ -478,7 +478,7 @@ class LightningCLI:
     ) -> lp.Trainer:
         """Create and configure a Lightning Trainer optionally from a checkpoint."""
         if not ckpt_path:
-            args = {"trainer": {"fast_dev_run": True}}
+            args = {"trainer": {"fast_dev_run": True, "accelerator": "cpu"}}
             return self.main({"fit": args}).trainer
 
         with tempfile.TemporaryDirectory() as tmp:

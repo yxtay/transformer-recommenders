@@ -47,6 +47,7 @@ jobs:
       - if: ${{ success() || failure() }}
         run: |
           uv run train fit \
+            --trainer.accelerator cpu \
             --trainer.limit_train_batches 1 \
             --trainer.limit_val_batches 1 \
             --data.config.num_workers 0
@@ -107,6 +108,7 @@ jobs:
         run: |
           ${DOCKER_RUN_CMD} "${IMAGE_ID}" \
             uv run train fit \
+            --trainer.accelerator cpu \
             --trainer.limit_train_batches 1 \
             --trainer.limit_val_batches 1 \
             --data.config.num_workers 0
