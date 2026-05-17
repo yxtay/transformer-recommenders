@@ -29,14 +29,16 @@ jobs:
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: true # zizmor: ignore[artipacked]
           fetch-depth: (${{ github.event.pull_request.commits || 2 }} + 1)
 
       - id: megalinter
         # You can override MegaLinter flavor used to have faster performances
         # More info at https://megalinter.io/latest/flavors/
-        uses: oxsecurity/megalinter/flavors/python@8fbdead70d1409964ab3d5afa885e18ee85388bb # v9
+        uses: oxsecurity/megalinter/flavors/python@0e3ce9b9c8c10effb9b269509cc47ca17cae31c7 # v9
         env:
-          DISABLE_ERRORS: ${{ github.event_name == 'push' }}
+          VALIDATE_ALL_CODEBASE: ${{ github.ref_name != github.event.repository.default_branch }} # Validates all source when push on main, else just the git diff with main. Override with true if you always want to lint all sources
+          DISABLE_ERRORS: ${{ github.ref_name != github.event.repository.default_branch }}
           GITHUB_TOKEN: ${{ github.token }}
 
       - if: ${{ success() || failure() }}
