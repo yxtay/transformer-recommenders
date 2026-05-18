@@ -20,7 +20,7 @@ changelog:
       labels:
         - fix
     - title: Maintenance 🔧
-      label:
+      labels:
         - build
         - ci
         - chore
