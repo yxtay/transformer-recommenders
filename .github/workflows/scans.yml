@@ -54,7 +54,7 @@ jobs:
           ref: ${{ github.head_ref && format('refs/heads/{0}', github.head_ref) || github.ref }}
           sha: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - if: ${{ failure() && steps.megalinter.outputs.has_updated_sources == 1 && github.event_name == 'pull_request' }}
+      - if: ${{ steps.megalinter.outputs.has_updated_sources == 1 && github.event_name == 'pull_request' }}
         name: commit changes
         run: |
           git config user.email "${GITHUB_ACTOR_ID}+${GITHUB_ACTOR}@users.noreply.github.com"
