@@ -30,7 +30,7 @@ repos:
       - id: forbid-new-submodules
 
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.30.1
+    rev: v8.30.0
     hooks:
       - id: gitleaks
 
@@ -40,7 +40,7 @@ repos:
       - id: actionlint
 
   - repo: https://github.com/editorconfig-checker/editorconfig-checker
-    rev: v3.6.1
+    rev: v3.7.0
     hooks:
       - id: editorconfig-checker
 
