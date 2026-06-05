@@ -3,6 +3,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
     branches: [main]
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
 jobs:
   pr:
     uses: yxtay/.github/.github/workflows/pr.yml@main
