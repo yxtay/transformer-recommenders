@@ -3,46 +3,11 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
     branches: [main]
-
 permissions: {}
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref_name != github.event.repository.default_branch }}
-
 jobs:
-  lint-title:
-    permissions:
-      pull-requests: read
-
-    runs-on: ubuntu-latest
-    steps:
-      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-
-  label:
+  pr:
     permissions:
       contents: read
       issues: write
       pull-requests: write
-
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/labeler@f27b608878404679385c85cfa523b85ccb86e213 # v6
-
-  label-size:
-    permissions:
-      contents: read
-      issues: write
-      pull-requests: write
-
-    runs-on: ubuntu-latest
-    steps:
-      - uses: pascalgn/size-label-action@56b489b027932ec0cf60438a1a5f1a19c8fc71ff # v0.5.7
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          IGNORED: |
-            package-lock.json
-            *.lock
-            docs/**
+    uses: yxtay/.github/.github/workflows/pr.yml@main
