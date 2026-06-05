@@ -12,6 +12,11 @@ concurrency:
   cancel-in-progress: ${{ github.ref_name != github.event.repository.default_branch }}
 jobs:
   reusable:
+    permissions:
+      contents: write
+      pull-requests: write
+      security-events: write
+      statuses: write
     uses: yxtay/.github/.github/workflows/scans.yml@main
   megalinter:
     permissions:
