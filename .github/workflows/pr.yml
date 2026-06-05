@@ -6,4 +6,3 @@ on:
 jobs:
   pr:
     uses: yxtay/.github/.github/workflows/pr.yml@main
-

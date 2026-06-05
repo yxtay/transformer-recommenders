@@ -9,4 +9,3 @@ on:
 jobs:
   ossf:
     uses: yxtay/.github/.github/workflows/ossf.yml@main
-

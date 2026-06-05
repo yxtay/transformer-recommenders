@@ -5,4 +5,3 @@ on:
 jobs:
   automerge:
     uses: yxtay/.github/.github/workflows/automerge.yml@main
-
