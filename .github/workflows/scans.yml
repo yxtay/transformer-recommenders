@@ -14,7 +14,7 @@ jobs:
       pull-requests: write
       security-events: write
       statuses: write
-    uses: yxtay/.github/.github/workflows/scans.yml@main
+    uses: yxtay/.github/.github/workflows/scans.yml@223814b345521dfde57017032491e98a609fad62 # main
   megalinter:
     permissions:
       contents: write
