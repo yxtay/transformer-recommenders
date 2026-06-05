@@ -6,10 +6,11 @@ on:
     branches: [main]
   merge_group:
     branches: [main]
-permissions:
-  contents: read
-  id-token: write
-  security-events: write
+permissions: {}
 jobs:
   ossf:
+    permissions:
+      contents: read
+      id-token: write
+      security-events: write
     uses: yxtay/.github/.github/workflows/ossf.yml@main

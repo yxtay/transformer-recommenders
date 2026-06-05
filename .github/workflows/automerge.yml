@@ -2,9 +2,10 @@ name: automerge
 on:
   pull_request:
     branches: [main]
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 jobs:
   automerge:
+    permissions:
+      contents: write
+      pull-requests: write
     uses: yxtay/.github/.github/workflows/automerge.yml@main
