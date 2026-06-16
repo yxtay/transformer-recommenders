@@ -15,45 +15,6 @@ jobs:
       security-events: write
       statuses: write
     uses: yxtay/.github/.github/workflows/scans.yml@aeaed65458776fdb4725919db393d6c21418e1e5 # main
-  megalinter:
-    permissions:
-      contents: write
-      pull-requests: write
-      security-events: write
-      statuses: write
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: ${{ github.event_name == 'pull_request' }} # zizmor: ignore[artipacked]
-          fetch-depth: (${{ github.event.pull_request.commits || 2 }} + 1)
-      - id: megalinter
-        uses: oxsecurity/megalinter/flavors/python@0e3ce9b9c8c10effb9b269509cc47ca17cae31c7 # v9
-        env:
-          VALIDATE_ALL_CODEBASE: ${{ github.ref_name != github.event.repository.default_branch }}
-          DISABLE_ERRORS: ${{ github.ref_name != github.event.repository.default_branch }}
-          GITHUB_TOKEN: ${{ github.token }}
-      - if: ${{ success() || failure() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: megalinter-reports
-          path: megalinter-reports
-      - if: ${{ success() || failure() }}
-        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4
-        with:
-          sarif_file: megalinter-reports/megalinter-report.sarif
-          ref: ${{ github.head_ref && format('refs/heads/{0}', github.head_ref) || github.ref }}
-          sha: ${{ github.event.pull_request.head.sha || github.sha }}
-      - if: ${{ steps.megalinter.outputs.has_updated_sources == 1 && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork }}
-        name: commit changes
-        run: |
-          git config user.email "${GITHUB_ACTOR_ID}+${GITHUB_ACTOR}@users.noreply.github.com"
-          git config user.name "${GITHUB_ACTOR}"
-          git commit --all --message "${COMMIT_MESSAGE}"
-          git push origin "HEAD:refs/heads/${GITHUB_HEAD_REF}"
-        env:
-          COMMIT_MESSAGE: "fix: apply megalinter fixes"
-          GITHUB_ACTOR: megalinter-bot
-          GITHUB_ACTOR_ID: 129584137
+    with:
+      run-ci_light: false
+      run-python: true
