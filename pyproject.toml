@@ -19,7 +19,7 @@ dependencies = [
   "lancedb[pylance]>=0.19,<1.0",
   "lightning~=2.6",
   "loguru>=0.7,<1.0",
-  "mlflow-skinny~=3.1",
+  "mlflow~=3.1",
   "polars[pandas]~=1.19",
   "pydantic-settings~=2.14",
   "sentence-transformers[onnx,train]~=5.0",
@@ -31,7 +31,6 @@ dependencies = [
 dev = [
   "flaml[automl,blendsearch]~=2.3",
   "huggingface-hub[cli]>=0.35",
-  "mlflow",
   "pyarrow-stubs>=20.0",
   "pytest~=9.0",
   "standard-imghdr~=3.13",
