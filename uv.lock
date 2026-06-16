@@ -4022,7 +4022,7 @@ dependencies = [
     { name = "lancedb", extra = ["pylance"] },
     { name = "lightning" },
     { name = "loguru" },
-    { name = "mlflow-skinny" },
+    { name = "mlflow" },
     { name = "polars", extra = ["pandas"] },
     { name = "pydantic-settings" },
     { name = "sentence-transformers", extra = ["onnx", "train"] },
@@ -4035,7 +4035,6 @@ dependencies = [
 dev = [
     { name = "flaml", extra = ["automl", "blendsearch"] },
     { name = "huggingface-hub", extra = ["cli"] },
-    { name = "mlflow" },
     { name = "pyarrow-stubs" },
     { name = "pytest" },
     { name = "standard-imghdr" },
@@ -4050,7 +4049,7 @@ requires-dist = [
     { name = "lancedb", extras = ["pylance"], specifier = ">=0.19,<1.0" },
     { name = "lightning", specifier = "~=2.6" },
     { name = "loguru", specifier = ">=0.7,<1.0" },
-    { name = "mlflow-skinny", specifier = "~=3.1" },
+    { name = "mlflow", specifier = "~=3.1" },
     { name = "polars", extras = ["pandas"], specifier = "~=1.19" },
     { name = "pydantic-settings", specifier = "~=2.14" },
     { name = "sentence-transformers", extras = ["onnx", "train"], specifier = "~=5.0" },
@@ -4062,7 +4061,6 @@ requires-dist = [
 dev = [
     { name = "flaml", extras = ["automl", "blendsearch"], specifier = "~=2.3" },
     { name = "huggingface-hub", extras = ["cli"], specifier = ">=0.35" },
-    { name = "mlflow" },
     { name = "pyarrow-stubs", specifier = ">=20.0" },
     { name = "pytest", specifier = "~=9.0" },
     { name = "standard-imghdr", specifier = "~=3.13" },

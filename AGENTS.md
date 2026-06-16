@@ -54,5 +54,5 @@ builds a LanceDB index, and registers the model in BentoML.
 - **Linter / formatter:** `ruff` — `ALL` rules selected; `D`, `E501`, `S101`, `T201`, `COM812`, `ERA001`,
   `ISC001`, `PLC0415` ignored
 - **Pre-commit hooks:** ruff, taplo (TOML), yamlfmt, markdownlint-cli2, shfmt, shellcheck, hadolint, gitleaks, uv-lock
-- **Experiment tracking:** MLflow + TensorBoard (logs in `mlruns/` and `lightning_logs/`)
+- **Experiment tracking:** MLflow + TensorBoard (logs in `mlruns.db` and `lightning_logs/`)
 - **Container:** `Dockerfile` + `compose.yaml`; image at `ghcr.io/yxtay/transformer-recommenders`
