@@ -21,7 +21,7 @@ on MovieLens data, with scalable data access and experiment tracking.
   - `data/`: Raw and processed MovieLens datasets (Parquet format)
   - `lance_db/`: LanceDB format for fast retrieval
 - **Experiment Logs:**
-  - `lightning_logs/`, `mlruns/`: Model checkpoints and experiment tracking (MLflow)
+  - `lightning_logs/`, `mlruns.db`: Model checkpoints and experiment tracking (MLflow)
 
 ## Installation
 
