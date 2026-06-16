@@ -440,6 +440,7 @@ class LightningCLI:
             "init_args": {
                 "experiment_name": model_name,
                 "run_name": run_name,
+                "tracking_uri": "sqlite:///mlruns.db",
                 "run_id": run_id,
                 "log_model": log_model,
             },
