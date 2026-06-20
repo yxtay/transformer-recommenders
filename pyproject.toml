@@ -24,7 +24,7 @@ dependencies = [
   "pydantic-settings~=2.14",
   "sentence-transformers[onnx,train]~=5.0",
   "tensorboard~=2.18",
-  "torch~=2.5",
+  "torch~=2.12",
 ]
 
 [dependency-groups]
