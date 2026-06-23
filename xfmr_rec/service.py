@@ -21,9 +21,7 @@ from xfmr_rec.params import (
     USERS_TABLE_NAME,
 )
 
-NumpyArrayType = Annotated[
-    np.ndarray[tuple[int], np.dtype[np.float32]], DType("float32")
-]
+NumpyArrayType = Annotated[np.typing.NDArray[np.float32], DType("float32")]
 MODEL_NAME = "xfmr_rec"
 
 
