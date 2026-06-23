@@ -165,5 +165,5 @@ data.lock
 lance_db
 lightning_logs
 megalinter-reports
-mlruns.db
+mlflow.db
 ray_results
