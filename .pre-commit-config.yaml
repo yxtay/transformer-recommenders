@@ -40,7 +40,7 @@ repos:
       - id: actionlint
 
   - repo: https://github.com/editorconfig-checker/editorconfig-checker
-    rev: v3.7.0
+    rev: v3.8.0
     hooks:
       - id: editorconfig-checker
 
