@@ -13,4 +13,4 @@ jobs:
       contents: read
       id-token: write
       security-events: write
-    uses: yxtay/.github/.github/workflows/ossf.yml@bd0327b7943ebec327794eee9b8980e393b802aa # main
+    uses: yxtay/.github/.github/workflows/ossf.yml@7db1bba9c5225dc8e2ee4cda2a903cdd11bbe630 # main
