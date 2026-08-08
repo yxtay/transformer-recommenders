@@ -8,4 +8,4 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    uses: yxtay/.github/.github/workflows/automerge.yml@d81a291e0b99afac95c04cc1ebb4100de5012d3b # main
+    uses: yxtay/.github/.github/workflows/automerge.yml@a14c59c9e524cb168c8d5647b1985920faeb9630 # main
