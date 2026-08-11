@@ -14,7 +14,7 @@ jobs:
       pull-requests: write
       security-events: write
       statuses: write
-    uses: yxtay/.github/.github/workflows/scans.yml@a14c59c9e524cb168c8d5647b1985920faeb9630 # main
+    uses: yxtay/.github/.github/workflows/scans.yml@1ef4c90d80c9f3291a78b613b5f37012a39485ef # main
     with:
       run-ci_light: false
       run-python: true
