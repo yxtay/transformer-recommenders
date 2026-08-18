@@ -26,6 +26,10 @@
       "groupName": "python",
       "matchPackageNames": ["python"],
       "matchUpdateTypes": ["minor"]
+    },
+    {
+      "matchDepNames": ["gitleaks/gitleaks"],
+      "allowedVersions": ">8.30.1"
     }
   ]
 }
