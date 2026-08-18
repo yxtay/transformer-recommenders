@@ -1,4 +1,4 @@
-name: scans
+name: megalinter
 on:
   push:
     branches: [main]
