@@ -14,7 +14,7 @@ jobs:
       pull-requests: write
       security-events: write
       statuses: write
-    uses: yxtay/.github/.github/workflows/megalinter.yml@0c8dfdd29834122adcca261b6336afd192a25790 # main
+    uses: yxtay/.github/.github/workflows/megalinter.yml@ee64afffc4caaa29e91d25a5625518b4d45ccb2e # main
     with:
       run-ci_light: false
       run-python: true
