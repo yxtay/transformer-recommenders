@@ -22,7 +22,7 @@ dependencies = [
   "mlflow~=3.1",
   "polars[pandas]~=1.19",
   "pydantic-settings~=2.15",
-  "sentence-transformers[onnx,train]~=5.0",
+  "sentence-transformers[train]~=6.0",
   "tensorboard~=2.18",
   "torch~=2.12",
 ]
