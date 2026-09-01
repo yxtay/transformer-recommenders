@@ -78,6 +78,7 @@ jobs:
       DOCKER_RUN_CMD: >-
         docker run
           --env "HF_HOME=/tmp/huggingface"
+          --env "HTTPX_NO_VERIFY=${HTTPX_NO_VERIFY}"
           --volume /tmp/huggingface:/tmp/huggingface
     steps:
       - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
