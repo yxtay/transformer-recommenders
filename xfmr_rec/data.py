@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import pathlib
 import shutil
 import tempfile
@@ -63,8 +64,12 @@ def download_data(
     # download zip
     if not dest.exists() or overwrite:
         logger.info("downloading data: {}", url)
+        verify = os.environ.get("HTTPX_NO_VERIFY", "").lower() not in ("1", "true")
         # download to temp file, then move to xfmr_rec/data.py
-        with httpx.stream("GET", url) as resp, tempfile.NamedTemporaryFile() as f:
+        with (
+            httpx.stream("GET", url, verify=verify) as resp,
+            tempfile.NamedTemporaryFile() as f,
+        ):
             resp.raise_for_status()
             for chunk in resp.iter_bytes():
                 f.write(chunk)
