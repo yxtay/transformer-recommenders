@@ -13,6 +13,9 @@ on:
 
 permissions: {}
 
+env:
+  HTTPX_NO_VERIFY: "1"
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref_name != github.event.repository.default_branch }}
