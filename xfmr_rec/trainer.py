@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 import pathlib
 import tempfile
 from typing import TYPE_CHECKING, Any
@@ -91,7 +91,7 @@ def time_now_isoformat() -> str:
     Returns:
         str: ISO 8601 formatted current datetime with timezone offset.
     """
-    datetime_now = datetime.datetime.now(datetime.UTC).astimezone()
+    datetime_now = dt.datetime.now(dt.UTC).astimezone()
     return datetime_now.isoformat(timespec="seconds")
 
 
