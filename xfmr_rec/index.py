@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 import math
 import pathlib
 import shutil
@@ -200,7 +200,7 @@ class LanceIndex:
             )
 
         self.table.optimize(
-            cleanup_older_than=datetime.timedelta(days=0),
+            cleanup_older_than=dt.timedelta(days=0),
             delete_unverified=True,
             retrain=True,
         )
