@@ -10,4 +10,4 @@ jobs:
       contents: read
       issues: write
       pull-requests: write
-    uses: yxtay/.github/.github/workflows/pr.yml@b74552f44c27ebf6e978315a0d4f713b2d8f803f # main
+    uses: yxtay/.github/.github/workflows/pr.yml@3d924ebdedc1bb41f560eef56b7189a561282b87 # main
